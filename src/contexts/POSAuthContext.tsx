@@ -243,6 +243,7 @@ export function POSAuthProvider({ children }: { children: ReactNode }) {
         lastActivityAt,
         isLocked,
         isAuthenticated,
+        setIsLocked,
         login,
         logout,
         unlock,
