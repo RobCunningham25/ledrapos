@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
-import { Monitor, Settings, Users } from 'lucide-react';
+import { Monitor, Settings } from 'lucide-react';
+import { useVenue } from '@/contexts/VenueContext';
 
 const navCards = [
   {
@@ -14,28 +15,24 @@ const navCards = [
     icon: Settings,
     to: '/admin',
   },
-  {
-    title: 'Member Portal',
-    description: 'View account, credits, and purchase history',
-    icon: Users,
-    to: '/member-portal',
-  },
 ];
 
 const Index = () => {
+  const { venueName } = useVenue();
+
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-page px-4">
       <div className="mb-12 text-center">
         <h1 className="text-4xl font-bold text-primary">LedraPOS</h1>
-        <p className="mt-2 text-lg text-muted-foreground">Vaal Cruising Association</p>
+        <p className="mt-2 text-lg text-muted-foreground">{venueName}</p>
       </div>
 
-      <div className="grid w-full max-w-3xl grid-cols-1 gap-6 sm:grid-cols-3">
+      <div className="flex w-full max-w-2xl justify-center gap-6">
         {navCards.map((card) => (
           <Link
             key={card.to}
             to={card.to}
-            className="group flex flex-col items-center rounded-lg border border-border bg-card p-6 shadow-subtle transition-shadow hover:shadow-md"
+            className="group flex w-full max-w-xs flex-col items-center rounded-lg border border-border bg-card p-6 shadow-subtle transition-shadow hover:shadow-md"
           >
             <card.icon className="mb-4 h-10 w-10 text-primary opacity-80 group-hover:opacity-100" />
             <h2 className="text-lg font-semibold text-card-foreground">{card.title}</h2>
