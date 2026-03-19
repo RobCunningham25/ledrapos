@@ -1,16 +1,21 @@
 import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { usePOSAuth } from '@/contexts/POSAuthContext';
+import { useCart } from '@/contexts/CartContext';
 import { usePOSProducts } from '@/hooks/usePOSProducts';
 import { formatCents } from '@/utils/currency';
-import { CATEGORIES, CATEGORY_COLORS, getCategoryLabel } from '@/constants/productCategories';
+import { CATEGORIES, CATEGORY_COLORS } from '@/constants/productCategories';
 import PINLogin from '@/components/pos/PINLogin';
 import LockScreen from '@/components/pos/LockScreen';
+import TabPanel from '@/components/pos/TabPanel';
+import OpenTabsModal from '@/components/pos/OpenTabsModal';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Search } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { supabase } from '@/integrations/supabase/client';
+import { useVenue } from '@/contexts/VenueContext';
 
 const POS = () => {
   const { currentUser, isAuthenticated, isLocked, refreshActivity, logout, setIsLocked } = usePOSAuth();
@@ -32,22 +37,18 @@ const POS = () => {
 
   return (
     <div className="flex flex-col h-screen overflow-hidden">
-      {/* Top bar */}
       <TopBar
         userName={currentUser.name}
         userRole={currentUser.role}
         onTestLock={() => setIsLocked(true)}
         onLogout={handleLogout}
       />
-      {/* Two-panel layout */}
       <div className="flex flex-1 min-h-0">
         <div className="w-[60%] flex flex-col min-h-0 bg-page">
           <ProductBrowser />
         </div>
         <div className="w-[40%] flex flex-col min-h-0 bg-card border-l border-border">
-          <div className="flex flex-1 items-center justify-center">
-            <p className="text-muted-foreground">Active Tab</p>
-          </div>
+          <TabPanel />
         </div>
       </div>
     </div>
@@ -60,45 +61,85 @@ function TopBar({
   userName: string; userRole: string; onTestLock: () => void; onLogout: () => void;
 }) {
   const [time, setTime] = useState(new Date());
+  const [showTabs, setShowTabs] = useState(false);
+  const [openTabCount, setOpenTabCount] = useState(0);
+  const { venueId } = useVenue();
+
   useEffect(() => {
     const id = setInterval(() => setTime(new Date()), 1000);
     return () => clearInterval(id);
   }, []);
+
+  // Fetch open tab count
+  useEffect(() => {
+    const fetch = async () => {
+      const { count } = await supabase
+        .from('tabs')
+        .select('id', { count: 'exact', head: true })
+        .eq('venue_id', venueId)
+        .eq('status', 'OPEN');
+      setOpenTabCount(count || 0);
+    };
+    fetch();
+    const id = setInterval(fetch, 15000);
+    return () => clearInterval(id);
+  }, [venueId]);
 
   const formatted = time.toLocaleDateString('en-ZA', {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
   }) + '  •  ' + time.toLocaleTimeString('en-ZA', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
 
   return (
-    <header className="h-14 shrink-0 flex items-center justify-between px-4 bg-card border-b border-border">
-      <span className="text-base font-bold text-primary">LedraPOS</span>
-      <span className="text-sm text-muted-foreground hidden sm:block">{formatted}</span>
-      <div className="flex items-center gap-3">
-        <span className="text-sm text-muted-foreground">
-          {userName} <span className="text-xs">({userRole})</span>
-        </span>
-        <Button variant="outline" size="sm" className="text-xs text-muted-foreground" onClick={onTestLock}>
-          Test Lock
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          className="text-xs text-destructive border-destructive/30 hover:bg-destructive/10"
-          onClick={onLogout}
-        >
-          Log Out
-        </Button>
-      </div>
-    </header>
+    <>
+      <header className="h-14 shrink-0 flex items-center justify-between px-4 bg-card border-b border-border">
+        <span className="text-base font-bold text-primary">LedraPOS</span>
+        <span className="text-sm text-muted-foreground hidden sm:block">{formatted}</span>
+        <div className="flex items-center gap-3">
+          <Button
+            variant="outline"
+            size="sm"
+            className="text-xs relative"
+            onClick={() => setShowTabs(true)}
+          >
+            Open Tabs
+            {openTabCount > 0 && (
+              <span className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center">
+                {openTabCount}
+              </span>
+            )}
+          </Button>
+          <span className="text-sm text-muted-foreground">
+            {userName} <span className="text-xs">({userRole})</span>
+          </span>
+          <Button variant="outline" size="sm" className="text-xs text-muted-foreground" onClick={onTestLock}>
+            Test Lock
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="text-xs text-destructive border-destructive/30 hover:bg-destructive/10"
+            onClick={onLogout}
+          >
+            Log Out
+          </Button>
+        </div>
+      </header>
+      <OpenTabsModal open={showTabs} onClose={() => setShowTabs(false)} />
+    </>
   );
 }
 
 function ProductBrowser() {
   const { products, isLoading } = usePOSProducts();
+  const { addToCart, localCart, activeMember, isCashCustomer } = useCart();
   const [activeCategory, setActiveCategory] = useState('all');
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [noCustomerMsg, setNoCustomerMsg] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout>>();
+  const msgTimerRef = useRef<ReturnType<typeof setTimeout>>();
+
+  const hasCustomer = !!activeMember || isCashCustomer;
 
   const onSearchChange = useCallback((val: string) => {
     setSearch(val);
@@ -106,7 +147,7 @@ function ProductBrowser() {
     timerRef.current = setTimeout(() => setDebouncedSearch(val), 300);
   }, []);
 
-  useEffect(() => () => clearTimeout(timerRef.current), []);
+  useEffect(() => () => { clearTimeout(timerRef.current); clearTimeout(msgTimerRef.current); }, []);
 
   const filtered = useMemo(() => {
     return products.filter((p) => {
@@ -119,8 +160,31 @@ function ProductBrowser() {
     });
   }, [products, activeCategory, debouncedSearch]);
 
+  const cartQtyMap = useMemo(() => {
+    const map: Record<string, number> = {};
+    localCart.forEach(i => { map[i.productId] = i.qty; });
+    return map;
+  }, [localCart]);
+
+  const handleProductTap = (p: any) => {
+    if (!hasCustomer) {
+      setNoCustomerMsg(true);
+      clearTimeout(msgTimerRef.current);
+      msgTimerRef.current = setTimeout(() => setNoCustomerMsg(false), 3000);
+      return;
+    }
+    addToCart(p);
+  };
+
   return (
     <>
+      {/* No customer warning */}
+      {noCustomerMsg && (
+        <div className="shrink-0 mx-3 mt-2 px-3 py-2 rounded bg-warning/10 border border-warning/30 text-sm text-warning font-medium">
+          Select a member or cash customer first
+        </div>
+      )}
+
       {/* Category pills */}
       <div className="shrink-0 px-3 pt-3 pb-2 overflow-x-auto">
         <div className="flex gap-2">
@@ -181,13 +245,19 @@ function ProductBrowser() {
           <div className="grid grid-cols-3 gap-3">
             {filtered.map((p) => {
               const lowStock = p.stock_level <= p.min_stock_level;
+              const cartQty = cartQtyMap[p.id];
               return (
                 <button
                   key={p.id}
-                  onClick={() => console.log('Product tapped:', p.id)}
+                  onClick={() => handleProductTap(p)}
                   className="relative bg-card border border-border rounded-lg text-left overflow-hidden
                     transition-transform duration-100 active:scale-[0.97] min-h-[100px] flex flex-col"
                 >
+                  {cartQty > 0 && (
+                    <span className="absolute top-1 right-1 w-6 h-6 rounded-full bg-primary text-primary-foreground text-xs font-bold flex items-center justify-center z-10">
+                      {cartQty}
+                    </span>
+                  )}
                   <div className="h-1 w-full" style={{ backgroundColor: CATEGORY_COLORS[p.category] }} />
                   <div className="flex-1 p-3 flex flex-col justify-between">
                     <div>
