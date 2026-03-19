@@ -14,7 +14,491 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      liquor_products: {
+        Row: {
+          abv: number | null
+          barcode: string | null
+          brand: string | null
+          bulk_price_cents: number | null
+          bulk_units: number | null
+          category: string
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          is_available: boolean | null
+          min_stock_level: number
+          name: string
+          purchase_price_cents: number
+          selling_price_cents: number
+          size: string | null
+          stock_level: number
+          supplier: string | null
+          venue_id: string
+        }
+        Insert: {
+          abv?: number | null
+          barcode?: string | null
+          brand?: string | null
+          bulk_price_cents?: number | null
+          bulk_units?: number | null
+          category: string
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          is_available?: boolean | null
+          min_stock_level?: number
+          name: string
+          purchase_price_cents?: number
+          selling_price_cents?: number
+          size?: string | null
+          stock_level?: number
+          supplier?: string | null
+          venue_id: string
+        }
+        Update: {
+          abv?: number | null
+          barcode?: string | null
+          brand?: string | null
+          bulk_price_cents?: number | null
+          bulk_units?: number | null
+          category?: string
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          is_available?: boolean | null
+          min_stock_level?: number
+          name?: string
+          purchase_price_cents?: number
+          selling_price_cents?: number
+          size?: string | null
+          stock_level?: number
+          supplier?: string | null
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "liquor_products_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      member_credits: {
+        Row: {
+          amount_cents: number
+          created_at: string | null
+          description: string | null
+          id: string
+          member_id: string
+          method: string | null
+          type: string
+          venue_id: string
+        }
+        Insert: {
+          amount_cents: number
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          member_id: string
+          method?: string | null
+          type: string
+          venue_id: string
+        }
+        Update: {
+          amount_cents?: number
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          member_id?: string
+          method?: string | null
+          type?: string
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "member_credits_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "member_credits_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      member_favorites: {
+        Row: {
+          created_at: string | null
+          id: string
+          member_id: string
+          product_id: string
+          venue_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          member_id: string
+          product_id: string
+          venue_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          member_id?: string
+          product_id?: string
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "member_favorites_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "member_favorites_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "liquor_products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "member_favorites_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      members: {
+        Row: {
+          created_at: string | null
+          email: string | null
+          first_name: string
+          id: string
+          is_active: boolean | null
+          last_name: string
+          membership_number: string
+          membership_type: string
+          partner_name: string | null
+          phone: string | null
+          venue_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          email?: string | null
+          first_name: string
+          id?: string
+          is_active?: boolean | null
+          last_name: string
+          membership_number: string
+          membership_type?: string
+          partner_name?: string | null
+          phone?: string | null
+          venue_id: string
+        }
+        Update: {
+          created_at?: string | null
+          email?: string | null
+          first_name?: string
+          id?: string
+          is_active?: boolean | null
+          last_name?: string
+          membership_number?: string
+          membership_type?: string
+          partner_name?: string | null
+          phone?: string | null
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "members_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payments: {
+        Row: {
+          amount_cents: number
+          created_at: string | null
+          id: string
+          method: string
+          paid_at: string | null
+          reference: string | null
+          tab_id: string
+          venue_id: string
+        }
+        Insert: {
+          amount_cents: number
+          created_at?: string | null
+          id?: string
+          method: string
+          paid_at?: string | null
+          reference?: string | null
+          tab_id: string
+          venue_id: string
+        }
+        Update: {
+          amount_cents?: number
+          created_at?: string | null
+          id?: string
+          method?: string
+          paid_at?: string | null
+          reference?: string | null
+          tab_id?: string
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payments_tab_id_fkey"
+            columns: ["tab_id"]
+            isOneToOne: false
+            referencedRelation: "tabs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payments_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pos_sessions: {
+        Row: {
+          created_at: string | null
+          ended_at: string | null
+          id: string
+          notes: string | null
+          pos_user_id: string
+          started_at: string | null
+          venue_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          ended_at?: string | null
+          id?: string
+          notes?: string | null
+          pos_user_id: string
+          started_at?: string | null
+          venue_id: string
+        }
+        Update: {
+          created_at?: string | null
+          ended_at?: string | null
+          id?: string
+          notes?: string | null
+          pos_user_id?: string
+          started_at?: string | null
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pos_sessions_pos_user_id_fkey"
+            columns: ["pos_user_id"]
+            isOneToOne: false
+            referencedRelation: "pos_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pos_sessions_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pos_users: {
+        Row: {
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+          pin_hash: string
+          role: string
+          venue_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          pin_hash: string
+          role: string
+          venue_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          pin_hash?: string
+          role?: string
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pos_users_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tab_items: {
+        Row: {
+          created_at: string | null
+          id: string
+          line_total_cents: number
+          product_id: string
+          qty: number
+          tab_id: string
+          unit_price_cents: number
+          venue_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          line_total_cents?: number
+          product_id: string
+          qty?: number
+          tab_id: string
+          unit_price_cents: number
+          venue_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          line_total_cents?: number
+          product_id?: string
+          qty?: number
+          tab_id?: string
+          unit_price_cents?: number
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tab_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "liquor_products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tab_items_tab_id_fkey"
+            columns: ["tab_id"]
+            isOneToOne: false
+            referencedRelation: "tabs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tab_items_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tabs: {
+        Row: {
+          cash_customer_name: string | null
+          closed_at: string | null
+          created_at: string | null
+          id: string
+          is_cash_customer: boolean | null
+          member_id: string | null
+          opened_at: string | null
+          status: string
+          venue_id: string
+        }
+        Insert: {
+          cash_customer_name?: string | null
+          closed_at?: string | null
+          created_at?: string | null
+          id?: string
+          is_cash_customer?: boolean | null
+          member_id?: string | null
+          opened_at?: string | null
+          status?: string
+          venue_id: string
+        }
+        Update: {
+          cash_customer_name?: string | null
+          closed_at?: string | null
+          created_at?: string | null
+          id?: string
+          is_cash_customer?: boolean | null
+          member_id?: string | null
+          opened_at?: string | null
+          status?: string
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tabs_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tabs_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      venues: {
+        Row: {
+          address: string | null
+          contact_email: string | null
+          contact_phone: string | null
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+          slug: string
+        }
+        Insert: {
+          address?: string | null
+          contact_email?: string | null
+          contact_phone?: string | null
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          slug: string
+        }
+        Update: {
+          address?: string | null
+          contact_email?: string | null
+          contact_phone?: string | null
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          slug?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
