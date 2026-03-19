@@ -3,11 +3,14 @@ import { useNavigate } from 'react-router-dom';
 import { usePOSAuth } from '@/contexts/POSAuthContext';
 import { useCart } from '@/contexts/CartContext';
 import { usePOSProducts } from '@/hooks/usePOSProducts';
+import { useMemberFavourites } from '@/hooks/useMemberFavourites';
+import { useVenue } from '@/contexts/VenueContext';
 import { formatCents } from '@/utils/currency';
 import { CATEGORIES, CATEGORY_COLORS } from '@/constants/productCategories';
 import PINLogin from '@/components/pos/PINLogin';
 import LockScreen from '@/components/pos/LockScreen';
 import TabPanel from '@/components/pos/TabPanel';
+import OpenTabsPanel from '@/components/pos/OpenTabsPanel';
 import OpenTabsModal from '@/components/pos/OpenTabsModal';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,13 +18,11 @@ import { Badge } from '@/components/ui/badge';
 import { Search } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
-import { useVenue } from '@/contexts/VenueContext';
 
 const POS = () => {
   const { currentUser, isAuthenticated, isLocked, refreshActivity, logout, setIsLocked } = usePOSAuth();
   const navigate = useNavigate();
 
-  // Activity tracking
   useEffect(() => {
     if (!currentUser) return;
     const handler = () => refreshActivity();
@@ -44,9 +45,7 @@ const POS = () => {
         onLogout={handleLogout}
       />
       <div className="flex flex-1 min-h-0">
-        <div className="w-[60%] flex flex-col min-h-0 bg-page">
-          <ProductBrowser />
-        </div>
+        <LeftPanel />
         <div className="w-[40%] flex flex-col min-h-0 bg-card border-l border-border">
           <TabPanel />
         </div>
@@ -54,6 +53,33 @@ const POS = () => {
     </div>
   );
 };
+
+function LeftPanel() {
+  const { activeMember, isCashCustomer } = useCart();
+  const hasCustomer = !!activeMember || isCashCustomer;
+
+  return (
+    <div className="w-[60%] flex flex-col min-h-0 bg-page relative">
+      {/* Fade transition */}
+      <div
+        className={cn(
+          'absolute inset-0 flex flex-col transition-opacity duration-150',
+          hasCustomer ? 'opacity-100 pointer-events-auto z-10' : 'opacity-0 pointer-events-none z-0'
+        )}
+      >
+        <ProductBrowser />
+      </div>
+      <div
+        className={cn(
+          'absolute inset-0 flex flex-col transition-opacity duration-150',
+          !hasCustomer ? 'opacity-100 pointer-events-auto z-10' : 'opacity-0 pointer-events-none z-0'
+        )}
+      >
+        <OpenTabsPanel />
+      </div>
+    </div>
+  );
+}
 
 function TopBar({
   userName, userRole, onTestLock, onLogout,
@@ -70,7 +96,6 @@ function TopBar({
     return () => clearInterval(id);
   }, []);
 
-  // Fetch open tab count
   useEffect(() => {
     const fetch = async () => {
       const { count } = await supabase
@@ -132,6 +157,8 @@ function TopBar({
 function ProductBrowser() {
   const { products, isLoading } = usePOSProducts();
   const { addToCart, localCart, activeMember, isCashCustomer } = useCart();
+  const { venueId } = useVenue();
+  const { favouriteProducts } = useMemberFavourites(activeMember?.id ?? null, venueId);
   const [activeCategory, setActiveCategory] = useState('all');
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -160,6 +187,27 @@ function ProductBrowser() {
     });
   }, [products, activeCategory, debouncedSearch]);
 
+  const favouriteIds = useMemo(() => new Set(favouriteProducts.map(f => f.id)), [favouriteProducts]);
+
+  const filteredFavourites = useMemo(() => {
+    if (!activeMember || favouriteProducts.length === 0) return [];
+    if (debouncedSearch) {
+      const q = debouncedSearch.toLowerCase();
+      return favouriteProducts.filter(p =>
+        p.name.toLowerCase().includes(q) || (p.brand?.toLowerCase().includes(q))
+      );
+    }
+    return favouriteProducts;
+  }, [activeMember, favouriteProducts, debouncedSearch]);
+
+  // Remove favourites from main list to avoid duplication
+  const mainProducts = useMemo(() => {
+    if (filteredFavourites.length === 0) return filtered;
+    return filtered.filter(p => !favouriteIds.has(p.id));
+  }, [filtered, filteredFavourites, favouriteIds]);
+
+  const showFavourites = activeMember && filteredFavourites.length > 0;
+
   const cartQtyMap = useMemo(() => {
     const map: Record<string, number> = {};
     localCart.forEach(i => { map[i.productId] = i.qty; });
@@ -176,9 +224,49 @@ function ProductBrowser() {
     addToCart(p);
   };
 
+  const renderProductCard = (p: any, isFavourite = false) => {
+    const lowStock = p.stock_level <= p.min_stock_level;
+    const cartQty = cartQtyMap[p.id];
+    return (
+      <button
+        key={p.id}
+        onClick={() => handleProductTap(p)}
+        className={cn(
+          'relative bg-card rounded-lg text-left overflow-hidden transition-transform duration-100 active:scale-[0.97] min-h-[100px] flex flex-col',
+          isFavourite ? 'border-2 border-warning' : 'border border-border'
+        )}
+      >
+        {cartQty > 0 && (
+          <span className="absolute top-1 right-1 w-6 h-6 rounded-full bg-primary text-primary-foreground text-xs font-bold flex items-center justify-center z-10">
+            {cartQty}
+          </span>
+        )}
+        {isFavourite && (
+          <span className="absolute top-1 right-1 text-sm z-10" style={{ marginRight: cartQty > 0 ? '28px' : '0' }}>⭐</span>
+        )}
+        <div className="h-1 w-full" style={{ backgroundColor: CATEGORY_COLORS[p.category] }} />
+        <div className="flex-1 p-3 flex flex-col justify-between">
+          <div>
+            <p className="text-sm font-semibold text-foreground truncate">{p.name}</p>
+            <p className="text-xs text-muted-foreground truncate">
+              {[p.brand, p.size].filter(Boolean).join(' • ') || '\u00A0'}
+            </p>
+          </div>
+          <div className="flex items-end justify-between mt-2">
+            <span className="text-sm font-bold text-primary">{formatCents(p.selling_price_cents)}</span>
+            {lowStock && (
+              <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-warning text-warning bg-warning/10">
+                Low Stock
+              </Badge>
+            )}
+          </div>
+        </div>
+      </button>
+    );
+  };
+
   return (
     <>
-      {/* No customer warning */}
       {noCustomerMsg && (
         <div className="shrink-0 mx-3 mt-2 px-3 py-2 rounded bg-warning/10 border border-warning/30 text-sm text-warning font-medium">
           Select a member or cash customer first
@@ -237,48 +325,34 @@ function ProductBrowser() {
               <div key={i} className="h-[120px] rounded-lg bg-muted animate-pulse" />
             ))}
           </div>
-        ) : filtered.length === 0 ? (
-          <div className="flex items-center justify-center h-40 text-muted-foreground text-sm">
-            No products found
-          </div>
         ) : (
-          <div className="grid grid-cols-3 gap-3">
-            {filtered.map((p) => {
-              const lowStock = p.stock_level <= p.min_stock_level;
-              const cartQty = cartQtyMap[p.id];
-              return (
-                <button
-                  key={p.id}
-                  onClick={() => handleProductTap(p)}
-                  className="relative bg-card border border-border rounded-lg text-left overflow-hidden
-                    transition-transform duration-100 active:scale-[0.97] min-h-[100px] flex flex-col"
-                >
-                  {cartQty > 0 && (
-                    <span className="absolute top-1 right-1 w-6 h-6 rounded-full bg-primary text-primary-foreground text-xs font-bold flex items-center justify-center z-10">
-                      {cartQty}
-                    </span>
-                  )}
-                  <div className="h-1 w-full" style={{ backgroundColor: CATEGORY_COLORS[p.category] }} />
-                  <div className="flex-1 p-3 flex flex-col justify-between">
-                    <div>
-                      <p className="text-sm font-semibold text-foreground truncate">{p.name}</p>
-                      <p className="text-xs text-muted-foreground truncate">
-                        {[p.brand, p.size].filter(Boolean).join(' • ') || '\u00A0'}
-                      </p>
-                    </div>
-                    <div className="flex items-end justify-between mt-2">
-                      <span className="text-sm font-bold text-primary">{formatCents(p.selling_price_cents)}</span>
-                      {lowStock && (
-                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-warning text-warning bg-warning/10">
-                          Low Stock
-                        </Badge>
-                      )}
-                    </div>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
+          <>
+            {/* Favourites section */}
+            {showFavourites && (
+              <>
+                <div className="mb-2">
+                  <p className="text-sm font-bold text-primary">⭐ Favourites</p>
+                  <div className="h-px bg-border mt-1" />
+                </div>
+                <div className="grid grid-cols-3 gap-3 mb-4">
+                  {filteredFavourites.map(p => renderProductCard(p, true))}
+                </div>
+                <div className="mb-2">
+                  <p className="text-[13px] text-muted-foreground font-medium">All Products</p>
+                </div>
+              </>
+            )}
+
+            {mainProducts.length === 0 && !showFavourites ? (
+              <div className="flex items-center justify-center h-40 text-muted-foreground text-sm">
+                No products found
+              </div>
+            ) : (
+              <div className="grid grid-cols-3 gap-3">
+                {mainProducts.map(p => renderProductCard(p, false))}
+              </div>
+            )}
+          </>
         )}
       </div>
     </>
