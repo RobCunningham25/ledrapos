@@ -504,7 +504,16 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      commit_cart_items: {
+        Args: {
+          p_cash_customer_name?: string
+          p_is_cash_customer?: boolean
+          p_items?: Json
+          p_member_id?: string
+          p_venue_id: string
+        }
+        Returns: Json
+      }
     }
     Enums: {
       [_ in never]: never
