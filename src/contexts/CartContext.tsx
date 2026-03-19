@@ -52,7 +52,7 @@ interface CartContextType {
   addToCart: (product: { id: string; name: string; brand: string | null; size: string | null; selling_price_cents: number }) => void;
   removeFromCart: (productId: string) => void;
   updateCartQty: (productId: string, qty: number) => void;
-  commitCart: () => Promise<{ success: boolean; error?: string }>;
+  commitCart: () => Promise<{ success: boolean; error?: string; memberName?: string }>;
   clearActiveTab: () => void;
   loadTabItems: () => Promise<void>;
 }
@@ -98,7 +98,6 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setLocalCart([]);
     setCommitError(null);
 
-    // Check for existing open tab
     const { data } = await supabase
       .from('tabs')
       .select('*')
@@ -110,7 +109,6 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
     if (data) {
       setActiveTab(data as ActiveTab);
-      // Load tab items
       const { data: items } = await supabase
         .from('tab_items')
         .select('id, product_id, qty, unit_price_cents, line_total_cents, liquor_products(name, brand, size)')
@@ -193,7 +191,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const commitCart = useCallback(async (): Promise<{ success: boolean; error?: string }> => {
+  const commitCart = useCallback(async (): Promise<{ success: boolean; error?: string; memberName?: string }> => {
     if (localCart.length === 0) return { success: false, error: 'Cart is empty' };
     if (!activeMember && !isCashCustomer) return { success: false, error: 'No customer selected' };
 
@@ -206,7 +204,11 @@ export function CartProvider({ children }: { children: ReactNode }) {
       unit_price_cents: i.unitPriceCents,
     }));
 
-    const { data, error } = await supabase.rpc('commit_cart_items', {
+    const memberName = activeMember
+      ? `${activeMember.firstName} ${activeMember.lastName}`
+      : cashCustomerName || 'Cash Customer';
+
+    const { error } = await supabase.rpc('commit_cart_items', {
       p_venue_id: venueId,
       p_member_id: activeMember?.id ?? null,
       p_is_cash_customer: isCashCustomer,
@@ -222,43 +224,17 @@ export function CartProvider({ children }: { children: ReactNode }) {
       return { success: false, error: msg };
     }
 
-    // Success — update state
-    const result = data as unknown as { tab_id: string; items: TabItemRow[] };
-    if (result?.tab_id && !activeTab) {
-      // Fetch the tab record
-      const { data: tabData } = await supabase
-        .from('tabs')
-        .select('*')
-        .eq('id', result.tab_id)
-        .single();
-      if (tabData) setActiveTab(tabData as ActiveTab);
-    }
-
+    // Success — clear everything so panel resets
+    setActiveMember(null);
+    setActiveTab(null);
+    setActiveTabItems([]);
     setLocalCart([]);
+    setIsCashCustomer(false);
+    setCashCustomerName(null);
+    setCommitError(null);
 
-    // Reload tab items from database
-    if (result?.tab_id) {
-      const { data: items } = await supabase
-        .from('tab_items')
-        .select('id, product_id, qty, unit_price_cents, line_total_cents, liquor_products(name, brand, size)')
-        .eq('tab_id', result.tab_id);
-
-      if (items) {
-        setActiveTabItems(items.map((d: any) => ({
-          id: d.id,
-          product_id: d.product_id,
-          qty: d.qty,
-          unit_price_cents: d.unit_price_cents,
-          line_total_cents: d.line_total_cents,
-          product_name: d.liquor_products?.name,
-          product_brand: d.liquor_products?.brand,
-          product_size: d.liquor_products?.size,
-        })));
-      }
-    }
-
-    return { success: true };
-  }, [localCart, activeMember, isCashCustomer, cashCustomerName, venueId, activeTab]);
+    return { success: true, memberName };
+  }, [localCart, activeMember, isCashCustomer, cashCustomerName, venueId]);
 
   const clearActiveTab = useCallback(() => {
     setActiveMember(null);

@@ -4,6 +4,7 @@ import { formatCents } from '@/utils/currency';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Minus, Plus, X, Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
 import MemberSearch from './MemberSearch';
 
 export default function TabPanel() {
@@ -23,7 +24,10 @@ export default function TabPanel() {
   const grandTotal = tabTotal + cartTotal;
 
   const handleCommit = async () => {
-    await commitCart();
+    const result = await commitCart();
+    if (result.success && result.memberName) {
+      toast.success(`Tab updated — ${result.memberName}`, { duration: 2000 });
+    }
   };
 
   const openedTime = activeTab?.opened_at
