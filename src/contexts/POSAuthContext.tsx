@@ -15,6 +15,7 @@ interface POSAuthContextType {
   lastActivityAt: Date | null;
   isLocked: boolean;
   isAuthenticated: boolean;
+  setIsLocked: (locked: boolean) => void;
   login: (pin: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
   unlock: (pin: string) => Promise<boolean>;
