@@ -12,7 +12,7 @@ const VCA_VENUE_ID = 'eb1864cd-c9b3-4206-898d-d5300de149a5';
 
 export function VenueProvider({ children }: { children: ReactNode }) {
   return (
-    <VenueContext.Provider value={{ venueId: VCA_VENUE_ID, venueName: 'VAL Cruising Association' }}>
+    <VenueContext.Provider value={{ venueId: VCA_VENUE_ID, venueName: 'Vaal Cruising Association' }}>
       {children}
     </VenueContext.Provider>
   );

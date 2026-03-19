@@ -27,7 +27,7 @@ const Index = () => {
     <div className="flex min-h-screen flex-col items-center justify-center bg-page px-4">
       <div className="mb-12 text-center">
         <h1 className="text-4xl font-bold text-primary">LedraPOS</h1>
-        <p className="mt-2 text-lg text-muted-foreground">VAL Cruising Association</p>
+        <p className="mt-2 text-lg text-muted-foreground">Vaal Cruising Association</p>
       </div>
 
       <div className="grid w-full max-w-3xl grid-cols-1 gap-6 sm:grid-cols-3">
