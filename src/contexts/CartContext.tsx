@@ -223,7 +223,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     }
 
     // Success — update state
-    const result = data as { tab_id: string; items: TabItemRow[] };
+    const result = data as unknown as { tab_id: string; items: TabItemRow[] };
     if (result?.tab_id && !activeTab) {
       // Fetch the tab record
       const { data: tabData } = await supabase
