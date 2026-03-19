@@ -11,7 +11,8 @@ import POS from "./pages/POS.tsx";
 import MemberPortal from "./pages/MemberPortal.tsx";
 import NotFound from "./pages/NotFound.tsx";
 import Products from "./pages/admin/Products.tsx";
-import { MembersPlaceholder, ReportsPlaceholder, SettingsPlaceholder } from "./pages/admin/Placeholder.tsx";
+import Members from "./pages/admin/Members.tsx";
+import { ReportsPlaceholder, SettingsPlaceholder } from "./pages/admin/Placeholder.tsx";
 
 const queryClient = new QueryClient();
 
