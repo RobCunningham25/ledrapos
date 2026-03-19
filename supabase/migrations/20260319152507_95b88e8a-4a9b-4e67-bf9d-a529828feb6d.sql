@@ -1,0 +1,1 @@
+UPDATE venues SET name = 'Vaal Cruising Association' WHERE slug = 'vca';
