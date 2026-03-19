@@ -1,1 +1,4 @@
 project_id = "fgquwzzyudgcmfbuvmch"
+
+[functions.hash-pin]
+verify_jwt = false
