@@ -51,7 +51,6 @@ interface CartContextType {
   isCommitting: boolean;
   commitError: string | null;
   openTabsRefetchTrigger: number;
-  receiptState: ReceiptState | null;
   selectMember: (member: ActiveMember) => Promise<void>;
   selectCashTab: (tab: ActiveTab) => Promise<void>;
   startCashCustomerTab: (name: string) => void;
@@ -61,8 +60,6 @@ interface CartContextType {
   commitCart: () => Promise<{ success: boolean; error?: string; memberName?: string }>;
   clearActiveTab: () => void;
   loadTabItems: () => Promise<void>;
-  setReceiptState: (state: ReceiptState) => void;
-  clearReceipt: () => void;
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
