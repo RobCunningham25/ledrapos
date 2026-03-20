@@ -26,6 +26,7 @@ export default function MemberSearch() {
   const [cashFlow, setCashFlow] = useState(false);
   const [cashName, setCashName] = useState('');
   const [confirmChange, setConfirmChange] = useState(false);
+  const [cashError, setCashError] = useState('');
   const timerRef = useRef<ReturnType<typeof setTimeout>>();
   const containerRef = useRef<HTMLDivElement>(null);
 
