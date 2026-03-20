@@ -47,7 +47,9 @@ interface CartContextType {
   cashCustomerName: string | null;
   isCommitting: boolean;
   commitError: string | null;
+  openTabsRefetchTrigger: number;
   selectMember: (member: ActiveMember) => Promise<void>;
+  selectCashTab: (tab: ActiveTab) => Promise<void>;
   startCashCustomerTab: (name: string) => void;
   addToCart: (product: { id: string; name: string; brand: string | null; size: string | null; selling_price_cents: number }) => void;
   removeFromCart: (productId: string) => void;
