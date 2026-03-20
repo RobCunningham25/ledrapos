@@ -91,7 +91,6 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const [isCommitting, setIsCommitting] = useState(false);
   const [commitError, setCommitError] = useState<string | null>(null);
   const [openTabsRefetchTrigger, setOpenTabsRefetchTrigger] = useState(0);
-  const [receiptState, setReceiptStateInternal] = useState<ReceiptState | null>(null);
 
   const loadTabItems = useCallback(async () => {
     if (!activeTab) return;
