@@ -50,7 +50,7 @@ export default function PaymentModal({
           const autoCredit = Math.min(Math.max(0, bal), tabTotal);
           setCreditInput(autoCredit > 0 ? String(autoCredit) : '0');
           const remaining = Math.max(0, tabTotal - autoCredit);
-          setCashInput(String(remaining));
+          setCashInput('0');
           setCardInput('0');
           setActiveField(remaining > 0 ? 'cash' : 'credit');
         });
