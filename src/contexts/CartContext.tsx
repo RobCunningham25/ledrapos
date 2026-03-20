@@ -40,16 +40,6 @@ export interface ActiveTab {
   opened_at: string | null;
 }
 
-export interface ReceiptState {
-  isShowingReceipt: boolean;
-  tabItems: TabItemRow[];
-  tabTotal: number;
-  creditApplied: number;
-  cashPaid: number;
-  cardPaid: number;
-  changeDue: number;
-  memberName: string;
-}
 
 interface CartContextType {
   activeMember: ActiveMember | null;
