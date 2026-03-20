@@ -514,6 +514,18 @@ export type Database = {
         }
         Returns: Json
       }
+      process_payment: {
+        Args: {
+          p_card_amount?: number
+          p_card_reference?: string
+          p_cash_amount?: number
+          p_credit_amount?: number
+          p_member_id?: string
+          p_tab_id: string
+          p_venue_id: string
+        }
+        Returns: Json
+      }
     }
     Enums: {
       [_ in never]: never
