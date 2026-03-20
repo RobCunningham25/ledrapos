@@ -23,7 +23,7 @@ interface OpenTab {
 
 export default function OpenTabsPanel() {
   const { venueId } = useVenue();
-  const { selectMember } = useCart();
+  const { selectMember, selectCashTab, openTabsRefetchTrigger } = useCart();
   const [tabs, setTabs] = useState<OpenTab[]>([]);
   const [loading, setLoading] = useState(false);
 
