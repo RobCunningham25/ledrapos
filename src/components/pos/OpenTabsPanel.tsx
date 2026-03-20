@@ -52,7 +52,8 @@ export default function OpenTabsPanel() {
         });
       }
 
-      setTabs(data.map((t: any) => ({
+      // Filter out cash customer tabs with no items (ghost tabs)
+      const mapped = data.map((t: any) => ({
         id: t.id,
         member_id: t.member_id,
         is_cash_customer: t.is_cash_customer,
@@ -64,7 +65,9 @@ export default function OpenTabsPanel() {
         membership_number: t.members?.membership_number,
         item_count: itemMap[t.id]?.count || 0,
         total_cents: itemMap[t.id]?.total || 0,
-      })));
+      })).filter((t: OpenTab) => !t.is_cash_customer || t.item_count > 0);
+
+      setTabs(mapped);
     }
     setLoading(false);
   }, [venueId]);
@@ -146,7 +149,7 @@ export default function OpenTabsPanel() {
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-semibold text-foreground truncate">{name}</p>
                     <p className="text-xs text-muted-foreground truncate">
-                      {tab.is_cash_customer ? 'Walk-in' : tab.membership_number}
+                      {tab.is_cash_customer ? 'Cash Customer' : tab.membership_number}
                     </p>
                   </div>
                 </div>

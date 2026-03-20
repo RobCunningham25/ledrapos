@@ -1,0 +1,1 @@
+DELETE FROM tabs WHERE is_cash_customer = true AND status = 'OPEN' AND id NOT IN (SELECT DISTINCT tab_id FROM tab_items);

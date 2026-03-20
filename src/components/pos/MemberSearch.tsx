@@ -26,6 +26,7 @@ export default function MemberSearch() {
   const [cashFlow, setCashFlow] = useState(false);
   const [cashName, setCashName] = useState('');
   const [confirmChange, setConfirmChange] = useState(false);
+  const [cashError, setCashError] = useState('');
   const timerRef = useRef<ReturnType<typeof setTimeout>>();
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -77,9 +78,14 @@ export default function MemberSearch() {
   };
 
   const handleStartCashTab = () => {
-    startCashCustomerTab(cashName);
+    if (!cashName.trim()) {
+      setCashError('Please enter a customer name');
+      return;
+    }
+    startCashCustomerTab(cashName.trim());
     setCashFlow(false);
     setCashName('');
+    setCashError('');
   };
 
   const handleChangeCustomer = () => {
@@ -94,7 +100,7 @@ export default function MemberSearch() {
     `${first.charAt(0)}${last.charAt(0)}`.toUpperCase();
 
   // Active member/cash customer display
-  if (activeMember || (isCashCustomer && activeTab)) {
+  if (activeMember || isCashCustomer) {
     return (
       <div className="shrink-0 px-3 py-2 border-b border-border bg-card">
         {confirmChange && (
@@ -140,19 +146,23 @@ export default function MemberSearch() {
 
   // Cash customer flow
   if (cashFlow) {
+    const nameValid = cashName.trim().length > 0;
     return (
       <div className="shrink-0 px-3 py-2 border-b border-border bg-card">
         <div className="flex flex-col gap-2">
           <Input
-            placeholder="Customer name (optional)"
+            placeholder="Customer name (required)"
             value={cashName}
-            onChange={e => setCashName(e.target.value)}
+            onChange={e => { setCashName(e.target.value); setCashError(''); }}
             className="h-11"
             autoFocus
           />
+          {cashError && (
+            <p className="text-xs text-destructive">{cashError}</p>
+          )}
           <div className="flex gap-2">
-            <Button className="flex-1 h-11" onClick={handleStartCashTab}>Start Tab</Button>
-            <Button variant="outline" className="flex-1 h-11" onClick={() => { setCashFlow(false); setCashName(''); }}>Cancel</Button>
+            <Button className="flex-1 h-11" disabled={!nameValid} onClick={handleStartCashTab}>Start Tab</Button>
+            <Button variant="outline" className="flex-1 h-11" onClick={() => { setCashFlow(false); setCashName(''); setCashError(''); }}>Cancel</Button>
           </div>
         </div>
       </div>

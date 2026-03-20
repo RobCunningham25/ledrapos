@@ -48,7 +48,7 @@ interface CartContextType {
   isCommitting: boolean;
   commitError: string | null;
   selectMember: (member: ActiveMember) => Promise<void>;
-  startCashCustomerTab: (name: string) => Promise<void>;
+  startCashCustomerTab: (name: string) => void;
   addToCart: (product: { id: string; name: string; brand: string | null; size: string | null; selling_price_cents: number }) => void;
   removeFromCart: (productId: string) => void;
   updateCartQty: (productId: string, qty: number) => void;
@@ -132,34 +132,16 @@ export function CartProvider({ children }: { children: ReactNode }) {
     }
   }, [venueId]);
 
-  const startCashCustomerTab = useCallback(async (name: string) => {
-    const displayName = name.trim() || 'Cash Customer';
+  const startCashCustomerTab = useCallback((name: string) => {
+    const displayName = name.trim();
     setIsCashCustomer(true);
     setCashCustomerName(displayName);
     setActiveMember(null);
+    setActiveTab(null);
+    setActiveTabItems([]);
     setLocalCart([]);
     setCommitError(null);
-
-    const { data, error } = await supabase
-      .from('tabs')
-      .insert({
-        venue_id: venueId,
-        is_cash_customer: true,
-        cash_customer_name: displayName,
-        member_id: null,
-        status: 'OPEN',
-      })
-      .select('*')
-      .single();
-
-    if (data) {
-      setActiveTab(data as ActiveTab);
-      setActiveTabItems([]);
-    }
-    if (error) {
-      console.error('Failed to create cash customer tab:', error);
-    }
-  }, [venueId]);
+  }, []);
 
   const addToCart = useCallback((product: { id: string; name: string; brand: string | null; size: string | null; selling_price_cents: number }) => {
     setCommitError(null);
