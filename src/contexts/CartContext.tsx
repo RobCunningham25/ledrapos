@@ -246,6 +246,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setIsCashCustomer(false);
     setCashCustomerName(null);
     setCommitError(null);
+    setOpenTabsRefetchTrigger(prev => prev + 1);
 
     return { success: true, memberName };
   }, [localCart, activeMember, isCashCustomer, cashCustomerName, venueId]);
