@@ -99,10 +99,10 @@ export default function PaymentModal({
     setIsProcessing(true);
     setError('');
 
-    const { data, error: rpcError } = await supabase.rpc('process_payment', {
+    const { data, error: rpcError } = await (supabase.rpc as any)('process_payment', {
       p_venue_id: venueId,
       p_tab_id: tabId,
-      p_member_id: memberId ?? undefined,
+      p_member_id: memberId ?? null,
       p_credit_amount: creditCents,
       p_cash_amount: cashCents,
       p_card_amount: cardCents,
