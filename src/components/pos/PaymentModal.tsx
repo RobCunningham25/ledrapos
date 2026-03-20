@@ -57,7 +57,7 @@ export default function PaymentModal({
     } else {
       setCreditBalance(0);
       setCreditInput('0');
-      setCashInput(String(tabTotal));
+      setCashInput('0');
       setCardInput('0');
       setActiveField('cash');
     }
