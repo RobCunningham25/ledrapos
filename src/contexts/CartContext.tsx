@@ -154,7 +154,6 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setActiveTabItems([]);
     setLocalCart([]);
     setCommitError(null);
-    setReceiptStateInternal(null);
   }, []);
 
   const addToCart = useCallback((product: { id: string; name: string; brand: string | null; size: string | null; selling_price_cents: number }) => {
