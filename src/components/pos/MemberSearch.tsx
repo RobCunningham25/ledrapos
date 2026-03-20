@@ -78,9 +78,14 @@ export default function MemberSearch() {
   };
 
   const handleStartCashTab = () => {
-    startCashCustomerTab(cashName);
+    if (!cashName.trim()) {
+      setCashError('Please enter a customer name');
+      return;
+    }
+    startCashCustomerTab(cashName.trim());
     setCashFlow(false);
     setCashName('');
+    setCashError('');
   };
 
   const handleChangeCustomer = () => {

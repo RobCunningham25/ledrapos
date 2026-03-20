@@ -74,21 +74,36 @@ export default function MemberFavouritesDrawer({ member, onClose }: Props) {
     return () => clearTimeout(timer);
   }, [search, venueId]);
 
-  const handleAdd = async (productId: string) => {
-    await supabase.from('member_favorites').upsert(
-      { venue_id: venueId, member_id: member.id, product_id: productId },
-      { onConflict: 'member_id,product_id' }
-    );
+  const handleAdd = async (product: Product) => {
+    // Optimistically add to favourites list
+    const tempId = `temp-${product.id}`;
+    setFavourites(prev => [...prev, {
+      id: tempId,
+      product_id: product.id,
+      product_name: product.name,
+      product_category: product.category,
+    }]);
+
+    const { error } = await supabase
+      .from('member_favorites')
+      .insert({ venue_id: venueId, member_id: member.id, product_id: product.id });
+
+    if (error) {
+      // If unique constraint violation (23505), just refresh to get the real id
+      // For any other error, also just refresh
+    }
+    // Refresh to get correct ids
     fetchFavourites();
   };
 
-  const handleRemove = async (productId: string) => {
+  const handleRemove = async (fav: FavProduct) => {
+    // Optimistically remove from list
+    setFavourites(prev => prev.filter(f => f.id !== fav.id));
+
     await supabase
       .from('member_favorites')
       .delete()
-      .eq('member_id', member.id)
-      .eq('product_id', productId);
-    fetchFavourites();
+      .eq('id', fav.id);
   };
 
   const favProductIds = new Set(favourites.map(f => f.product_id));
@@ -132,7 +147,8 @@ export default function MemberFavouritesDrawer({ member, onClose }: Props) {
                       {f.product_category}
                     </Badge>
                     <button
-                      onClick={() => handleRemove(f.product_id)}
+                      type="button"
+                      onClick={() => handleRemove(f)}
                       className="w-6 h-6 flex items-center justify-center text-muted-foreground hover:text-destructive"
                     >
                       <X className="h-3.5 w-3.5" />
@@ -173,7 +189,8 @@ export default function MemberFavouritesDrawer({ member, onClose }: Props) {
                         <Check className="h-4 w-4 text-primary shrink-0" />
                       ) : (
                         <button
-                          onClick={() => handleAdd(p.id)}
+                          type="button"
+                          onClick={() => handleAdd(p)}
                           className="w-6 h-6 flex items-center justify-center text-primary hover:text-primary/80"
                         >
                           <Plus className="h-3.5 w-3.5" />
