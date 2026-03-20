@@ -47,7 +47,9 @@ interface CartContextType {
   cashCustomerName: string | null;
   isCommitting: boolean;
   commitError: string | null;
+  openTabsRefetchTrigger: number;
   selectMember: (member: ActiveMember) => Promise<void>;
+  selectCashTab: (tab: ActiveTab) => Promise<void>;
   startCashCustomerTab: (name: string) => void;
   addToCart: (product: { id: string; name: string; brand: string | null; size: string | null; selling_price_cents: number }) => void;
   removeFromCart: (productId: string) => void;
@@ -69,6 +71,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const [cashCustomerName, setCashCustomerName] = useState<string | null>(null);
   const [isCommitting, setIsCommitting] = useState(false);
   const [commitError, setCommitError] = useState<string | null>(null);
+  const [openTabsRefetchTrigger, setOpenTabsRefetchTrigger] = useState(0);
 
   const loadTabItems = useCallback(async () => {
     if (!activeTab) return;
@@ -131,6 +134,35 @@ export function CartProvider({ children }: { children: ReactNode }) {
       setActiveTabItems([]);
     }
   }, [venueId]);
+
+  const selectCashTab = useCallback(async (tab: ActiveTab) => {
+    setActiveMember(null);
+    setIsCashCustomer(true);
+    setCashCustomerName(tab.cash_customer_name || 'Cash Customer');
+    setActiveTab(tab);
+    setLocalCart([]);
+    setCommitError(null);
+
+    const { data: items } = await supabase
+      .from('tab_items')
+      .select('id, product_id, qty, unit_price_cents, line_total_cents, liquor_products(name, brand, size)')
+      .eq('tab_id', tab.id);
+
+    if (items) {
+      setActiveTabItems(items.map((d: any) => ({
+        id: d.id,
+        product_id: d.product_id,
+        qty: d.qty,
+        unit_price_cents: d.unit_price_cents,
+        line_total_cents: d.line_total_cents,
+        product_name: d.liquor_products?.name,
+        product_brand: d.liquor_products?.brand,
+        product_size: d.liquor_products?.size,
+      })));
+    } else {
+      setActiveTabItems([]);
+    }
+  }, []);
 
   const startCashCustomerTab = useCallback((name: string) => {
     const displayName = name.trim();
@@ -214,6 +246,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setIsCashCustomer(false);
     setCashCustomerName(null);
     setCommitError(null);
+    setOpenTabsRefetchTrigger(prev => prev + 1);
 
     return { success: true, memberName };
   }, [localCart, activeMember, isCashCustomer, cashCustomerName, venueId]);
@@ -238,7 +271,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
       cashCustomerName,
       isCommitting,
       commitError,
+      openTabsRefetchTrigger,
       selectMember,
+      selectCashTab,
       startCashCustomerTab,
       addToCart,
       removeFromCart,

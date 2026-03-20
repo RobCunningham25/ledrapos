@@ -23,7 +23,7 @@ interface OpenTab {
 
 export default function OpenTabsPanel() {
   const { venueId } = useVenue();
-  const { selectMember } = useCart();
+  const { selectMember, selectCashTab, openTabsRefetchTrigger } = useCart();
   const [tabs, setTabs] = useState<OpenTab[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -74,12 +74,24 @@ export default function OpenTabsPanel() {
 
   useEffect(() => {
     fetchTabs();
+  }, [fetchTabs, openTabsRefetchTrigger]);
+
+  useEffect(() => {
     const id = setInterval(fetchTabs, 30000);
     return () => clearInterval(id);
   }, [fetchTabs]);
 
   const handleSelectTab = (tab: OpenTab) => {
-    if (tab.member_id && tab.member_first_name && tab.member_last_name) {
+    if (tab.is_cash_customer) {
+      selectCashTab({
+        id: tab.id,
+        member_id: null,
+        is_cash_customer: true,
+        cash_customer_name: tab.cash_customer_name,
+        status: tab.status,
+        opened_at: tab.opened_at,
+      });
+    } else if (tab.member_id && tab.member_first_name && tab.member_last_name) {
       selectMember({
         id: tab.member_id,
         firstName: tab.member_first_name,
@@ -87,7 +99,6 @@ export default function OpenTabsPanel() {
         membershipNumber: tab.membership_number || '',
       });
     }
-    // TODO: cash customer tab selection needs startCashCustomerTab-like state setting
   };
 
   const getInitials = (first: string, last: string) =>
