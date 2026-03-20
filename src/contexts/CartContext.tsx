@@ -240,23 +240,6 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setIsCashCustomer(false);
     setCashCustomerName(null);
     setCommitError(null);
-    setReceiptStateInternal(null);
-  }, []);
-
-  const setReceiptState = useCallback((state: ReceiptState) => {
-    setReceiptStateInternal(state);
-  }, []);
-
-  const clearReceipt = useCallback(() => {
-    setReceiptStateInternal(null);
-    setActiveMember(null);
-    setActiveTab(null);
-    setActiveTabItems([]);
-    setLocalCart([]);
-    setIsCashCustomer(false);
-    setCashCustomerName(null);
-    setCommitError(null);
-    setOpenTabsRefetchTrigger(prev => prev + 1);
   }, []);
 
   return (
