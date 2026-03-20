@@ -85,6 +85,8 @@ export default function PaymentModal({
 
   const activeValue = activeField === 'credit' ? creditInput : activeField === 'cash' ? cashInput : cardInput;
 
+  const activeValue = activeField === 'credit' ? creditInput : activeField === 'cash' ? cashInput : cardInput;
+
   const handleNumpad = (key: string) => {
     if (key === 'backspace') {
       const newVal = activeValue.length <= 1 ? '0' : activeValue.slice(0, -1);
