@@ -2,6 +2,8 @@ import { createContext, useContext, useState, useCallback, ReactNode } from 'rea
 import { supabase } from '@/integrations/supabase/client';
 import { useVenue } from '@/contexts/VenueContext';
 
+// --- Types ---
+
 export interface CartItem {
   productId: string;
   name: string;
@@ -38,6 +40,17 @@ export interface ActiveTab {
   opened_at: string | null;
 }
 
+export interface ReceiptState {
+  isShowingReceipt: boolean;
+  tabItems: TabItemRow[];
+  tabTotal: number;
+  creditApplied: number;
+  cashPaid: number;
+  cardPaid: number;
+  changeDue: number;
+  memberName: string;
+}
+
 interface CartContextType {
   activeMember: ActiveMember | null;
   activeTab: ActiveTab | null;
@@ -48,6 +61,7 @@ interface CartContextType {
   isCommitting: boolean;
   commitError: string | null;
   openTabsRefetchTrigger: number;
+  receiptState: ReceiptState | null;
   selectMember: (member: ActiveMember) => Promise<void>;
   selectCashTab: (tab: ActiveTab) => Promise<void>;
   startCashCustomerTab: (name: string) => void;
@@ -57,9 +71,27 @@ interface CartContextType {
   commitCart: () => Promise<{ success: boolean; error?: string; memberName?: string }>;
   clearActiveTab: () => void;
   loadTabItems: () => Promise<void>;
+  setReceiptState: (state: ReceiptState) => void;
+  clearReceipt: () => void;
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
+
+// --- Helper: map tab items from DB ---
+function mapTabItems(data: any[]): TabItemRow[] {
+  return data.map((d: any) => ({
+    id: d.id,
+    product_id: d.product_id,
+    qty: d.qty,
+    unit_price_cents: d.unit_price_cents,
+    line_total_cents: d.line_total_cents,
+    product_name: d.liquor_products?.name,
+    product_brand: d.liquor_products?.brand,
+    product_size: d.liquor_products?.size,
+  }));
+}
+
+const TAB_ITEMS_SELECT = 'id, product_id, qty, unit_price_cents, line_total_cents, liquor_products(name, brand, size)';
 
 export function CartProvider({ children }: { children: ReactNode }) {
   const { venueId } = useVenue();
@@ -72,26 +104,15 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const [isCommitting, setIsCommitting] = useState(false);
   const [commitError, setCommitError] = useState<string | null>(null);
   const [openTabsRefetchTrigger, setOpenTabsRefetchTrigger] = useState(0);
+  const [receiptState, setReceiptStateInternal] = useState<ReceiptState | null>(null);
 
   const loadTabItems = useCallback(async () => {
     if (!activeTab) return;
     const { data } = await supabase
       .from('tab_items')
-      .select('id, product_id, qty, unit_price_cents, line_total_cents, liquor_products(name, brand, size)')
+      .select(TAB_ITEMS_SELECT)
       .eq('tab_id', activeTab.id);
-
-    if (data) {
-      setActiveTabItems(data.map((d: any) => ({
-        id: d.id,
-        product_id: d.product_id,
-        qty: d.qty,
-        unit_price_cents: d.unit_price_cents,
-        line_total_cents: d.line_total_cents,
-        product_name: d.liquor_products?.name,
-        product_brand: d.liquor_products?.brand,
-        product_size: d.liquor_products?.size,
-      })));
-    }
+    if (data) setActiveTabItems(mapTabItems(data));
   }, [activeTab]);
 
   const selectMember = useCallback(async (member: ActiveMember) => {
@@ -100,6 +121,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setCashCustomerName(null);
     setLocalCart([]);
     setCommitError(null);
+    setReceiptStateInternal(null);
 
     const { data } = await supabase
       .from('tabs')
@@ -114,21 +136,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
       setActiveTab(data as ActiveTab);
       const { data: items } = await supabase
         .from('tab_items')
-        .select('id, product_id, qty, unit_price_cents, line_total_cents, liquor_products(name, brand, size)')
+        .select(TAB_ITEMS_SELECT)
         .eq('tab_id', data.id);
-
-      if (items) {
-        setActiveTabItems(items.map((d: any) => ({
-          id: d.id,
-          product_id: d.product_id,
-          qty: d.qty,
-          unit_price_cents: d.unit_price_cents,
-          line_total_cents: d.line_total_cents,
-          product_name: d.liquor_products?.name,
-          product_brand: d.liquor_products?.brand,
-          product_size: d.liquor_products?.size,
-        })));
-      }
+      if (items) setActiveTabItems(mapTabItems(items));
     } else {
       setActiveTab(null);
       setActiveTabItems([]);
@@ -142,37 +152,25 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setActiveTab(tab);
     setLocalCart([]);
     setCommitError(null);
+    setReceiptStateInternal(null);
 
     const { data: items } = await supabase
       .from('tab_items')
-      .select('id, product_id, qty, unit_price_cents, line_total_cents, liquor_products(name, brand, size)')
+      .select(TAB_ITEMS_SELECT)
       .eq('tab_id', tab.id);
-
-    if (items) {
-      setActiveTabItems(items.map((d: any) => ({
-        id: d.id,
-        product_id: d.product_id,
-        qty: d.qty,
-        unit_price_cents: d.unit_price_cents,
-        line_total_cents: d.line_total_cents,
-        product_name: d.liquor_products?.name,
-        product_brand: d.liquor_products?.brand,
-        product_size: d.liquor_products?.size,
-      })));
-    } else {
-      setActiveTabItems([]);
-    }
+    if (items) setActiveTabItems(mapTabItems(items));
+    else setActiveTabItems([]);
   }, []);
 
   const startCashCustomerTab = useCallback((name: string) => {
-    const displayName = name.trim();
     setIsCashCustomer(true);
-    setCashCustomerName(displayName);
+    setCashCustomerName(name.trim());
     setActiveMember(null);
     setActiveTab(null);
     setActiveTabItems([]);
     setLocalCart([]);
     setCommitError(null);
+    setReceiptStateInternal(null);
   }, []);
 
   const addToCart = useCallback((product: { id: string; name: string; brand: string | null; size: string | null; selling_price_cents: number }) => {
@@ -238,7 +236,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       return { success: false, error: msg };
     }
 
-    // Success — clear everything so panel resets
+    // Reset
     setActiveMember(null);
     setActiveTab(null);
     setActiveTabItems([]);
@@ -259,6 +257,23 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setIsCashCustomer(false);
     setCashCustomerName(null);
     setCommitError(null);
+    setReceiptStateInternal(null);
+  }, []);
+
+  const setReceiptState = useCallback((state: ReceiptState) => {
+    setReceiptStateInternal(state);
+  }, []);
+
+  const clearReceipt = useCallback(() => {
+    setReceiptStateInternal(null);
+    setActiveMember(null);
+    setActiveTab(null);
+    setActiveTabItems([]);
+    setLocalCart([]);
+    setIsCashCustomer(false);
+    setCashCustomerName(null);
+    setCommitError(null);
+    setOpenTabsRefetchTrigger(prev => prev + 1);
   }, []);
 
   return (
@@ -272,6 +287,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       isCommitting,
       commitError,
       openTabsRefetchTrigger,
+      receiptState,
       selectMember,
       selectCashTab,
       startCashCustomerTab,
@@ -281,6 +297,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
       commitCart,
       clearActiveTab,
       loadTabItems,
+      setReceiptState,
+      clearReceipt,
     }}>
       {children}
     </CartContext.Provider>
