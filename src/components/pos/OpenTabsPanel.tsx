@@ -149,7 +149,7 @@ export default function OpenTabsPanel() {
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-semibold text-foreground truncate">{name}</p>
                     <p className="text-xs text-muted-foreground truncate">
-                      {tab.is_cash_customer ? 'Walk-in' : tab.membership_number}
+                      {tab.is_cash_customer ? 'Cash Customer' : tab.membership_number}
                     </p>
                   </div>
                 </div>
