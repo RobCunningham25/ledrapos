@@ -253,7 +253,6 @@ export function CartProvider({ children }: { children: ReactNode }) {
       isCommitting,
       commitError,
       openTabsRefetchTrigger,
-      receiptState,
       selectMember,
       selectCashTab,
       startCashCustomerTab,
@@ -263,8 +262,6 @@ export function CartProvider({ children }: { children: ReactNode }) {
       commitCart,
       clearActiveTab,
       loadTabItems,
-      setReceiptState,
-      clearReceipt,
     }}>
       {children}
     </CartContext.Provider>

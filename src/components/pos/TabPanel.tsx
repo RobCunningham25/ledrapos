@@ -5,7 +5,7 @@ import { useMemberCredit } from '@/hooks/useMemberCredit';
 import { formatCents } from '@/utils/currency';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Minus, Plus, X, Loader2, CheckCircle, CreditCard } from 'lucide-react';
+import { Minus, Plus, X, Loader2, CreditCard } from 'lucide-react';
 import { toast } from 'sonner';
 import MemberSearch from './MemberSearch';
 import PaymentModal from './PaymentModal';
@@ -15,7 +15,7 @@ export default function TabPanel() {
   const {
     activeMember, activeTab, activeTabItems, localCart, isCashCustomer, cashCustomerName,
     isCommitting, commitError, updateCartQty, removeFromCart, commitCart,
-    receiptState, clearReceipt, setReceiptState, loadTabItems,
+    clearActiveTab, loadTabItems,
   } = useCart();
   const { venueId } = useVenue();
 
@@ -48,93 +48,21 @@ export default function TabPanel() {
 
   const handlePaymentComplete = (result: any) => {
     setShowPayment(false);
-    toast.success('Payment recorded', { duration: 2000 });
 
     if (result?.tab_closed) {
-      setReceiptState({
-        isShowingReceipt: true,
-        tabItems: activeTabItems,
-        tabTotal: tabTotal,
-        creditApplied: result.credit_applied || 0,
-        cashPaid: result.cash_paid || 0,
-        cardPaid: result.card_paid || 0,
-        changeDue: result.change_due || 0,
-        memberName,
-      });
+      toast.success('Payment recorded — tab closed', { duration: 2000 });
     } else {
-      // Partial payment — reload tab items
-      loadTabItems();
-      refetchCredit();
+      toast.success('Payment recorded', { duration: 2000 });
     }
+
+    // Full reset — return to default state
+    clearActiveTab();
   };
 
   const openedTime = activeTab?.opened_at
     ? new Date(activeTab.opened_at).toLocaleTimeString('en-ZA', { hour: '2-digit', minute: '2-digit', hour12: false })
     : null;
 
-  // --- RECEIPT VIEW ---
-  if (receiptState?.isShowingReceipt) {
-    return (
-      <div className="flex flex-col h-full">
-        <div className="flex-1 overflow-y-auto px-4 py-6">
-          <div className="flex items-center gap-2 mb-2">
-            <CheckCircle className="h-6 w-6 text-success" />
-            <h2 className="text-xl font-semibold text-foreground">Receipt</h2>
-          </div>
-          <p className="text-base text-muted-foreground mb-4">{receiptState.memberName}</p>
-          <div className="h-px bg-border mb-3" />
-
-          {/* Items */}
-          {receiptState.tabItems.map(item => (
-            <div key={item.id} className="flex items-center justify-between py-1.5 text-sm">
-              <span className="text-foreground">
-                {item.product_name} × {item.qty} @ {formatCents(item.unit_price_cents)}
-              </span>
-              <span className="font-medium text-foreground">{formatCents(item.line_total_cents)}</span>
-            </div>
-          ))}
-
-          <div className="h-px bg-border my-3" />
-          <div className="flex justify-between text-base font-semibold text-foreground mb-1">
-            <span>Tab Total</span>
-            <span>{formatCents(receiptState.tabTotal)}</span>
-          </div>
-          {receiptState.creditApplied > 0 && (
-            <div className="flex justify-between text-sm text-success">
-              <span>Credit Applied</span>
-              <span>{formatCents(receiptState.creditApplied)}</span>
-            </div>
-          )}
-          {receiptState.cashPaid > 0 && (
-            <div className="flex justify-between text-sm text-foreground">
-              <span>Cash Paid</span>
-              <span>{formatCents(receiptState.cashPaid)}</span>
-            </div>
-          )}
-          {receiptState.cardPaid > 0 && (
-            <div className="flex justify-between text-sm text-foreground">
-              <span>Card Paid</span>
-              <span>{formatCents(receiptState.cardPaid)}</span>
-            </div>
-          )}
-          {receiptState.changeDue > 0 && (
-            <div className="flex justify-between text-sm text-warning">
-              <span>Change Due</span>
-              <span>{formatCents(receiptState.changeDue)}</span>
-            </div>
-          )}
-          <div className="h-px bg-border my-3" />
-        </div>
-        <div className="shrink-0 px-4 py-4 border-t border-border bg-card">
-          <Button className="w-full h-14 text-base font-semibold" onClick={clearReceipt}>
-            New Tab
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
-  // --- NORMAL TAB VIEW ---
   return (
     <div className="flex flex-col h-full">
       <MemberSearch />
