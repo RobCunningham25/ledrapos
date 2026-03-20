@@ -140,19 +140,23 @@ export default function MemberSearch() {
 
   // Cash customer flow
   if (cashFlow) {
+    const nameValid = cashName.trim().length > 0;
     return (
       <div className="shrink-0 px-3 py-2 border-b border-border bg-card">
         <div className="flex flex-col gap-2">
           <Input
-            placeholder="Customer name (optional)"
+            placeholder="Customer name (required)"
             value={cashName}
-            onChange={e => setCashName(e.target.value)}
+            onChange={e => { setCashName(e.target.value); setCashError(''); }}
             className="h-11"
             autoFocus
           />
+          {cashError && (
+            <p className="text-xs text-destructive">{cashError}</p>
+          )}
           <div className="flex gap-2">
-            <Button className="flex-1 h-11" onClick={handleStartCashTab}>Start Tab</Button>
-            <Button variant="outline" className="flex-1 h-11" onClick={() => { setCashFlow(false); setCashName(''); }}>Cancel</Button>
+            <Button className="flex-1 h-11" disabled={!nameValid} onClick={handleStartCashTab}>Start Tab</Button>
+            <Button variant="outline" className="flex-1 h-11" onClick={() => { setCashFlow(false); setCashName(''); setCashError(''); }}>Cancel</Button>
           </div>
         </div>
       </div>
