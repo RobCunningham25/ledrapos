@@ -40,16 +40,6 @@ export interface ActiveTab {
   opened_at: string | null;
 }
 
-export interface ReceiptState {
-  isShowingReceipt: boolean;
-  tabItems: TabItemRow[];
-  tabTotal: number;
-  creditApplied: number;
-  cashPaid: number;
-  cardPaid: number;
-  changeDue: number;
-  memberName: string;
-}
 
 interface CartContextType {
   activeMember: ActiveMember | null;
@@ -61,7 +51,6 @@ interface CartContextType {
   isCommitting: boolean;
   commitError: string | null;
   openTabsRefetchTrigger: number;
-  receiptState: ReceiptState | null;
   selectMember: (member: ActiveMember) => Promise<void>;
   selectCashTab: (tab: ActiveTab) => Promise<void>;
   startCashCustomerTab: (name: string) => void;
@@ -71,8 +60,6 @@ interface CartContextType {
   commitCart: () => Promise<{ success: boolean; error?: string; memberName?: string }>;
   clearActiveTab: () => void;
   loadTabItems: () => Promise<void>;
-  setReceiptState: (state: ReceiptState) => void;
-  clearReceipt: () => void;
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
@@ -104,7 +91,6 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const [isCommitting, setIsCommitting] = useState(false);
   const [commitError, setCommitError] = useState<string | null>(null);
   const [openTabsRefetchTrigger, setOpenTabsRefetchTrigger] = useState(0);
-  const [receiptState, setReceiptStateInternal] = useState<ReceiptState | null>(null);
 
   const loadTabItems = useCallback(async () => {
     if (!activeTab) return;
@@ -121,7 +107,6 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setCashCustomerName(null);
     setLocalCart([]);
     setCommitError(null);
-    setReceiptStateInternal(null);
 
     const { data } = await supabase
       .from('tabs')
@@ -152,7 +137,6 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setActiveTab(tab);
     setLocalCart([]);
     setCommitError(null);
-    setReceiptStateInternal(null);
 
     const { data: items } = await supabase
       .from('tab_items')
@@ -170,7 +154,6 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setActiveTabItems([]);
     setLocalCart([]);
     setCommitError(null);
-    setReceiptStateInternal(null);
   }, []);
 
   const addToCart = useCallback((product: { id: string; name: string; brand: string | null; size: string | null; selling_price_cents: number }) => {
@@ -257,23 +240,6 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setIsCashCustomer(false);
     setCashCustomerName(null);
     setCommitError(null);
-    setReceiptStateInternal(null);
-  }, []);
-
-  const setReceiptState = useCallback((state: ReceiptState) => {
-    setReceiptStateInternal(state);
-  }, []);
-
-  const clearReceipt = useCallback(() => {
-    setReceiptStateInternal(null);
-    setActiveMember(null);
-    setActiveTab(null);
-    setActiveTabItems([]);
-    setLocalCart([]);
-    setIsCashCustomer(false);
-    setCashCustomerName(null);
-    setCommitError(null);
-    setOpenTabsRefetchTrigger(prev => prev + 1);
   }, []);
 
   return (
@@ -287,7 +253,6 @@ export function CartProvider({ children }: { children: ReactNode }) {
       isCommitting,
       commitError,
       openTabsRefetchTrigger,
-      receiptState,
       selectMember,
       selectCashTab,
       startCashCustomerTab,
@@ -297,8 +262,6 @@ export function CartProvider({ children }: { children: ReactNode }) {
       commitCart,
       clearActiveTab,
       loadTabItems,
-      setReceiptState,
-      clearReceipt,
     }}>
       {children}
     </CartContext.Provider>

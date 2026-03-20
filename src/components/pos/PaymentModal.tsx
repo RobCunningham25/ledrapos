@@ -153,8 +153,8 @@ export default function PaymentModal({
               <button
                 key={r.key}
                 onClick={() => setActiveField(r.key)}
-                className={`w-full flex items-center justify-between px-4 py-3 rounded-lg border transition-colors min-h-[48px] ${
-                  activeField === r.key ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/30'
+                className={`w-full flex items-center justify-between px-4 py-3 rounded-lg transition-colors min-h-[48px] ${
+                  activeField === r.key ? 'border-2 border-primary bg-primary/5' : 'border border-border hover:border-primary/30'
                 }`}
               >
                 <span className={`text-sm font-medium ${r.color}`}>{r.label}</span>
