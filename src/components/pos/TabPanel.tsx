@@ -1,17 +1,29 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useCart } from '@/contexts/CartContext';
+import { useVenue } from '@/contexts/VenueContext';
+import { useMemberCredit } from '@/hooks/useMemberCredit';
 import { formatCents } from '@/utils/currency';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Minus, Plus, X, Loader2 } from 'lucide-react';
+import { Minus, Plus, X, Loader2, CheckCircle, CreditCard } from 'lucide-react';
 import { toast } from 'sonner';
 import MemberSearch from './MemberSearch';
+import PaymentModal from './PaymentModal';
+import CreditLoadModal from './CreditLoadModal';
 
 export default function TabPanel() {
   const {
-    activeMember, activeTab, activeTabItems, localCart, isCashCustomer,
+    activeMember, activeTab, activeTabItems, localCart, isCashCustomer, cashCustomerName,
     isCommitting, commitError, updateCartQty, removeFromCart, commitCart,
+    receiptState, clearReceipt, setReceiptState, loadTabItems,
   } = useCart();
+  const { venueId } = useVenue();
+
+  const [showPayment, setShowPayment] = useState(false);
+  const [showCreditLoad, setShowCreditLoad] = useState(false);
+
+  const memberId = activeMember?.id ?? null;
+  const { balance: creditBalance, refetch: refetchCredit } = useMemberCredit(memberId, venueId);
 
   const hasCustomer = !!activeMember || isCashCustomer;
 
@@ -23,6 +35,10 @@ export default function TabPanel() {
 
   const grandTotal = tabTotal + cartTotal;
 
+  const memberName = activeMember
+    ? `${activeMember.firstName} ${activeMember.lastName}`
+    : cashCustomerName || 'Cash Customer';
+
   const handleCommit = async () => {
     const result = await commitCart();
     if (result.success && result.memberName) {
@@ -30,13 +46,119 @@ export default function TabPanel() {
     }
   };
 
+  const handlePaymentComplete = (result: any) => {
+    setShowPayment(false);
+    toast.success('Payment recorded', { duration: 2000 });
+
+    if (result?.tab_closed) {
+      setReceiptState({
+        isShowingReceipt: true,
+        tabItems: activeTabItems,
+        tabTotal: tabTotal,
+        creditApplied: result.credit_applied || 0,
+        cashPaid: result.cash_paid || 0,
+        cardPaid: result.card_paid || 0,
+        changeDue: result.change_due || 0,
+        memberName,
+      });
+    } else {
+      // Partial payment — reload tab items
+      loadTabItems();
+      refetchCredit();
+    }
+  };
+
   const openedTime = activeTab?.opened_at
     ? new Date(activeTab.opened_at).toLocaleTimeString('en-ZA', { hour: '2-digit', minute: '2-digit', hour12: false })
     : null;
 
+  // --- RECEIPT VIEW ---
+  if (receiptState?.isShowingReceipt) {
+    return (
+      <div className="flex flex-col h-full">
+        <div className="flex-1 overflow-y-auto px-4 py-6">
+          <div className="flex items-center gap-2 mb-2">
+            <CheckCircle className="h-6 w-6 text-success" />
+            <h2 className="text-xl font-semibold text-foreground">Receipt</h2>
+          </div>
+          <p className="text-base text-muted-foreground mb-4">{receiptState.memberName}</p>
+          <div className="h-px bg-border mb-3" />
+
+          {/* Items */}
+          {receiptState.tabItems.map(item => (
+            <div key={item.id} className="flex items-center justify-between py-1.5 text-sm">
+              <span className="text-foreground">
+                {item.product_name} × {item.qty} @ {formatCents(item.unit_price_cents)}
+              </span>
+              <span className="font-medium text-foreground">{formatCents(item.line_total_cents)}</span>
+            </div>
+          ))}
+
+          <div className="h-px bg-border my-3" />
+          <div className="flex justify-between text-base font-semibold text-foreground mb-1">
+            <span>Tab Total</span>
+            <span>{formatCents(receiptState.tabTotal)}</span>
+          </div>
+          {receiptState.creditApplied > 0 && (
+            <div className="flex justify-between text-sm text-success">
+              <span>Credit Applied</span>
+              <span>{formatCents(receiptState.creditApplied)}</span>
+            </div>
+          )}
+          {receiptState.cashPaid > 0 && (
+            <div className="flex justify-between text-sm text-foreground">
+              <span>Cash Paid</span>
+              <span>{formatCents(receiptState.cashPaid)}</span>
+            </div>
+          )}
+          {receiptState.cardPaid > 0 && (
+            <div className="flex justify-between text-sm text-foreground">
+              <span>Card Paid</span>
+              <span>{formatCents(receiptState.cardPaid)}</span>
+            </div>
+          )}
+          {receiptState.changeDue > 0 && (
+            <div className="flex justify-between text-sm text-warning">
+              <span>Change Due</span>
+              <span>{formatCents(receiptState.changeDue)}</span>
+            </div>
+          )}
+          <div className="h-px bg-border my-3" />
+        </div>
+        <div className="shrink-0 px-4 py-4 border-t border-border bg-card">
+          <Button className="w-full h-14 text-base font-semibold" onClick={clearReceipt}>
+            New Tab
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // --- NORMAL TAB VIEW ---
   return (
     <div className="flex flex-col h-full">
       <MemberSearch />
+
+      {/* Credit balance + Load Credit for members */}
+      {activeMember && (
+        <div className="shrink-0 px-3 py-2 border-b border-border bg-card flex items-center justify-between">
+          <div>
+            <span className="text-xs text-muted-foreground">Credit balance: </span>
+            <span className={`text-sm font-semibold ${creditBalance > 0 ? 'text-success' : 'text-muted-foreground'}`}>
+              {formatCents(creditBalance)}
+            </span>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-9 text-xs border-primary text-primary"
+            onClick={() => setShowCreditLoad(true)}
+          >
+            <CreditCard className="h-3 w-3 mr-1" />
+            Load Credit
+          </Button>
+        </div>
+      )}
 
       {/* Tab items list - scrollable */}
       <div className="flex-1 overflow-y-auto">
@@ -124,7 +246,7 @@ export default function TabPanel() {
         )}
       </div>
 
-      {/* Totals + commit bar */}
+      {/* Totals + action bar */}
       <div className="shrink-0 border-t border-border px-3 py-3 bg-card">
         {activeTabItems.length > 0 && (
           <div className="flex justify-between text-sm text-muted-foreground mb-1">
@@ -147,21 +269,54 @@ export default function TabPanel() {
           <p className="text-sm text-destructive mb-2">{commitError}</p>
         )}
 
-        <Button
-          className="w-full h-14 text-base font-semibold"
-          disabled={localCart.length === 0 || !hasCustomer || isCommitting}
-          onClick={handleCommit}
-        >
-          {isCommitting ? (
-            <>
-              <Loader2 className="h-4 w-4 animate-spin mr-2" />
-              Adding...
-            </>
-          ) : (
-            'Add to Tab'
+        <div className="flex gap-2">
+          <Button
+            className="flex-1 h-14 text-base font-semibold"
+            disabled={localCart.length === 0 || !hasCustomer || isCommitting}
+            onClick={handleCommit}
+          >
+            {isCommitting ? (
+              <><Loader2 className="h-4 w-4 animate-spin mr-2" />Adding...</>
+            ) : (
+              'Add to Tab'
+            )}
+          </Button>
+          {activeTab && activeTabItems.length > 0 && localCart.length === 0 && (
+            <Button
+              variant="outline"
+              className="h-14 px-6 text-base font-semibold border-primary text-primary"
+              onClick={() => setShowPayment(true)}
+            >
+              Pay
+            </Button>
           )}
-        </Button>
+        </div>
       </div>
+
+      {/* Payment Modal */}
+      {activeTab && (
+        <PaymentModal
+          isOpen={showPayment}
+          onClose={() => setShowPayment(false)}
+          tabId={activeTab.id}
+          tabTotal={tabTotal}
+          memberId={memberId}
+          memberName={memberName}
+          onPaymentComplete={handlePaymentComplete}
+        />
+      )}
+
+      {/* Credit Load Modal */}
+      {activeMember && (
+        <CreditLoadModal
+          isOpen={showCreditLoad}
+          onClose={() => setShowCreditLoad(false)}
+          memberId={activeMember.id}
+          memberName={`${activeMember.firstName} ${activeMember.lastName}`}
+          currentBalance={creditBalance}
+          onSuccess={refetchCredit}
+        />
+      )}
     </div>
   );
 }
