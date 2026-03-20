@@ -107,7 +107,6 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setCashCustomerName(null);
     setLocalCart([]);
     setCommitError(null);
-    setReceiptStateInternal(null);
 
     const { data } = await supabase
       .from('tabs')
