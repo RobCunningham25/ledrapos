@@ -135,6 +135,35 @@ export function CartProvider({ children }: { children: ReactNode }) {
     }
   }, [venueId]);
 
+  const selectCashTab = useCallback(async (tab: ActiveTab) => {
+    setActiveMember(null);
+    setIsCashCustomer(true);
+    setCashCustomerName(tab.cash_customer_name || 'Cash Customer');
+    setActiveTab(tab);
+    setLocalCart([]);
+    setCommitError(null);
+
+    const { data: items } = await supabase
+      .from('tab_items')
+      .select('id, product_id, qty, unit_price_cents, line_total_cents, liquor_products(name, brand, size)')
+      .eq('tab_id', tab.id);
+
+    if (items) {
+      setActiveTabItems(items.map((d: any) => ({
+        id: d.id,
+        product_id: d.product_id,
+        qty: d.qty,
+        unit_price_cents: d.unit_price_cents,
+        line_total_cents: d.line_total_cents,
+        product_name: d.liquor_products?.name,
+        product_brand: d.liquor_products?.brand,
+        product_size: d.liquor_products?.size,
+      })));
+    } else {
+      setActiveTabItems([]);
+    }
+  }, []);
+
   const startCashCustomerTab = useCallback((name: string) => {
     const displayName = name.trim();
     setIsCashCustomer(true);
