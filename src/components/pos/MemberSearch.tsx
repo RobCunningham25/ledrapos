@@ -94,7 +94,7 @@ export default function MemberSearch() {
     `${first.charAt(0)}${last.charAt(0)}`.toUpperCase();
 
   // Active member/cash customer display
-  if (activeMember || (isCashCustomer && activeTab)) {
+  if (activeMember || isCashCustomer) {
     return (
       <div className="shrink-0 px-3 py-2 border-b border-border bg-card">
         {confirmChange && (
