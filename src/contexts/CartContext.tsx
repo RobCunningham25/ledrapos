@@ -48,7 +48,7 @@ interface CartContextType {
   isCommitting: boolean;
   commitError: string | null;
   selectMember: (member: ActiveMember) => Promise<void>;
-  startCashCustomerTab: (name: string) => Promise<void>;
+  startCashCustomerTab: (name: string) => void;
   addToCart: (product: { id: string; name: string; brand: string | null; size: string | null; selling_price_cents: number }) => void;
   removeFromCart: (productId: string) => void;
   updateCartQty: (productId: string, qty: number) => void;
