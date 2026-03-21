@@ -243,6 +243,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setCommitError(null);
   }, []);
 
+  const triggerOpenTabsRefetch = useCallback(() => {
+    setOpenTabsRefetchTrigger(prev => prev + 1);
+  }, []);
+
   return (
     <CartContext.Provider value={{
       activeMember,
