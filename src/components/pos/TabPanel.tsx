@@ -57,6 +57,7 @@ export default function TabPanel() {
 
     // Full reset — return to default state
     clearActiveTab();
+    triggerOpenTabsRefetch();
   };
 
   const openedTime = activeTab?.opened_at
