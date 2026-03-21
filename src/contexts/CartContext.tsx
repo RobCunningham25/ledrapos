@@ -267,6 +267,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       commitCart,
       clearActiveTab,
       loadTabItems,
+      triggerOpenTabsRefetch,
     }}>
       {children}
     </CartContext.Provider>

@@ -15,7 +15,7 @@ export default function TabPanel() {
   const {
     activeMember, activeTab, activeTabItems, localCart, isCashCustomer, cashCustomerName,
     isCommitting, commitError, updateCartQty, removeFromCart, commitCart,
-    clearActiveTab, loadTabItems,
+    clearActiveTab, loadTabItems, triggerOpenTabsRefetch,
   } = useCart();
   const { venueId } = useVenue();
 
