@@ -12,7 +12,8 @@ import MemberPortal from "./pages/MemberPortal.tsx";
 import NotFound from "./pages/NotFound.tsx";
 import Products from "./pages/admin/Products.tsx";
 import Members from "./pages/admin/Members.tsx";
-import { ReportsPlaceholder, SettingsPlaceholder } from "./pages/admin/Placeholder.tsx";
+import Reports from "./pages/admin/Reports.tsx";
+import Settings from "./pages/admin/Settings.tsx";
 
 const queryClient = new QueryClient();
 
@@ -31,8 +32,8 @@ const App = () => (
                 <Route path="/admin" element={<Navigate to="/admin/products" replace />} />
                 <Route path="/admin/products" element={<Products />} />
                 <Route path="/admin/members" element={<Members />} />
-                <Route path="/admin/reports" element={<ReportsPlaceholder />} />
-                <Route path="/admin/settings" element={<SettingsPlaceholder />} />
+                <Route path="/admin/reports" element={<Reports />} />
+                <Route path="/admin/settings" element={<Settings />} />
                 <Route path="/member-portal" element={<MemberPortal />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
