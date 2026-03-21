@@ -60,6 +60,7 @@ interface CartContextType {
   commitCart: () => Promise<{ success: boolean; error?: string; memberName?: string }>;
   clearActiveTab: () => void;
   loadTabItems: () => Promise<void>;
+  triggerOpenTabsRefetch: () => void;
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
@@ -242,6 +243,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setCommitError(null);
   }, []);
 
+  const triggerOpenTabsRefetch = useCallback(() => {
+    setOpenTabsRefetchTrigger(prev => prev + 1);
+  }, []);
+
   return (
     <CartContext.Provider value={{
       activeMember,
@@ -262,6 +267,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       commitCart,
       clearActiveTab,
       loadTabItems,
+      triggerOpenTabsRefetch,
     }}>
       {children}
     </CartContext.Provider>

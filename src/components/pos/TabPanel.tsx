@@ -15,7 +15,7 @@ export default function TabPanel() {
   const {
     activeMember, activeTab, activeTabItems, localCart, isCashCustomer, cashCustomerName,
     isCommitting, commitError, updateCartQty, removeFromCart, commitCart,
-    clearActiveTab, loadTabItems,
+    clearActiveTab, loadTabItems, triggerOpenTabsRefetch,
   } = useCart();
   const { venueId } = useVenue();
 
@@ -57,6 +57,7 @@ export default function TabPanel() {
 
     // Full reset — return to default state
     clearActiveTab();
+    triggerOpenTabsRefetch();
   };
 
   const openedTime = activeTab?.opened_at
