@@ -60,6 +60,7 @@ interface CartContextType {
   commitCart: () => Promise<{ success: boolean; error?: string; memberName?: string }>;
   clearActiveTab: () => void;
   loadTabItems: () => Promise<void>;
+  triggerOpenTabsRefetch: () => void;
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
