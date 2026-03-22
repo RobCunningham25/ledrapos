@@ -53,6 +53,7 @@ const App = () => (
                     <Route path="calendar" element={<PortalCalendar />} />
                     <Route path="my-details" element={<PortalMyDetails />} />
                     <Route path="bookings" element={<PortalBookings />} />
+                    <Route path="payment-result" element={<PortalPaymentResult />} />
                   </Route>
                 </Route>
                 <Route path="*" element={<NotFound />} />
