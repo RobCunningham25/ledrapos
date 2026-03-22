@@ -22,6 +22,7 @@ import PortalLogin from "./pages/portal/PortalLogin.tsx";
 import PortalProtectedRoute from "./components/portal/PortalProtectedRoute.tsx";
 import PortalLayout from "./components/portal/PortalLayout.tsx";
 import PortalBarTab from "./pages/portal/PortalBarTab.tsx";
+import PortalDashboard from "./pages/portal/PortalDashboard.tsx";
 import PortalCalendar from "./pages/portal/PortalCalendar.tsx";
 import PortalMyDetails from "./pages/portal/PortalMyDetails.tsx";
 import PortalBookings from "./pages/portal/PortalBookings.tsx";
@@ -61,7 +62,8 @@ const App = () => (
                       <PortalLayout />
                     </PortalAuthProvider>
                   }>
-                    <Route index element={<PortalBarTab />} />
+                    <Route index element={<PortalDashboard />} />
+                    <Route path="bar-tab" element={<PortalBarTab />} />
                     <Route path="calendar" element={<PortalCalendar />} />
                     <Route path="my-details" element={<PortalMyDetails />} />
                     <Route path="bookings" element={<PortalBookings />} />
