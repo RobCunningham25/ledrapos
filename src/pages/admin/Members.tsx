@@ -6,6 +6,8 @@ import { useVenue } from '@/contexts/VenueContext';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Check, Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface Member {
   id: string;
@@ -14,6 +16,8 @@ interface Member {
   membership_number: string;
   membership_type: string;
   is_active: boolean;
+  auth_user_id: string | null;
+  email: string | null;
 }
 
 export default function Members() {
@@ -21,20 +25,77 @@ export default function Members() {
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
+  const [invitingId, setInvitingId] = useState<string | null>(null);
+
+  const fetchMembers = async () => {
+    setLoading(true);
+    const { data } = await supabase
+      .from('members')
+      .select('id, first_name, last_name, membership_number, membership_type, is_active, auth_user_id, email')
+      .eq('venue_id', venueId)
+      .order('last_name');
+    setMembers((data as Member[]) || []);
+    setLoading(false);
+  };
 
   useEffect(() => {
-    const fetch = async () => {
-      setLoading(true);
-      const { data } = await supabase
-        .from('members')
-        .select('id, first_name, last_name, membership_number, membership_type, is_active')
-        .eq('venue_id', venueId)
-        .order('last_name');
-      setMembers(data || []);
-      setLoading(false);
-    };
-    fetch();
+    fetchMembers();
   }, [venueId]);
+
+  const handleInvite = async (member: Member) => {
+    setInvitingId(member.id);
+    try {
+      const res = await supabase.functions.invoke('invite-member', {
+        body: { member_id: member.id, venue_id: venueId },
+      });
+
+      if (res.error) {
+        const msg = res.error.message || 'Failed to send invite';
+        toast.error(msg);
+      } else if (res.data?.error) {
+        toast.error(res.data.error);
+      } else {
+        toast.success(`Invite sent to ${member.email}`);
+        await fetchMembers();
+      }
+    } catch {
+      toast.error('Failed to send invite');
+    }
+    setInvitingId(null);
+  };
+
+  const renderInviteCell = (m: Member) => {
+    if (m.auth_user_id) {
+      return (
+        <span className="inline-flex items-center gap-1 text-sm font-medium" style={{ color: '#16A34A' }}>
+          <Check size={14} /> Invited
+        </span>
+      );
+    }
+    if (!m.email) {
+      return <span className="text-sm" style={{ color: '#718096' }}>No email</span>;
+    }
+    return (
+      <button
+        disabled={invitingId === m.id}
+        onClick={() => handleInvite(m)}
+        className="inline-flex items-center gap-1 text-sm font-medium transition-colors"
+        style={{
+          padding: '6px 12px',
+          border: '1px solid #2E5FA3',
+          color: invitingId === m.id ? '#2E5FA3' : '#2E5FA3',
+          background: 'transparent',
+          borderRadius: 6,
+          cursor: invitingId === m.id ? 'not-allowed' : 'pointer',
+        }}
+        onMouseEnter={e => { if (invitingId !== m.id) { (e.target as HTMLElement).style.background = '#2E5FA3'; (e.target as HTMLElement).style.color = '#FFFFFF'; } }}
+        onMouseLeave={e => { (e.target as HTMLElement).style.background = 'transparent'; (e.target as HTMLElement).style.color = '#2E5FA3'; }}
+      >
+        {invitingId === m.id ? <Loader2 size={14} className="animate-spin" /> : null}
+        {invitingId === m.id ? 'Sending...' : 'Invite'}
+      </button>
+    );
+  };
 
   return (
     <AdminLayout title="Members">
@@ -46,18 +107,19 @@ export default function Members() {
               <th className="text-left px-4 py-3 font-medium text-muted-foreground">Membership #</th>
               <th className="text-left px-4 py-3 font-medium text-muted-foreground">Type</th>
               <th className="text-left px-4 py-3 font-medium text-muted-foreground">Status</th>
+              <th className="text-left px-4 py-3 font-medium text-muted-foreground">Portal</th>
               <th className="text-right px-4 py-3 font-medium text-muted-foreground">Actions</th>
             </tr>
           </thead>
           <tbody>
             {loading && [1, 2, 3].map(i => (
               <tr key={i} className="border-b border-border">
-                <td className="px-4 py-3" colSpan={5}><Skeleton className="h-5 w-full" /></td>
+                <td className="px-4 py-3" colSpan={6}><Skeleton className="h-5 w-full" /></td>
               </tr>
             ))}
             {!loading && members.length === 0 && (
               <tr>
-                <td className="px-4 py-8 text-center text-muted-foreground" colSpan={5}>No members found</td>
+                <td className="px-4 py-8 text-center text-muted-foreground" colSpan={6}>No members found</td>
               </tr>
             )}
             {members.map(m => (
@@ -72,6 +134,7 @@ export default function Members() {
                     {m.is_active ? 'Active' : 'Inactive'}
                   </Badge>
                 </td>
+                <td className="px-4 py-3">{renderInviteCell(m)}</td>
                 <td className="px-4 py-3 text-right">
                   <Button variant="outline" size="sm" className="text-xs" onClick={() => setSelectedMember(m)}>
                     Manage Favourites
