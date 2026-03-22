@@ -1,8 +1,9 @@
 import { ReactNode, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Package, Users, BarChart3, Settings, Menu, X } from 'lucide-react';
+import { Package, Users, BarChart3, Settings, Menu, X, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { useAdminAuth } from '@/contexts/AdminAuthContext';
 
 interface AdminLayoutProps {
   children: ReactNode;
@@ -21,6 +22,7 @@ export default function AdminLayout({ children, title, action }: AdminLayoutProp
   const location = useLocation();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { adminUser, signOut } = useAdminAuth();
 
   const isActive = (path: string) =>
     location.pathname === path || (path === '/admin/products' && location.pathname === '/admin');
@@ -54,6 +56,26 @@ export default function AdminLayout({ children, title, action }: AdminLayoutProp
           );
         })}
       </nav>
+
+      {/* Admin user info + logout */}
+      <div style={{ borderTop: '1px solid #E2E8F0', marginTop: 'auto' }}>
+        {adminUser && (
+          <div style={{ padding: '12px 16px' }}>
+            <p style={{ fontSize: 13, fontWeight: 500, color: '#1A202C' }}>{adminUser.name}</p>
+            <p style={{ fontSize: 12, color: '#718096' }}>{adminUser.email}</p>
+          </div>
+        )}
+        <button
+          onClick={signOut}
+          className="flex w-full items-center gap-2 transition-colors"
+          style={{ padding: '12px 16px', color: '#C0392B', fontSize: 14, fontWeight: 500 }}
+          onMouseEnter={(e) => (e.currentTarget.style.background = '#FEF2F2')}
+          onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+        >
+          <LogOut className="h-4 w-4" />
+          Log Out
+        </button>
+      </div>
     </div>
   );
 

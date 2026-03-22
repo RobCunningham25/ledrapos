@@ -1,4 +1,4 @@
-// TODO: Phase 7 — re-enable JWT verification when admin auth is implemented
+// TODO: Phase 7 — JWT verification is now enabled. Admin check enforced below.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const corsHeaders = {
@@ -12,6 +12,46 @@ Deno.serve(async (req) => {
   }
 
   try {
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    )
+
+    // Verify the caller is an admin
+    const authHeader = req.headers.get('Authorization')
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    const { data: { user }, error: authError } = await supabase.auth.getUser(
+      authHeader.replace('Bearer ', '')
+    )
+
+    if (authError || !user) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    // Check admin_users table
+    const { data: adminUser } = await supabase
+      .from('admin_users')
+      .select('id, venue_id')
+      .eq('auth_user_id', user.id)
+      .eq('is_active', true)
+      .single()
+
+    if (!adminUser) {
+      return new Response(JSON.stringify({ error: 'Admin access required' }), {
+        status: 403,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
     const { member_id, venue_id } = await req.json()
 
     if (!member_id || !venue_id) {
@@ -20,11 +60,6 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
-
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    )
 
     const { data: member, error: memberError } = await supabase
       .from('members')
@@ -54,13 +89,13 @@ Deno.serve(async (req) => {
       })
     }
 
-    const { data: authData, error: authError } = await supabase.auth.admin.inviteUserByEmail(
+    const { data: authData, error: inviteError } = await supabase.auth.admin.inviteUserByEmail(
       member.email,
       { data: { member_id: member.id, venue_id: member.venue_id } }
     )
 
-    if (authError || !authData?.user) {
-      return new Response(JSON.stringify({ error: authError?.message || 'Failed to send invite' }), {
+    if (inviteError || !authData?.user) {
+      return new Response(JSON.stringify({ error: inviteError?.message || 'Failed to send invite' }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
