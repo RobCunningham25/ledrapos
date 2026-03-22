@@ -118,7 +118,7 @@ export default function MemberDetail() {
     if (!id) return;
     const { data } = await supabase
       .from('members')
-      .select('id, first_name, last_name, membership_number, membership_type, email, phone, partner_name, is_active, auth_user_id, created_at')
+      .select('id, first_name, last_name, membership_number, membership_type, email, phone, partner_name, partner_first_name, partner_last_name, emergency_contact_name, emergency_contact_phone, is_active, auth_user_id, created_at')
       .eq('id', id)
       .eq('venue_id', venueId)
       .single();
