@@ -1,13 +1,13 @@
 import { ReactNode, useState } from 'react';
-import { useLocation, useNavigate, Outlet } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Package, Users, BarChart3, Settings, Menu, X, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useAdminAuth } from '@/contexts/AdminAuthContext';
 
 interface AdminLayoutProps {
-  children?: ReactNode;
-  title?: string;
+  children: ReactNode;
+  title: string;
   action?: ReactNode;
 }
 
@@ -18,20 +18,11 @@ const navItems = [
   { label: 'Settings', path: '/admin/settings', icon: Settings },
 ];
 
-const pageTitles: Record<string, string> = {
-  '/admin/products': 'Products',
-  '/admin/members': 'Members',
-  '/admin/reports': 'Reports',
-  '/admin/settings': 'Settings',
-};
-
 export default function AdminLayout({ children, title, action }: AdminLayoutProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { adminUser, signOut } = useAdminAuth();
-
-  const resolvedTitle = title || pageTitles[location.pathname] || '';
 
   const isActive = (path: string) =>
     location.pathname === path || (path === '/admin/products' && location.pathname === '/admin');
@@ -122,12 +113,12 @@ export default function AdminLayout({ children, title, action }: AdminLayoutProp
             >
               <Menu className="h-5 w-5" />
             </Button>
-            <h2 className="text-lg font-semibold text-foreground">{resolvedTitle}</h2>
+            <h2 className="text-lg font-semibold text-foreground">{title}</h2>
           </div>
           {action && <div>{action}</div>}
         </header>
         <main className="flex-1 overflow-auto bg-page p-4 md:p-8">
-          {children || <Outlet />}
+          {children}
         </main>
       </div>
     </div>

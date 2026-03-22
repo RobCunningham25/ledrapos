@@ -13,7 +13,6 @@ import POS from "./pages/POS.tsx";
 import NotFound from "./pages/NotFound.tsx";
 import AdminLogin from "./pages/admin/AdminLogin.tsx";
 import AdminProtectedRoute from "./components/admin/AdminProtectedRoute.tsx";
-import AdminLayout from "./components/admin/AdminLayout.tsx";
 import Products from "./pages/admin/Products.tsx";
 import Members from "./pages/admin/Members.tsx";
 import Reports from "./pages/admin/Reports.tsx";
@@ -47,13 +46,11 @@ const App = () => (
                     <AdminProtectedRoute />
                   </AdminAuthProvider>
                 }>
-                  <Route element={<AdminLayout title="" />}>
-                    <Route index element={<Navigate to="/admin/products" replace />} />
-                    <Route path="products" element={<Products />} />
-                    <Route path="members" element={<Members />} />
-                    <Route path="reports" element={<Reports />} />
-                    <Route path="settings" element={<Settings />} />
-                  </Route>
+                  <Route index element={<Navigate to="/admin/products" replace />} />
+                  <Route path="products" element={<Products />} />
+                  <Route path="members" element={<Members />} />
+                  <Route path="reports" element={<Reports />} />
+                  <Route path="settings" element={<Settings />} />
                 </Route>
                 <Route path="/portal/login" element={<PortalLogin />} />
                 <Route path="/portal" element={<PortalProtectedRoute />}>
