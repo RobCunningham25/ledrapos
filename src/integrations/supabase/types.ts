@@ -181,6 +181,7 @@ export type Database = {
       }
       members: {
         Row: {
+          auth_user_id: string | null
           created_at: string | null
           email: string | null
           first_name: string
@@ -194,6 +195,7 @@ export type Database = {
           venue_id: string
         }
         Insert: {
+          auth_user_id?: string | null
           created_at?: string | null
           email?: string | null
           first_name: string
@@ -207,6 +209,7 @@ export type Database = {
           venue_id: string
         }
         Update: {
+          auth_user_id?: string | null
           created_at?: string | null
           email?: string | null
           first_name?: string

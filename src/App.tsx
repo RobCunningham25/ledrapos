@@ -6,14 +6,21 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { VenueProvider } from "@/contexts/VenueContext";
 import { POSAuthProvider } from "@/contexts/POSAuthContext";
 import { CartProvider } from "@/contexts/CartContext";
+import { PortalAuthProvider } from "@/contexts/PortalAuthContext";
 import Index from "./pages/Index.tsx";
 import POS from "./pages/POS.tsx";
-import MemberPortal from "./pages/MemberPortal.tsx";
 import NotFound from "./pages/NotFound.tsx";
 import Products from "./pages/admin/Products.tsx";
 import Members from "./pages/admin/Members.tsx";
 import Reports from "./pages/admin/Reports.tsx";
 import Settings from "./pages/admin/Settings.tsx";
+import PortalLogin from "./pages/portal/PortalLogin.tsx";
+import PortalProtectedRoute from "./components/portal/PortalProtectedRoute.tsx";
+import PortalLayout from "./components/portal/PortalLayout.tsx";
+import PortalBarTab from "./pages/portal/PortalBarTab.tsx";
+import PortalCalendar from "./pages/portal/PortalCalendar.tsx";
+import PortalMyDetails from "./pages/portal/PortalMyDetails.tsx";
+import PortalBookings from "./pages/portal/PortalBookings.tsx";
 
 const queryClient = new QueryClient();
 
@@ -34,7 +41,19 @@ const App = () => (
                 <Route path="/admin/members" element={<Members />} />
                 <Route path="/admin/reports" element={<Reports />} />
                 <Route path="/admin/settings" element={<Settings />} />
-                <Route path="/member-portal" element={<MemberPortal />} />
+                <Route path="/portal/login" element={<PortalLogin />} />
+                <Route path="/portal" element={<PortalProtectedRoute />}>
+                  <Route element={
+                    <PortalAuthProvider>
+                      <PortalLayout />
+                    </PortalAuthProvider>
+                  }>
+                    <Route index element={<PortalBarTab />} />
+                    <Route path="calendar" element={<PortalCalendar />} />
+                    <Route path="my-details" element={<PortalMyDetails />} />
+                    <Route path="bookings" element={<PortalBookings />} />
+                  </Route>
+                </Route>
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </BrowserRouter>

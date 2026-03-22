@@ -1,0 +1,1 @@
+ALTER TABLE members ADD COLUMN auth_user_id UUID UNIQUE;
