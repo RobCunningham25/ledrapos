@@ -109,7 +109,8 @@ export default function MemberDrawer({ isOpen, onClose, venueId, member, onSucce
       email: form.email.trim() || null,
       phone: form.phone.trim() || null,
       membership_type: form.membership_type,
-      partner_name: form.partner_name.trim() || null,
+      partner_first_name: form.partner_first_name.trim() || null,
+      partner_last_name: form.partner_last_name.trim() || null,
       is_active: form.is_active,
     };
 
