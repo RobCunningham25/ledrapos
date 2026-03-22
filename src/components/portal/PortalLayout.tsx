@@ -2,13 +2,14 @@ import { useState, useEffect } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { usePortalAuth } from '@/contexts/PortalAuthContext';
 import { supabase } from '@/integrations/supabase/client';
-import { Wine, Calendar, User, CalendarCheck, LogOut } from 'lucide-react';
+import { Home, Calendar, User, BedDouble, LogOut } from 'lucide-react';
+import { PORTAL_THEME as T } from '@/constants/portalTheme';
 
 const allTabs = [
-  { label: 'Bar Tab', icon: Wine, path: '/portal', key: null },
+  { label: 'Home', icon: Home, path: '/portal', key: null },
   { label: 'Calendar', icon: Calendar, path: '/portal/calendar', key: 'portal_tab_calendar' },
   { label: 'My Details', icon: User, path: '/portal/my-details', key: 'portal_tab_my_details' },
-  { label: 'Bookings', icon: CalendarCheck, path: '/portal/bookings', key: 'portal_tab_bookings' },
+  { label: 'Bookings', icon: BedDouble, path: '/portal/bookings', key: 'portal_tab_bookings' },
 ];
 
 export default function PortalLayout() {
@@ -46,55 +47,144 @@ export default function PortalLayout() {
   const visibleTabs = allTabs.filter(t => t.key === null || enabledKeys[t.key]);
 
   const isActive = (path: string) => {
-    if (path === '/portal') return location.pathname === '/portal';
+    if (path === '/portal') return location.pathname === '/portal' || location.pathname === '/portal/bar-tab';
     return location.pathname.startsWith(path);
   };
 
   return (
-    <div className="flex flex-col" style={{ minHeight: '100vh', background: '#F4F6F9' }}>
-      {/* Top bar */}
-      <header
-        className="flex items-center justify-between shrink-0"
-        style={{ height: 56, background: '#FFFFFF', borderBottom: '1px solid #E2E8F0', padding: '0 16px' }}
+    <div className="flex" style={{ minHeight: '100vh', background: T.pageBg }}>
+      {/* Desktop sidebar — hidden below lg */}
+      <aside
+        className="hidden lg:flex flex-col shrink-0"
+        style={{ width: 240, background: T.navy, position: 'fixed', top: 0, left: 0, bottom: 0, zIndex: 30 }}
       >
-        <span style={{ fontWeight: 700, fontSize: 18, color: '#2E5FA3' }}>Ledra</span>
-        <div className="flex items-center gap-3">
-          <span style={{ fontSize: 14, color: '#718096' }}>{member?.first_name}</span>
-          <button
-            onClick={signOut}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#718096', width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-          >
-            <LogOut size={24} />
-          </button>
+        <div style={{ padding: '24px 20px 0' }}>
+          <span style={{ fontWeight: 700, fontSize: 18, color: '#FFFFFF' }}>Vaal Cruising Association</span>
         </div>
-      </header>
+        <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', padding: '8px 20px 0', marginBottom: 32 }}>
+          Welcome, {member?.first_name}
+        </p>
 
-      {/* Content */}
-      <main className="flex-1 overflow-y-auto" style={{ padding: 16 }}>
-        <Outlet />
-      </main>
+        <nav className="flex-1 flex flex-col gap-1 px-2">
+          {visibleTabs.map(tab => {
+            const active = isActive(tab.path);
+            return (
+              <button
+                key={tab.path}
+                onClick={() => navigate(tab.path)}
+                className="flex items-center gap-3"
+                style={{
+                  width: '100%',
+                  padding: '12px 18px',
+                  borderRadius: 8,
+                  fontSize: 14,
+                  fontWeight: active ? 600 : 500,
+                  color: active ? '#FFFFFF' : 'rgba(255,255,255,0.6)',
+                  background: active ? 'rgba(42,157,143,0.2)' : 'transparent',
+                  border: 'none',
+                  borderLeft: active ? `3px solid ${T.teal}` : '3px solid transparent',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  transition: 'background 150ms',
+                }}
+                onMouseEnter={e => { if (!active) (e.currentTarget.style.background = 'rgba(255,255,255,0.08)'); }}
+                onMouseLeave={e => { if (!active) (e.currentTarget.style.background = 'transparent'); }}
+              >
+                <tab.icon size={20} />
+                {tab.label}
+              </button>
+            );
+          })}
+        </nav>
 
-      {/* Bottom tab bar */}
-      <nav
-        className="flex items-center shrink-0"
-        style={{ height: 64, background: '#FFFFFF', borderTop: '1px solid #E2E8F0' }}
-      >
-        {visibleTabs.map(tab => {
-          const active = isActive(tab.path);
-          const color = active ? '#2E5FA3' : '#718096';
-          return (
+        <button
+          onClick={signOut}
+          className="flex items-center gap-3"
+          style={{
+            width: '100%', padding: '12px 20px', margin: '8px 8px 24px',
+            borderRadius: 8, fontSize: 14, fontWeight: 500,
+            color: 'rgba(255,255,255,0.6)', background: 'none', border: 'none',
+            cursor: 'pointer', textAlign: 'left',
+          }}
+          onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.08)')}
+          onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+        >
+          <LogOut size={20} />
+          Log out
+        </button>
+      </aside>
+
+      {/* Main content area */}
+      <div className="flex flex-col flex-1 lg:ml-[240px]" style={{ minHeight: '100vh' }}>
+        {/* Top bar */}
+        <header
+          className="flex items-center justify-between shrink-0"
+          style={{ height: 64, background: T.navy, padding: '0 20px' }}
+        >
+          <span className="hidden lg:inline" style={{ fontWeight: 600, fontSize: 16, color: '#FFFFFF' }}>
+            Vaal Cruising Association
+          </span>
+          <span className="lg:hidden" style={{ fontWeight: 600, fontSize: 16, color: '#FFFFFF' }}>
+            VCA
+          </span>
+          <div className="flex items-center gap-3">
+            <span style={{ fontSize: 14, color: 'rgba(255,255,255,0.8)' }}>{member?.first_name}</span>
             <button
-              key={tab.path}
-              onClick={() => navigate(tab.path)}
-              className="flex flex-col items-center justify-center gap-0.5"
-              style={{ flex: 1, minHeight: 64, background: 'none', border: 'none', cursor: 'pointer' }}
+              onClick={signOut}
+              className="lg:hidden"
+              style={{
+                background: 'none', border: 'none', cursor: 'pointer',
+                color: 'rgba(255,255,255,0.7)', width: 44, height: 44,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}
             >
-              <tab.icon size={24} color={color} strokeWidth={active ? 2.5 : 2} />
-              <span style={{ fontSize: 11, fontWeight: 500, color }}>{tab.label}</span>
+              <LogOut size={20} />
             </button>
-          );
-        })}
-      </nav>
+          </div>
+        </header>
+
+        {/* Content */}
+        <main className="flex-1 overflow-y-auto" style={{ padding: 16 }}>
+          <Outlet />
+        </main>
+
+        {/* Bottom tab bar — visible below lg */}
+        <nav
+          className="flex items-center shrink-0 lg:hidden"
+          style={{
+            height: 64,
+            background: '#FFFFFF',
+            borderTop: `1px solid ${T.cardBorder}`,
+            boxShadow: '0 -2px 8px rgba(43,35,25,0.04)',
+            paddingBottom: 'env(safe-area-inset-bottom)',
+          }}
+        >
+          {visibleTabs.map(tab => {
+            const active = isActive(tab.path);
+            const color = active ? T.navy : T.textMuted;
+            return (
+              <button
+                key={tab.path}
+                onClick={() => navigate(tab.path)}
+                className="flex flex-col items-center justify-center gap-0.5"
+                style={{
+                  flex: 1, minHeight: 64, background: 'none', border: 'none',
+                  cursor: 'pointer', position: 'relative',
+                }}
+              >
+                {active && (
+                  <div style={{
+                    position: 'absolute', top: 0, left: '50%', transform: 'translateX(-50%)',
+                    width: 32, height: 3, borderRadius: 2, background: T.teal,
+                  }} />
+                )}
+                <tab.icon size={24} color={color} strokeWidth={active ? 2.5 : 2} />
+                <span style={{ fontSize: 11, fontWeight: active ? 600 : 500, color }}>{tab.label}</span>
+              </button>
+            );
+          })}
+        </nav>
+      </div>
     </div>
   );
 }
