@@ -71,7 +71,8 @@ export default function MemberDrawer({ isOpen, onClose, venueId, member, onSucce
           email: member.email || '',
           phone: member.phone || '',
           membership_type: member.membership_type,
-          partner_name: member.partner_name || '',
+          partner_first_name: member.partner_first_name || '',
+          partner_last_name: member.partner_last_name || '',
           is_active: member.is_active,
         });
       } else {
