@@ -15,6 +15,7 @@ import AdminLogin from "./pages/admin/AdminLogin.tsx";
 import AdminProtectedRoute from "./components/admin/AdminProtectedRoute.tsx";
 import Products from "./pages/admin/Products.tsx";
 import Members from "./pages/admin/Members.tsx";
+import MemberDetail from "./pages/admin/MemberDetail.tsx";
 import Reports from "./pages/admin/Reports.tsx";
 import Settings from "./pages/admin/Settings.tsx";
 import PortalLogin from "./pages/portal/PortalLogin.tsx";
@@ -49,6 +50,7 @@ const App = () => (
                   <Route index element={<Navigate to="/admin/products" replace />} />
                   <Route path="products" element={<Products />} />
                   <Route path="members" element={<Members />} />
+                  <Route path="members/:id" element={<MemberDetail />} />
                   <Route path="reports" element={<Reports />} />
                   <Route path="settings" element={<Settings />} />
                 </Route>
