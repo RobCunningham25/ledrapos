@@ -63,10 +63,16 @@ export default function Members() {
     setInvitingId(member.id);
     try {
       const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        toast.error('Your session has expired. Please log in again.');
+        setInvitingId(null);
+        return;
+      }
       const res = await supabase.functions.invoke('invite-member', {
         body: { member_id: member.id, venue_id: venueId },
         headers: {
-          Authorization: `Bearer ${session?.access_token}`,
+          Authorization: `Bearer ${session.access_token}`,
+          apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
         },
       });
       if (res.error) {
