@@ -17,6 +17,8 @@ interface MemberRow {
   email: string | null;
   phone: string | null;
   partner_name: string | null;
+  partner_first_name: string | null;
+  partner_last_name: string | null;
   is_active: boolean;
   auth_user_id: string | null;
 }
