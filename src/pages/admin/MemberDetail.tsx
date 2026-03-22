@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import AdminLayout from '@/components/admin/AdminLayout';
 import MemberDrawer from '@/components/admin/MemberDrawer';
+import MemberDetailsTab from '@/components/admin/MemberDetailsTab';
 import { supabase } from '@/integrations/supabase/client';
 import { useVenue } from '@/contexts/VenueContext';
 import { formatCents } from '@/utils/currency';
@@ -19,6 +20,10 @@ interface Member {
   email: string | null;
   phone: string | null;
   partner_name: string | null;
+  partner_first_name: string | null;
+  partner_last_name: string | null;
+  emergency_contact_name: string | null;
+  emergency_contact_phone: string | null;
   is_active: boolean;
   auth_user_id: string | null;
   created_at: string | null;
@@ -80,7 +85,7 @@ export default function MemberDetail() {
 
   const [member, setMember] = useState<Member | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'tabs' | 'credit'>('tabs');
+  const [activeTab, setActiveTab] = useState<'tabs' | 'credit' | 'details'>('tabs');
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   // Credit state
@@ -113,7 +118,7 @@ export default function MemberDetail() {
     if (!id) return;
     const { data } = await supabase
       .from('members')
-      .select('id, first_name, last_name, membership_number, membership_type, email, phone, partner_name, is_active, auth_user_id, created_at')
+      .select('id, first_name, last_name, membership_number, membership_type, email, phone, partner_name, partner_first_name, partner_last_name, emergency_contact_name, emergency_contact_phone, is_active, auth_user_id, created_at')
       .eq('id', id)
       .eq('venue_id', venueId)
       .single();
@@ -466,13 +471,25 @@ export default function MemberDetail() {
           </div>
           <div>
             <p style={{ fontSize: 13, color: '#718096', fontWeight: 500 }}>Partner</p>
-            <p style={{ fontSize: 15, fontWeight: 500, color: '#1A202C' }}>{member.partner_name || '—'}</p>
+            <p style={{ fontSize: 15, fontWeight: 500, color: '#1A202C' }}>
+              {[member.partner_first_name, member.partner_last_name].filter(Boolean).join(' ') || '—'}
+            </p>
+          </div>
+          <div>
+            <p style={{ fontSize: 13, color: '#718096', fontWeight: 500 }}>Emergency Contact</p>
+            <p style={{ fontSize: 15, fontWeight: 500, color: '#1A202C' }}>
+              {[member.emergency_contact_name, member.emergency_contact_phone].filter(Boolean).join(' — ') || '—'}
+            </p>
           </div>
           <div>
             <p style={{ fontSize: 13, color: '#718096', fontWeight: 500 }}>Member since</p>
             <p style={{ fontSize: 15, fontWeight: 500, color: '#1A202C' }}>
               {member.created_at ? format(new Date(member.created_at), 'dd MMM yyyy') : '—'}
             </p>
+          </div>
+          <div>
+            <p style={{ fontSize: 13, color: '#718096', fontWeight: 500 }}>Membership #</p>
+            <p style={{ fontSize: 15, fontWeight: 500, color: '#1A202C' }}>{member.membership_number}</p>
           </div>
           <div>
             <p style={{ fontSize: 13, color: '#718096', fontWeight: 500 }}>Credit balance</p>
@@ -496,20 +513,20 @@ export default function MemberDetail() {
         </div>
       </div>
 
-      {/* Tab navigation — Tab History first, Credit History second */}
+      {/* Tab navigation — Tab History, Credit History, Details */}
       <div className="flex border-b mb-6" style={{ borderColor: '#E2E8F0' }}>
-        {(['tabs', 'credit'] as const).map(tab => (
+        {([['tabs', 'Tab History'], ['credit', 'Credit History'], ['details', 'Details']] as const).map(([key, label]) => (
           <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
+            key={key}
+            onClick={() => setActiveTab(key)}
             style={{
               padding: '12px 16px', fontSize: 14, fontWeight: 500,
-              color: activeTab === tab ? '#2E5FA3' : '#718096',
-              borderBottom: activeTab === tab ? '2px solid #2E5FA3' : '2px solid transparent',
+              color: activeTab === key ? '#2E5FA3' : '#718096',
+              borderBottom: activeTab === key ? '2px solid #2E5FA3' : '2px solid transparent',
               background: 'transparent',
             }}
           >
-            {tab === 'credit' ? 'Credit History' : 'Tab History'}
+            {label}
           </button>
         ))}
       </div>
@@ -778,6 +795,15 @@ export default function MemberDetail() {
             </button>
           )}
         </div>
+      )}
+
+      {/* DETAILS TAB */}
+      {activeTab === 'details' && (
+        <MemberDetailsTab
+          memberId={member.id}
+          venueId={venueId}
+          onMemberUpdated={() => { fetchMember(); fetchCreditBalance(); fetchBalanceDue(); }}
+        />
       )}
 
       {/* Edit drawer */}

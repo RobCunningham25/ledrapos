@@ -1,18 +1,49 @@
+import { useState, useEffect } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { usePortalAuth } from '@/contexts/PortalAuthContext';
+import { supabase } from '@/integrations/supabase/client';
 import { Wine, Calendar, User, CalendarCheck, LogOut } from 'lucide-react';
 
-const tabs = [
-  { label: 'Bar Tab', icon: Wine, path: '/portal' },
-  { label: 'Calendar', icon: Calendar, path: '/portal/calendar' },
-  { label: 'My Details', icon: User, path: '/portal/my-details' },
-  { label: 'Bookings', icon: CalendarCheck, path: '/portal/bookings' },
+const allTabs = [
+  { label: 'Bar Tab', icon: Wine, path: '/portal', key: null },
+  { label: 'Calendar', icon: Calendar, path: '/portal/calendar', key: 'portal_tab_calendar' },
+  { label: 'My Details', icon: User, path: '/portal/my-details', key: 'portal_tab_my_details' },
+  { label: 'Bookings', icon: CalendarCheck, path: '/portal/bookings', key: 'portal_tab_bookings' },
 ];
 
 export default function PortalLayout() {
   const { member, signOut } = usePortalAuth();
   const location = useLocation();
   const navigate = useNavigate();
+  const [enabledKeys, setEnabledKeys] = useState<Record<string, boolean>>({
+    portal_tab_calendar: true,
+    portal_tab_my_details: true,
+    portal_tab_bookings: true,
+  });
+
+  useEffect(() => {
+    if (!member?.venue_id) return;
+    supabase
+      .from('venue_settings')
+      .select('key, value')
+      .eq('venue_id', member.venue_id)
+      .in('key', ['portal_tab_calendar', 'portal_tab_my_details', 'portal_tab_bookings'])
+      .then(({ data }) => {
+        if (data) {
+          const result: Record<string, boolean> = {
+            portal_tab_calendar: true,
+            portal_tab_my_details: true,
+            portal_tab_bookings: true,
+          };
+          for (const row of data) {
+            result[row.key] = row.value !== 'false';
+          }
+          setEnabledKeys(result);
+        }
+      });
+  }, [member?.venue_id]);
+
+  const visibleTabs = allTabs.filter(t => t.key === null || enabledKeys[t.key]);
 
   const isActive = (path: string) => {
     if (path === '/portal') return location.pathname === '/portal';
@@ -48,7 +79,7 @@ export default function PortalLayout() {
         className="flex items-center shrink-0"
         style={{ height: 64, background: '#FFFFFF', borderTop: '1px solid #E2E8F0' }}
       >
-        {tabs.map(tab => {
+        {visibleTabs.map(tab => {
           const active = isActive(tab.path);
           const color = active ? '#2E5FA3' : '#718096';
           return (

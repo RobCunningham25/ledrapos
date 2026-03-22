@@ -17,6 +17,8 @@ interface MemberRow {
   email: string | null;
   phone: string | null;
   partner_name: string | null;
+  partner_first_name: string | null;
+  partner_last_name: string | null;
   is_active: boolean;
   auth_user_id: string | null;
 }
@@ -36,7 +38,8 @@ interface FormState {
   email: string;
   phone: string;
   membership_type: string;
-  partner_name: string;
+  partner_first_name: string;
+  partner_last_name: string;
   is_active: boolean;
 }
 
@@ -47,7 +50,8 @@ const emptyForm: FormState = {
   email: '',
   phone: '',
   membership_type: 'member',
-  partner_name: '',
+  partner_first_name: '',
+  partner_last_name: '',
   is_active: true,
 };
 
@@ -67,7 +71,8 @@ export default function MemberDrawer({ isOpen, onClose, venueId, member, onSucce
           email: member.email || '',
           phone: member.phone || '',
           membership_type: member.membership_type,
-          partner_name: member.partner_name || '',
+          partner_first_name: member.partner_first_name || '',
+          partner_last_name: member.partner_last_name || '',
           is_active: member.is_active,
         });
       } else {
@@ -104,7 +109,8 @@ export default function MemberDrawer({ isOpen, onClose, venueId, member, onSucce
       email: form.email.trim() || null,
       phone: form.phone.trim() || null,
       membership_type: form.membership_type,
-      partner_name: form.partner_name.trim() || null,
+      partner_first_name: form.partner_first_name.trim() || null,
+      partner_last_name: form.partner_last_name.trim() || null,
       is_active: form.is_active,
     };
 
@@ -188,9 +194,12 @@ export default function MemberDrawer({ isOpen, onClose, venueId, member, onSucce
             </Select>
           </div>
 
-          {field('Partner Name', 'partner_name', {
-            placeholder: 'Spouse or partner name',
+          {field('Partner First Name', 'partner_first_name', {
+            placeholder: 'Partner first name',
             helper: 'Spouse or partner associated with this membership',
+          })}
+          {field('Partner Last Name', 'partner_last_name', {
+            placeholder: 'Partner last name',
           })}
 
           {isEdit && (

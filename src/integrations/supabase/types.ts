@@ -193,6 +193,87 @@ export type Database = {
           },
         ]
       }
+      member_boat_sheds: {
+        Row: {
+          created_at: string | null
+          id: string
+          member_id: string
+          shed_number: string
+          venue_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          member_id: string
+          shed_number: string
+          venue_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          member_id?: string
+          shed_number?: string
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "member_boat_sheds_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "member_boat_sheds_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      member_boats: {
+        Row: {
+          boat_name: string
+          created_at: string | null
+          id: string
+          member_id: string
+          registration_number: string | null
+          venue_id: string
+        }
+        Insert: {
+          boat_name: string
+          created_at?: string | null
+          id?: string
+          member_id: string
+          registration_number?: string | null
+          venue_id: string
+        }
+        Update: {
+          boat_name?: string
+          created_at?: string | null
+          id?: string
+          member_id?: string
+          registration_number?: string | null
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "member_boats_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "member_boats_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       member_credits: {
         Row: {
           amount_cents: number
@@ -287,18 +368,63 @@ export type Database = {
           },
         ]
       }
+      member_sites: {
+        Row: {
+          created_at: string | null
+          id: string
+          member_id: string
+          site_number: string
+          venue_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          member_id: string
+          site_number: string
+          venue_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          member_id?: string
+          site_number?: string
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "member_sites_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "member_sites_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       members: {
         Row: {
           auth_user_id: string | null
           created_at: string | null
           email: string | null
+          emergency_contact_name: string | null
+          emergency_contact_phone: string | null
           first_name: string
           id: string
           is_active: boolean | null
           last_name: string
           membership_number: string
           membership_type: string
+          partner_email: string | null
+          partner_first_name: string | null
+          partner_last_name: string | null
           partner_name: string | null
+          partner_phone: string | null
           phone: string | null
           venue_id: string
         }
@@ -306,13 +432,19 @@ export type Database = {
           auth_user_id?: string | null
           created_at?: string | null
           email?: string | null
+          emergency_contact_name?: string | null
+          emergency_contact_phone?: string | null
           first_name: string
           id?: string
           is_active?: boolean | null
           last_name: string
           membership_number: string
           membership_type?: string
+          partner_email?: string | null
+          partner_first_name?: string | null
+          partner_last_name?: string | null
           partner_name?: string | null
+          partner_phone?: string | null
           phone?: string | null
           venue_id: string
         }
@@ -320,13 +452,19 @@ export type Database = {
           auth_user_id?: string | null
           created_at?: string | null
           email?: string | null
+          emergency_contact_name?: string | null
+          emergency_contact_phone?: string | null
           first_name?: string
           id?: string
           is_active?: boolean | null
           last_name?: string
           membership_number?: string
           membership_type?: string
+          partner_email?: string | null
+          partner_first_name?: string | null
+          partner_last_name?: string | null
           partner_name?: string | null
+          partner_phone?: string | null
           phone?: string | null
           venue_id?: string
         }
