@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import AdminLayout from '@/components/admin/AdminLayout';
 import MemberDrawer from '@/components/admin/MemberDrawer';
@@ -6,7 +6,6 @@ import { supabase } from '@/integrations/supabase/client';
 import { useVenue } from '@/contexts/VenueContext';
 import { formatCents } from '@/utils/currency';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ArrowLeft, Pencil, ChevronDown, ChevronUp } from 'lucide-react';
 import { format } from 'date-fns';
@@ -66,6 +65,14 @@ const TYPE_COLORS: Record<string, { text: string; bg: string }> = {
   honorary: { text: '#1E8449', bg: 'rgba(30,132,73,0.1)' },
 };
 
+function getMonthStart() {
+  const d = new Date();
+  return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10);
+}
+function getToday() {
+  return new Date().toISOString().slice(0, 10);
+}
+
 export default function MemberDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -73,18 +80,18 @@ export default function MemberDetail() {
 
   const [member, setMember] = useState<Member | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'credit' | 'tabs'>('credit');
+  const [activeTab, setActiveTab] = useState<'tabs' | 'credit'>('tabs');
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   // Credit state
   const [credits, setCredits] = useState<CreditRow[]>([]);
   const [creditsLoading, setCreditsLoading] = useState(true);
   const [creditBalance, setCreditBalance] = useState(0);
-  const [dateFrom, setDateFrom] = useState(() => {
-    const d = new Date();
-    return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10);
-  });
-  const [dateTo, setDateTo] = useState(() => new Date().toISOString().slice(0, 10));
+  const [creditDateFrom, setCreditDateFrom] = useState(getMonthStart);
+  const [creditDateTo, setCreditDateTo] = useState(getToday);
+
+  // Balance due state
+  const [balanceDue, setBalanceDue] = useState(0);
 
   // Tabs state
   const [tabs, setTabs] = useState<TabRow[]>([]);
@@ -93,6 +100,14 @@ export default function MemberDetail() {
   const [hasMoreTabs, setHasMoreTabs] = useState(false);
   const [expandedTab, setExpandedTab] = useState<string | null>(null);
   const [tabDetails, setTabDetails] = useState<Record<string, { items: TabItemDetail[]; payments: PaymentDetail[] }>>({});
+
+  // Tab history date filter
+  const [tabDateFrom, setTabDateFrom] = useState(getMonthStart);
+  const [tabDateTo, setTabDateTo] = useState(getToday);
+
+  // Tab history summary state
+  const [tabSummary, setTabSummary] = useState({ spendPeriod: 0, lifetimeSpend: 0, tabsClosed: 0 });
+  const [tabSummaryLoading, setTabSummaryLoading] = useState(true);
 
   const fetchMember = useCallback(async () => {
     if (!id) return;
@@ -119,6 +134,34 @@ export default function MemberDetail() {
     }
   }, [id, venueId]);
 
+  const fetchBalanceDue = useCallback(async () => {
+    if (!id) return;
+    const { data: openTabs } = await supabase
+      .from('tabs')
+      .select('id')
+      .eq('member_id', id)
+      .eq('venue_id', venueId)
+      .eq('status', 'OPEN')
+      .eq('is_cash_customer', false);
+
+    if (!openTabs || openTabs.length === 0) {
+      setBalanceDue(0);
+      return;
+    }
+
+    let total = 0;
+    for (const tab of openTabs) {
+      const [{ data: items }, { data: payments }] = await Promise.all([
+        supabase.from('tab_items').select('line_total_cents').eq('tab_id', tab.id).eq('venue_id', venueId),
+        supabase.from('payments').select('amount_cents').eq('tab_id', tab.id).eq('venue_id', venueId),
+      ]);
+      const tabTotal = items?.reduce((s: number, i: any) => s + i.line_total_cents, 0) || 0;
+      const paidTotal = payments?.reduce((s: number, p: any) => s + p.amount_cents, 0) || 0;
+      total += Math.max(0, tabTotal - paidTotal);
+    }
+    setBalanceDue(total);
+  }, [id, venueId]);
+
   const fetchCredits = useCallback(async () => {
     if (!id) return;
     setCreditsLoading(true);
@@ -129,40 +172,63 @@ export default function MemberDetail() {
       .eq('venue_id', venueId)
       .order('created_at', { ascending: false });
 
-    if (dateFrom) q = q.gte('created_at', `${dateFrom}T00:00:00`);
-    if (dateTo) q = q.lte('created_at', `${dateTo}T23:59:59`);
+    if (creditDateFrom) q = q.gte('created_at', `${creditDateFrom}T00:00:00`);
+    if (creditDateTo) q = q.lte('created_at', `${creditDateTo}T23:59:59`);
 
     const { data } = await q;
     setCredits((data as CreditRow[]) || []);
     setCreditsLoading(false);
-  }, [id, venueId, dateFrom, dateTo]);
+  }, [id, venueId, creditDateFrom, creditDateTo]);
 
   const fetchTabs = useCallback(async (offset = 0, append = false) => {
     if (!id) return;
     if (!append) setTabsLoading(true);
 
-    const { data: tabData } = await supabase
+    // Fetch open tabs (always shown)
+    const openTabsPromise = offset === 0
+      ? supabase
+          .from('tabs')
+          .select('id, status, opened_at, closed_at')
+          .eq('member_id', id)
+          .eq('venue_id', venueId)
+          .eq('is_cash_customer', false)
+          .eq('status', 'OPEN')
+          .order('opened_at', { ascending: false })
+      : null;
+
+    // Fetch closed tabs within date range
+    let closedQ = supabase
       .from('tabs')
       .select('id, status, opened_at, closed_at')
       .eq('member_id', id)
       .eq('venue_id', venueId)
       .eq('is_cash_customer', false)
-      .order('opened_at', { ascending: false })
-      .range(offset, offset + 19);
+      .eq('status', 'CLOSED')
+      .order('closed_at', { ascending: false });
 
-    if (tabData) {
+    if (tabDateFrom) closedQ = closedQ.gte('closed_at', `${tabDateFrom}T00:00:00`);
+    if (tabDateTo) closedQ = closedQ.lte('closed_at', `${tabDateTo}T23:59:59`);
+
+    // For pagination on closed tabs
+    const closedOffset = offset === 0 ? 0 : offset;
+    closedQ = closedQ.range(closedOffset, closedOffset + 19);
+
+    const [openResult, closedResult] = await Promise.all([
+      openTabsPromise ? openTabsPromise : Promise.resolve({ data: [] as any[] }),
+      closedQ,
+    ]);
+
+    const openData = offset === 0 ? (openResult.data || []) : [];
+    const closedData = closedResult.data || [];
+    const allTabData = [...openData, ...closedData];
+
+    if (allTabData.length > 0) {
       const enriched: TabRow[] = await Promise.all(
-        tabData.map(async (t: any) => {
-          const { data: items } = await supabase
-            .from('tab_items')
-            .select('line_total_cents')
-            .eq('tab_id', t.id)
-            .eq('venue_id', venueId);
-          const { data: payments } = await supabase
-            .from('payments')
-            .select('amount_cents')
-            .eq('tab_id', t.id)
-            .eq('venue_id', venueId);
+        allTabData.map(async (t: any) => {
+          const [{ data: items }, { data: payments }] = await Promise.all([
+            supabase.from('tab_items').select('line_total_cents').eq('tab_id', t.id).eq('venue_id', venueId),
+            supabase.from('payments').select('amount_cents').eq('tab_id', t.id).eq('venue_id', venueId),
+          ]);
           return {
             ...t,
             item_count: items?.length || 0,
@@ -172,11 +238,67 @@ export default function MemberDetail() {
         })
       );
       setTabs(prev => append ? [...prev, ...enriched] : enriched);
-      setHasMoreTabs(tabData.length === 20);
-      setTabsOffset(offset + tabData.length);
+      setHasMoreTabs(closedData.length === 20);
+      setTabsOffset(closedOffset + closedData.length);
+    } else {
+      if (!append) setTabs([]);
+      setHasMoreTabs(false);
     }
     setTabsLoading(false);
-  }, [id, venueId]);
+  }, [id, venueId, tabDateFrom, tabDateTo]);
+
+  const fetchTabSummary = useCallback(async () => {
+    if (!id) return;
+    setTabSummaryLoading(true);
+
+    // Spend this period: sum line_total_cents from tab_items for closed tabs in date range
+    let periodTabsQ = supabase
+      .from('tabs')
+      .select('id')
+      .eq('member_id', id)
+      .eq('venue_id', venueId)
+      .eq('status', 'CLOSED')
+      .eq('is_cash_customer', false);
+    if (tabDateFrom) periodTabsQ = periodTabsQ.gte('closed_at', `${tabDateFrom}T00:00:00`);
+    if (tabDateTo) periodTabsQ = periodTabsQ.lte('closed_at', `${tabDateTo}T23:59:59`);
+
+    const { data: periodTabs } = await periodTabsQ;
+
+    let spendPeriod = 0;
+    const tabsClosed = periodTabs?.length || 0;
+    if (periodTabs && periodTabs.length > 0) {
+      const tabIds = periodTabs.map((t: any) => t.id);
+      const { data: periodItems } = await supabase
+        .from('tab_items')
+        .select('line_total_cents')
+        .eq('venue_id', venueId)
+        .in('tab_id', tabIds);
+      spendPeriod = periodItems?.reduce((s: number, i: any) => s + i.line_total_cents, 0) || 0;
+    }
+
+    // Lifetime spend: all closed tabs
+    const { data: allClosedTabs } = await supabase
+      .from('tabs')
+      .select('id')
+      .eq('member_id', id)
+      .eq('venue_id', venueId)
+      .eq('status', 'CLOSED')
+      .eq('is_cash_customer', false);
+
+    let lifetimeSpend = 0;
+    if (allClosedTabs && allClosedTabs.length > 0) {
+      const allTabIds = allClosedTabs.map((t: any) => t.id);
+      const { data: allItems } = await supabase
+        .from('tab_items')
+        .select('line_total_cents')
+        .eq('venue_id', venueId)
+        .in('tab_id', allTabIds);
+      lifetimeSpend = allItems?.reduce((s: number, i: any) => s + i.line_total_cents, 0) || 0;
+    }
+
+    setTabSummary({ spendPeriod, lifetimeSpend, tabsClosed });
+    setTabSummaryLoading(false);
+  }, [id, venueId, tabDateFrom, tabDateTo]);
 
   const fetchTabDetail = async (tabId: string) => {
     if (tabDetails[tabId]) return;
@@ -210,9 +332,9 @@ export default function MemberDetail() {
     }));
   };
 
-  useEffect(() => { fetchMember(); fetchCreditBalance(); }, [fetchMember, fetchCreditBalance]);
+  useEffect(() => { fetchMember(); fetchCreditBalance(); fetchBalanceDue(); }, [fetchMember, fetchCreditBalance, fetchBalanceDue]);
   useEffect(() => { fetchCredits(); }, [fetchCredits]);
-  useEffect(() => { fetchTabs(); }, [fetchTabs]);
+  useEffect(() => { fetchTabs(); fetchTabSummary(); }, [fetchTabs, fetchTabSummary]);
 
   const handleExpandTab = (tabId: string) => {
     if (expandedTab === tabId) {
@@ -223,16 +345,29 @@ export default function MemberDetail() {
     }
   };
 
-  const setQuickDate = (which: 'this' | 'last') => {
+  const setCreditQuickDate = (which: 'this' | 'last') => {
     const now = new Date();
     if (which === 'this') {
-      setDateFrom(new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10));
-      setDateTo(now.toISOString().slice(0, 10));
+      setCreditDateFrom(new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10));
+      setCreditDateTo(now.toISOString().slice(0, 10));
     } else {
       const first = new Date(now.getFullYear(), now.getMonth() - 1, 1);
       const last = new Date(now.getFullYear(), now.getMonth(), 0);
-      setDateFrom(first.toISOString().slice(0, 10));
-      setDateTo(last.toISOString().slice(0, 10));
+      setCreditDateFrom(first.toISOString().slice(0, 10));
+      setCreditDateTo(last.toISOString().slice(0, 10));
+    }
+  };
+
+  const setTabQuickDate = (which: 'this' | 'last') => {
+    const now = new Date();
+    if (which === 'this') {
+      setTabDateFrom(new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10));
+      setTabDateTo(now.toISOString().slice(0, 10));
+    } else {
+      const first = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const last = new Date(now.getFullYear(), now.getMonth(), 0);
+      setTabDateFrom(first.toISOString().slice(0, 10));
+      setTabDateTo(last.toISOString().slice(0, 10));
     }
   };
 
@@ -321,29 +456,49 @@ export default function MemberDetail() {
         padding: 24, marginBottom: 24,
       }}>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-4">
-          {[
-            ['Email', member.email || '—'],
-            ['Phone', member.phone || '—'],
-            ['Partner', member.partner_name || '—'],
-            ['Member since', member.created_at ? format(new Date(member.created_at), 'dd MMM yyyy') : '—'],
-            ['Credit balance', formatCents(creditBalance)],
-          ].map(([label, value]) => (
-            <div key={label as string}>
-              <p style={{ fontSize: 13, color: '#718096', fontWeight: 500 }}>{label}</p>
-              <p style={{
-                fontSize: 15, fontWeight: 500,
-                color: label === 'Credit balance' ? (creditBalance > 0 ? '#1E8449' : '#718096') : '#1A202C',
-              }}>
-                {value}
-              </p>
-            </div>
-          ))}
+          <div>
+            <p style={{ fontSize: 13, color: '#718096', fontWeight: 500 }}>Email</p>
+            <p style={{ fontSize: 15, fontWeight: 500, color: '#1A202C' }}>{member.email || '—'}</p>
+          </div>
+          <div>
+            <p style={{ fontSize: 13, color: '#718096', fontWeight: 500 }}>Phone</p>
+            <p style={{ fontSize: 15, fontWeight: 500, color: '#1A202C' }}>{member.phone || '—'}</p>
+          </div>
+          <div>
+            <p style={{ fontSize: 13, color: '#718096', fontWeight: 500 }}>Partner</p>
+            <p style={{ fontSize: 15, fontWeight: 500, color: '#1A202C' }}>{member.partner_name || '—'}</p>
+          </div>
+          <div>
+            <p style={{ fontSize: 13, color: '#718096', fontWeight: 500 }}>Member since</p>
+            <p style={{ fontSize: 15, fontWeight: 500, color: '#1A202C' }}>
+              {member.created_at ? format(new Date(member.created_at), 'dd MMM yyyy') : '—'}
+            </p>
+          </div>
+          <div>
+            <p style={{ fontSize: 13, color: '#718096', fontWeight: 500 }}>Credit balance</p>
+            <p style={{
+              fontSize: 15, fontWeight: 500,
+              color: creditBalance > 0 ? '#1E8449' : '#718096',
+            }}>
+              {formatCents(creditBalance)}
+            </p>
+          </div>
+          <div>
+            <p style={{ fontSize: 13, color: '#718096', fontWeight: 500 }}>Balance due</p>
+            <p style={{
+              fontSize: 15,
+              fontWeight: balanceDue > 0 ? 600 : 400,
+              color: balanceDue > 0 ? '#C0392B' : '#718096',
+            }}>
+              {formatCents(balanceDue)}
+            </p>
+          </div>
         </div>
       </div>
 
-      {/* Tab navigation */}
+      {/* Tab navigation — Tab History first, Credit History second */}
       <div className="flex border-b mb-6" style={{ borderColor: '#E2E8F0' }}>
-        {(['credit', 'tabs'] as const).map(tab => (
+        {(['tabs', 'credit'] as const).map(tab => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -366,19 +521,19 @@ export default function MemberDetail() {
           <div className="flex flex-wrap items-end gap-3 mb-4">
             <div>
               <label style={{ fontSize: 12, color: '#718096' }}>From</label>
-              <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
+              <input type="date" value={creditDateFrom} onChange={e => setCreditDateFrom(e.target.value)}
                 style={{ display: 'block', height: 36, border: '1px solid #E2E8F0', borderRadius: 6, padding: '0 10px', fontSize: 13 }} />
             </div>
             <div>
               <label style={{ fontSize: 12, color: '#718096' }}>To</label>
-              <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
+              <input type="date" value={creditDateTo} onChange={e => setCreditDateTo(e.target.value)}
                 style={{ display: 'block', height: 36, border: '1px solid #E2E8F0', borderRadius: 6, padding: '0 10px', fontSize: 13 }} />
             </div>
-            <button onClick={() => setQuickDate('this')}
+            <button onClick={() => setCreditQuickDate('this')}
               style={{ height: 36, padding: '0 12px', border: '1px solid #E2E8F0', borderRadius: 6, fontSize: 13, fontWeight: 500, background: '#FFFFFF', color: '#1A202C' }}>
               This Month
             </button>
-            <button onClick={() => setQuickDate('last')}
+            <button onClick={() => setCreditQuickDate('last')}
               style={{ height: 36, padding: '0 12px', border: '1px solid #E2E8F0', borderRadius: 6, fontSize: 13, fontWeight: 500, background: '#FFFFFF', color: '#1A202C' }}>
               Last Month
             </button>
@@ -460,6 +615,56 @@ export default function MemberDetail() {
       {/* TAB HISTORY TAB */}
       {activeTab === 'tabs' && (
         <div>
+          {/* Date filters */}
+          <div className="flex flex-wrap items-end gap-3 mb-4">
+            <div>
+              <label style={{ fontSize: 12, color: '#718096' }}>From</label>
+              <input type="date" value={tabDateFrom} onChange={e => setTabDateFrom(e.target.value)}
+                style={{ display: 'block', height: 36, border: '1px solid #E2E8F0', borderRadius: 6, padding: '0 10px', fontSize: 13 }} />
+            </div>
+            <div>
+              <label style={{ fontSize: 12, color: '#718096' }}>To</label>
+              <input type="date" value={tabDateTo} onChange={e => setTabDateTo(e.target.value)}
+                style={{ display: 'block', height: 36, border: '1px solid #E2E8F0', borderRadius: 6, padding: '0 10px', fontSize: 13 }} />
+            </div>
+            <button onClick={() => setTabQuickDate('this')}
+              style={{ height: 36, padding: '0 12px', border: '1px solid #E2E8F0', borderRadius: 6, fontSize: 13, fontWeight: 500, background: '#FFFFFF', color: '#1A202C' }}>
+              This Month
+            </button>
+            <button onClick={() => setTabQuickDate('last')}
+              style={{ height: 36, padding: '0 12px', border: '1px solid #E2E8F0', borderRadius: 6, fontSize: 13, fontWeight: 500, background: '#FFFFFF', color: '#1A202C' }}>
+              Last Month
+            </button>
+          </div>
+
+          {/* Summary cards */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            <div style={{ background: '#FFFFFF', borderRadius: 8, border: '1px solid #E2E8F0', padding: 16 }}>
+              <p style={{ fontSize: 13, color: '#718096', fontWeight: 400 }}>Open Tab</p>
+              <p style={{ fontSize: 20, fontWeight: 600, color: balanceDue > 0 ? '#C0392B' : '#718096' }}>
+                {formatCents(balanceDue)}
+              </p>
+            </div>
+            <div style={{ background: '#FFFFFF', borderRadius: 8, border: '1px solid #E2E8F0', padding: 16 }}>
+              <p style={{ fontSize: 13, color: '#718096', fontWeight: 400 }}>Spend This Period</p>
+              <p style={{ fontSize: 20, fontWeight: 600, color: '#1A202C' }}>
+                {tabSummaryLoading ? '...' : formatCents(tabSummary.spendPeriod)}
+              </p>
+            </div>
+            <div style={{ background: '#FFFFFF', borderRadius: 8, border: '1px solid #E2E8F0', padding: 16 }}>
+              <p style={{ fontSize: 13, color: '#718096', fontWeight: 400 }}>Lifetime Spend</p>
+              <p style={{ fontSize: 20, fontWeight: 600, color: '#1A202C' }}>
+                {tabSummaryLoading ? '...' : formatCents(tabSummary.lifetimeSpend)}
+              </p>
+            </div>
+            <div style={{ background: '#FFFFFF', borderRadius: 8, border: '1px solid #E2E8F0', padding: 16 }}>
+              <p style={{ fontSize: 13, color: '#718096', fontWeight: 400 }}>Tabs Closed</p>
+              <p style={{ fontSize: 20, fontWeight: 600, color: '#1A202C' }}>
+                {tabSummaryLoading ? '...' : tabSummary.tabsClosed}
+              </p>
+            </div>
+          </div>
+
           {tabsLoading && [1, 2].map(i => (
             <Skeleton key={i} className="h-16 w-full mb-3" />
           ))}
@@ -581,7 +786,7 @@ export default function MemberDetail() {
         onClose={() => setDrawerOpen(false)}
         venueId={venueId}
         member={member}
-        onSuccess={() => { fetchMember(); fetchCreditBalance(); }}
+        onSuccess={() => { fetchMember(); fetchCreditBalance(); fetchBalanceDue(); }}
       />
     </AdminLayout>
   );
