@@ -23,6 +23,8 @@ interface Member {
   email: string | null;
   phone: string | null;
   partner_name: string | null;
+  partner_first_name: string | null;
+  partner_last_name: string | null;
 }
 
 const TYPE_COLORS: Record<string, { text: string; bg: string }> = {
