@@ -4,7 +4,7 @@ project_id = "fgquwzzyudgcmfbuvmch"
 verify_jwt = false
 
 [functions.invite-member]
-verify_jwt = true
+verify_jwt = false
 
 [functions.create-checkout]
 verify_jwt = false
