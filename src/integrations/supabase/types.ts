@@ -14,6 +14,47 @@ export type Database = {
   }
   public: {
     Tables: {
+      admin_users: {
+        Row: {
+          auth_user_id: string | null
+          created_at: string | null
+          email: string
+          id: string
+          is_active: boolean
+          name: string
+          role: string
+          venue_id: string
+        }
+        Insert: {
+          auth_user_id?: string | null
+          created_at?: string | null
+          email: string
+          id?: string
+          is_active?: boolean
+          name: string
+          role?: string
+          venue_id: string
+        }
+        Update: {
+          auth_user_id?: string | null
+          created_at?: string | null
+          email?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          role?: string
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "admin_users_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       checkout_sessions: {
         Row: {
           amount_cents: number
