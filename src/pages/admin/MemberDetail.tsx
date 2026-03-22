@@ -471,13 +471,25 @@ export default function MemberDetail() {
           </div>
           <div>
             <p style={{ fontSize: 13, color: '#718096', fontWeight: 500 }}>Partner</p>
-            <p style={{ fontSize: 15, fontWeight: 500, color: '#1A202C' }}>{member.partner_name || '—'}</p>
+            <p style={{ fontSize: 15, fontWeight: 500, color: '#1A202C' }}>
+              {[member.partner_first_name, member.partner_last_name].filter(Boolean).join(' ') || '—'}
+            </p>
+          </div>
+          <div>
+            <p style={{ fontSize: 13, color: '#718096', fontWeight: 500 }}>Emergency Contact</p>
+            <p style={{ fontSize: 15, fontWeight: 500, color: '#1A202C' }}>
+              {[member.emergency_contact_name, member.emergency_contact_phone].filter(Boolean).join(' — ') || '—'}
+            </p>
           </div>
           <div>
             <p style={{ fontSize: 13, color: '#718096', fontWeight: 500 }}>Member since</p>
             <p style={{ fontSize: 15, fontWeight: 500, color: '#1A202C' }}>
               {member.created_at ? format(new Date(member.created_at), 'dd MMM yyyy') : '—'}
             </p>
+          </div>
+          <div>
+            <p style={{ fontSize: 13, color: '#718096', fontWeight: 500 }}>Membership #</p>
+            <p style={{ fontSize: 15, fontWeight: 500, color: '#1A202C' }}>{member.membership_number}</p>
           </div>
           <div>
             <p style={{ fontSize: 13, color: '#718096', fontWeight: 500 }}>Credit balance</p>
@@ -501,20 +513,20 @@ export default function MemberDetail() {
         </div>
       </div>
 
-      {/* Tab navigation — Tab History first, Credit History second */}
+      {/* Tab navigation — Tab History, Credit History, Details */}
       <div className="flex border-b mb-6" style={{ borderColor: '#E2E8F0' }}>
-        {(['tabs', 'credit'] as const).map(tab => (
+        {([['tabs', 'Tab History'], ['credit', 'Credit History'], ['details', 'Details']] as const).map(([key, label]) => (
           <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
+            key={key}
+            onClick={() => setActiveTab(key)}
             style={{
               padding: '12px 16px', fontSize: 14, fontWeight: 500,
-              color: activeTab === tab ? '#2E5FA3' : '#718096',
-              borderBottom: activeTab === tab ? '2px solid #2E5FA3' : '2px solid transparent',
+              color: activeTab === key ? '#2E5FA3' : '#718096',
+              borderBottom: activeTab === key ? '2px solid #2E5FA3' : '2px solid transparent',
               background: 'transparent',
             }}
           >
-            {tab === 'credit' ? 'Credit History' : 'Tab History'}
+            {label}
           </button>
         ))}
       </div>
