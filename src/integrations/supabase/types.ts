@@ -14,6 +14,73 @@ export type Database = {
   }
   public: {
     Tables: {
+      checkout_sessions: {
+        Row: {
+          amount_cents: number
+          completed_at: string | null
+          created_at: string | null
+          id: string
+          member_id: string
+          metadata: Json | null
+          purpose: string
+          status: string
+          tab_id: string | null
+          venue_id: string
+          yoco_checkout_id: string | null
+          yoco_payment_id: string | null
+        }
+        Insert: {
+          amount_cents: number
+          completed_at?: string | null
+          created_at?: string | null
+          id?: string
+          member_id: string
+          metadata?: Json | null
+          purpose: string
+          status?: string
+          tab_id?: string | null
+          venue_id: string
+          yoco_checkout_id?: string | null
+          yoco_payment_id?: string | null
+        }
+        Update: {
+          amount_cents?: number
+          completed_at?: string | null
+          created_at?: string | null
+          id?: string
+          member_id?: string
+          metadata?: Json | null
+          purpose?: string
+          status?: string
+          tab_id?: string | null
+          venue_id?: string
+          yoco_checkout_id?: string | null
+          yoco_payment_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "checkout_sessions_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "checkout_sessions_tab_id_fkey"
+            columns: ["tab_id"]
+            isOneToOne: false
+            referencedRelation: "tabs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "checkout_sessions_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       liquor_products: {
         Row: {
           abv: number | null

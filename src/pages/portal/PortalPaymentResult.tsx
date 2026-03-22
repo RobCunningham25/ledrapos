@@ -21,18 +21,19 @@ export default function PortalPaymentResult() {
     const poll = setInterval(async () => {
       attempts++;
       const { data } = await supabase
-        .from('checkout_sessions')
+        .from('checkout_sessions' as any)
         .select('status, purpose, amount_cents')
         .eq('id', sessionId)
         .maybeSingle();
 
-      if (data?.status === 'completed') {
+      const row = data as any;
+      if (row?.status === 'completed') {
         clearInterval(poll);
-        setSession({ purpose: data.purpose, amount_cents: data.amount_cents });
+        setSession({ purpose: row.purpose, amount_cents: row.amount_cents });
         setPollState('completed');
       } else if (attempts >= 15) {
         clearInterval(poll);
-        if (data) setSession({ purpose: data.purpose, amount_cents: data.amount_cents });
+        if (row) setSession({ purpose: row.purpose, amount_cents: row.amount_cents });
         setPollState('timeout');
       }
     }, 2000);
