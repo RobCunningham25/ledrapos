@@ -85,7 +85,7 @@ export default function MemberDetail() {
 
   const [member, setMember] = useState<Member | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'tabs' | 'credit'>('tabs');
+  const [activeTab, setActiveTab] = useState<'tabs' | 'credit' | 'details'>('tabs');
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   // Credit state
