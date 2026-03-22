@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { formatCents } from '@/utils/currency';
+import { PORTAL_THEME as T } from '@/constants/portalTheme';
 import { CheckCircle, XCircle, AlertTriangle, Loader2 } from 'lucide-react';
 
 export default function PortalPaymentResult() {
@@ -46,18 +47,25 @@ export default function PortalPaymentResult() {
     padding: 32, textAlign: 'center', minHeight: '60vh',
   };
 
+  const cardStyle: React.CSSProperties = {
+    background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 12,
+    padding: 40, maxWidth: 400, width: '100%', boxShadow: T.cardShadow,
+  };
+
   const btnStyle: React.CSSProperties = {
-    width: '100%', maxWidth: 320, height: 48, background: '#2E5FA3', color: '#FFFFFF',
-    fontWeight: 600, fontSize: 16, borderRadius: 6, border: 'none', cursor: 'pointer', marginTop: 24,
+    width: '100%', maxWidth: 320, height: 48, background: T.navy, color: '#FFFFFF',
+    fontWeight: 600, fontSize: 16, borderRadius: 10, border: 'none', cursor: 'pointer', marginTop: 24,
   };
 
   if (status === 'cancelled') {
     return (
       <div style={containerStyle}>
-        <AlertTriangle size={48} color="#D68910" />
-        <p style={{ fontSize: 20, fontWeight: 600, color: '#1A202C', marginTop: 16 }}>Payment Cancelled</p>
-        <p style={{ fontSize: 15, color: '#718096', marginTop: 8 }}>No charge was made to your card.</p>
-        <button onClick={() => navigate('/portal')} style={btnStyle}>Back to Bar Tab</button>
+        <div style={cardStyle}>
+          <AlertTriangle size={48} color={T.amber} />
+          <p style={{ fontSize: 20, fontWeight: 600, color: T.textPrimary, marginTop: 16 }}>Payment Cancelled</p>
+          <p style={{ fontSize: 15, color: T.textMuted, marginTop: 8 }}>No charge was made to your card.</p>
+          <button onClick={() => navigate('/portal')} style={btnStyle}>Back to Home</button>
+        </div>
       </div>
     );
   }
@@ -65,20 +73,21 @@ export default function PortalPaymentResult() {
   if (status === 'failed') {
     return (
       <div style={containerStyle}>
-        <XCircle size={48} color="#C0392B" />
-        <p style={{ fontSize: 20, fontWeight: 600, color: '#1A202C', marginTop: 16 }}>Payment Failed</p>
-        <p style={{ fontSize: 15, color: '#718096', marginTop: 8 }}>Something went wrong. Please try again or settle at the bar.</p>
-        <button onClick={() => navigate('/portal')} style={btnStyle}>Back to Bar Tab</button>
+        <div style={cardStyle}>
+          <XCircle size={48} color={T.danger} />
+          <p style={{ fontSize: 20, fontWeight: 600, color: T.textPrimary, marginTop: 16 }}>Payment Failed</p>
+          <p style={{ fontSize: 15, color: T.textMuted, marginTop: 8 }}>Something went wrong. Please try again or settle at the bar.</p>
+          <button onClick={() => navigate('/portal')} style={btnStyle}>Back to Home</button>
+        </div>
       </div>
     );
   }
 
-  // status === 'success'
   if (pollState === 'polling') {
     return (
       <div style={containerStyle}>
-        <Loader2 size={48} color="#718096" className="animate-spin" />
-        <p style={{ fontSize: 16, color: '#718096', marginTop: 16 }}>Confirming your payment...</p>
+        <Loader2 size={48} color={T.textMuted} className="animate-spin" />
+        <p style={{ fontSize: 16, color: T.textMuted, marginTop: 16 }}>Confirming your payment...</p>
       </div>
     );
   }
@@ -91,22 +100,25 @@ export default function PortalPaymentResult() {
 
     return (
       <div style={containerStyle}>
-        <CheckCircle size={48} color="#1E8449" />
-        <p style={{ fontSize: 20, fontWeight: 600, color: '#1A202C', marginTop: 16 }}>{heading}</p>
-        <p style={{ fontSize: 15, color: '#718096', marginTop: 8 }}>{subtext}</p>
-        <button onClick={() => navigate('/portal')} style={btnStyle}>Back to Bar Tab</button>
+        <div style={cardStyle}>
+          <CheckCircle size={48} color={T.teal} />
+          <p style={{ fontSize: 20, fontWeight: 600, color: T.textPrimary, marginTop: 16 }}>{heading}</p>
+          <p style={{ fontSize: 15, color: T.textMuted, marginTop: 8 }}>{subtext}</p>
+          <button onClick={() => navigate('/portal')} style={btnStyle}>Back to Home</button>
+        </div>
       </div>
     );
   }
 
-  // timeout
   return (
     <div style={containerStyle}>
-      <Loader2 size={48} color="#718096" />
-      <p style={{ fontSize: 15, color: '#718096', marginTop: 16 }}>
-        Your payment was received but is still being processed. Your balance will update shortly.
-      </p>
-      <button onClick={() => navigate('/portal')} style={btnStyle}>Back to Bar Tab</button>
+      <div style={cardStyle}>
+        <Loader2 size={48} color={T.textMuted} />
+        <p style={{ fontSize: 15, color: T.textMuted, marginTop: 16 }}>
+          Your payment was received but is still being processed. Your balance will update shortly.
+        </p>
+        <button onClick={() => navigate('/portal')} style={btnStyle}>Back to Home</button>
+      </div>
     </div>
   );
 }

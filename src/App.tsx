@@ -62,7 +62,8 @@ const App = () => (
                       <PortalLayout />
                     </PortalAuthProvider>
                   }>
-                    <Route index element={<PortalBarTab />} />
+                    <Route index element={<PortalDashboard />} />
+                    <Route path="bar-tab" element={<PortalBarTab />} />
                     <Route path="calendar" element={<PortalCalendar />} />
                     <Route path="my-details" element={<PortalMyDetails />} />
                     <Route path="bookings" element={<PortalBookings />} />
