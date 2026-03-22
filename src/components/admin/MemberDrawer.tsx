@@ -38,7 +38,8 @@ interface FormState {
   email: string;
   phone: string;
   membership_type: string;
-  partner_name: string;
+  partner_first_name: string;
+  partner_last_name: string;
   is_active: boolean;
 }
 
