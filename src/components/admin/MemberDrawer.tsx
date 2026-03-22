@@ -194,9 +194,12 @@ export default function MemberDrawer({ isOpen, onClose, venueId, member, onSucce
             </Select>
           </div>
 
-          {field('Partner Name', 'partner_name', {
-            placeholder: 'Spouse or partner name',
+          {field('Partner First Name', 'partner_first_name', {
+            placeholder: 'Partner first name',
             helper: 'Spouse or partner associated with this membership',
+          })}
+          {field('Partner Last Name', 'partner_last_name', {
+            placeholder: 'Partner last name',
           })}
 
           {isEdit && (
