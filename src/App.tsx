@@ -7,9 +7,13 @@ import { VenueProvider } from "@/contexts/VenueContext";
 import { POSAuthProvider } from "@/contexts/POSAuthContext";
 import { CartProvider } from "@/contexts/CartContext";
 import { PortalAuthProvider } from "@/contexts/PortalAuthContext";
+import { AdminAuthProvider } from "@/contexts/AdminAuthContext";
 import Index from "./pages/Index.tsx";
 import POS from "./pages/POS.tsx";
 import NotFound from "./pages/NotFound.tsx";
+import AdminLogin from "./pages/admin/AdminLogin.tsx";
+import AdminProtectedRoute from "./components/admin/AdminProtectedRoute.tsx";
+import AdminLayout from "./components/admin/AdminLayout.tsx";
 import Products from "./pages/admin/Products.tsx";
 import Members from "./pages/admin/Members.tsx";
 import Reports from "./pages/admin/Reports.tsx";
@@ -37,11 +41,20 @@ const App = () => (
               <Routes>
                 <Route path="/" element={<Index />} />
                 <Route path="/pos" element={<POS />} />
-                <Route path="/admin" element={<Navigate to="/admin/products" replace />} />
-                <Route path="/admin/products" element={<Products />} />
-                <Route path="/admin/members" element={<Members />} />
-                <Route path="/admin/reports" element={<Reports />} />
-                <Route path="/admin/settings" element={<Settings />} />
+                <Route path="/admin/login" element={<AdminLogin />} />
+                <Route path="/admin" element={
+                  <AdminAuthProvider>
+                    <AdminProtectedRoute />
+                  </AdminAuthProvider>
+                }>
+                  <Route element={<AdminLayout title="" />}>
+                    <Route index element={<Navigate to="/admin/products" replace />} />
+                    <Route path="products" element={<Products />} />
+                    <Route path="members" element={<Members />} />
+                    <Route path="reports" element={<Reports />} />
+                    <Route path="settings" element={<Settings />} />
+                  </Route>
+                </Route>
                 <Route path="/portal/login" element={<PortalLogin />} />
                 <Route path="/portal" element={<PortalProtectedRoute />}>
                   <Route element={
