@@ -50,7 +50,8 @@ const emptyForm: FormState = {
   email: '',
   phone: '',
   membership_type: 'member',
-  partner_name: '',
+  partner_first_name: '',
+  partner_last_name: '',
   is_active: true,
 };
 
