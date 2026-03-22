@@ -797,6 +797,15 @@ export default function MemberDetail() {
         </div>
       )}
 
+      {/* DETAILS TAB */}
+      {activeTab === 'details' && (
+        <MemberDetailsTab
+          memberId={member.id}
+          venueId={venueId}
+          onMemberUpdated={() => { fetchMember(); fetchCreditBalance(); fetchBalanceDue(); }}
+        />
+      )}
+
       {/* Edit drawer */}
       <MemberDrawer
         isOpen={drawerOpen}
