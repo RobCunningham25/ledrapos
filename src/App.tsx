@@ -21,6 +21,7 @@ import PortalBarTab from "./pages/portal/PortalBarTab.tsx";
 import PortalCalendar from "./pages/portal/PortalCalendar.tsx";
 import PortalMyDetails from "./pages/portal/PortalMyDetails.tsx";
 import PortalBookings from "./pages/portal/PortalBookings.tsx";
+import PortalPaymentResult from "./pages/portal/PortalPaymentResult.tsx";
 
 const queryClient = new QueryClient();
 
@@ -52,6 +53,7 @@ const App = () => (
                     <Route path="calendar" element={<PortalCalendar />} />
                     <Route path="my-details" element={<PortalMyDetails />} />
                     <Route path="bookings" element={<PortalBookings />} />
+                    <Route path="payment-result" element={<PortalPaymentResult />} />
                   </Route>
                 </Route>
                 <Route path="*" element={<NotFound />} />

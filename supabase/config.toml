@@ -5,3 +5,9 @@ verify_jwt = false
 
 [functions.invite-member]
 verify_jwt = false
+
+[functions.create-checkout]
+verify_jwt = false
+
+[functions.yoco-webhook]
+verify_jwt = false
