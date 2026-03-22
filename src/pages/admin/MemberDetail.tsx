@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import AdminLayout from '@/components/admin/AdminLayout';
 import MemberDrawer from '@/components/admin/MemberDrawer';
+import MemberDetailsTab from '@/components/admin/MemberDetailsTab';
 import { supabase } from '@/integrations/supabase/client';
 import { useVenue } from '@/contexts/VenueContext';
 import { formatCents } from '@/utils/currency';
@@ -19,6 +20,10 @@ interface Member {
   email: string | null;
   phone: string | null;
   partner_name: string | null;
+  partner_first_name: string | null;
+  partner_last_name: string | null;
+  emergency_contact_name: string | null;
+  emergency_contact_phone: string | null;
   is_active: boolean;
   auth_user_id: string | null;
   created_at: string | null;
