@@ -62,8 +62,12 @@ export default function Members() {
   const handleInvite = async (member: Member) => {
     setInvitingId(member.id);
     try {
+      const { data: { session } } = await supabase.auth.getSession();
       const res = await supabase.functions.invoke('invite-member', {
         body: { member_id: member.id, venue_id: venueId },
+        headers: {
+          Authorization: `Bearer ${session?.access_token}`,
+        },
       });
       if (res.error) {
         toast.error(res.error.message || 'Failed to send invite');
