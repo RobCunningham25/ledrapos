@@ -21,6 +21,7 @@ import PortalBarTab from "./pages/portal/PortalBarTab.tsx";
 import PortalCalendar from "./pages/portal/PortalCalendar.tsx";
 import PortalMyDetails from "./pages/portal/PortalMyDetails.tsx";
 import PortalBookings from "./pages/portal/PortalBookings.tsx";
+import PortalPaymentResult from "./pages/portal/PortalPaymentResult.tsx";
 
 const queryClient = new QueryClient();
 

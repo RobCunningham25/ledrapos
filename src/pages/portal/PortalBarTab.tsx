@@ -1,11 +1,34 @@
+// ============================================================
+// YOCO CHECKOUT INTEGRATION — SETUP REQUIRED
+// ============================================================
+// Before Yoco payments will work, the following manual steps are needed:
+//
+// 1. Create a Yoco account at yoco.com and get API keys from:
+//    Yoco App → Sales → Payment Gateway
+//
+// 2. Register a webhook in the Yoco dashboard:
+//    URL: {SUPABASE_PROJECT_URL}/functions/v1/yoco-webhook
+//    Events: payment.succeeded
+//    Copy the webhook signing secret (starts with whsec_)
+//
+// 3. Add Edge Function secrets in Supabase Dashboard → Edge Functions → Secrets:
+//    - YOCO_SECRET_KEY: sk_test_xxx (test) or sk_live_xxx (live)
+//    - YOCO_WEBHOOK_SECRET: whsec_xxx
+//    - PORTAL_BASE_URL: https://your-portal-domain.com (no trailing slash)
+//
+// 4. For testing, use Yoco test keys (sk_test_ / pk_test_) and test card:
+//    Card: 4111 1111 1111 1111, Exp: any future date, CVV: any 3 digits
+// ============================================================
+
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { usePortalAuth } from '@/contexts/PortalAuthContext';
 import { formatCents } from '@/utils/currency';
 import { toast } from 'sonner';
 import { format, formatDistanceToNow } from 'date-fns';
-import { ChevronDown, ChevronUp } from 'lucide-react';
+import { ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
+import CreditLoadSheet from '@/components/portal/CreditLoadSheet';
 
 // ─── Types ───────────────────────────────────────────────────────────
 interface TabItem {
@@ -25,7 +48,7 @@ interface ClosedTab {
 }
 
 // ─── Credit Balance Card ─────────────────────────────────────────────
-function CreditBalanceCard({ balance, isLoading }: { balance: number; isLoading: boolean }) {
+function CreditBalanceCard({ balance, isLoading, onLoadCredit }: { balance: number; isLoading: boolean; onLoadCredit: () => void }) {
   return (
     <div style={{ background: '#FFFFFF', borderRadius: 8, boxShadow: '0 1px 3px rgba(0,0,0,0.08)', padding: 20, marginBottom: 16 }}>
       <p style={{ fontSize: 13, fontWeight: 500, color: '#718096', textTransform: 'uppercase', letterSpacing: 0.5 }}>
@@ -39,8 +62,7 @@ function CreditBalanceCard({ balance, isLoading }: { balance: number; isLoading:
         </p>
       )}
       <button
-        onClick={() => toast('Online credit loading coming soon')}
-        // TODO: Phase 8C — wire to Yoco Checkout
+        onClick={onLoadCredit}
         style={{
           width: '100%', height: 48, background: '#2E5FA3', color: '#FFFFFF',
           fontWeight: 600, fontSize: 16, borderRadius: 6, border: 'none', marginTop: 16, cursor: 'pointer',
@@ -52,16 +74,61 @@ function CreditBalanceCard({ balance, isLoading }: { balance: number; isLoading:
   );
 }
 
+// ─── Pay Tab Confirmation Dialog ─────────────────────────────────────
+function PayTabDialog({ amountCents, onConfirm, onCancel, loading }: {
+  amountCents: number; onConfirm: () => void; onCancel: () => void; loading: boolean;
+}) {
+  return (
+    <>
+      <div onClick={onCancel} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 50 }} />
+      <div style={{
+        position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)',
+        maxWidth: 320, width: 'calc(100% - 32px)', background: '#FFFFFF', borderRadius: 8,
+        padding: 24, boxShadow: '0 4px 12px rgba(0,0,0,0.15)', zIndex: 51, textAlign: 'center',
+      }}>
+        <p style={{ fontSize: 16, color: '#1A202C' }}>Pay your tab of {formatCents(amountCents)} via card?</p>
+        <div style={{ display: 'flex', gap: 12, marginTop: 20 }}>
+          <button
+            onClick={onCancel}
+            style={{
+              flex: 1, height: 44, border: '1px solid #E2E8F0', background: '#FFFFFF',
+              color: '#718096', fontWeight: 500, borderRadius: 6, cursor: 'pointer',
+            }}
+          >Cancel</button>
+          <button
+            disabled={loading}
+            onClick={onConfirm}
+            style={{
+              flex: 1, height: 44, background: '#1E8449', color: '#FFFFFF',
+              fontWeight: 600, borderRadius: 6, border: 'none', cursor: loading ? 'default' : 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+            }}
+          >
+            {loading ? <Loader2 size={16} className="animate-spin" /> : null}
+            Pay Now
+          </button>
+        </div>
+      </div>
+    </>
+  );
+}
+
 // ─── Open Tab Card ───────────────────────────────────────────────────
 function OpenTabCard({
-  items, openedAt, totalPaidCents, isLoading, error,
+  items, openedAt, totalPaidCents, tabId, memberId, venueId, isLoading, error,
 }: {
   items: TabItem[] | null;
   openedAt: string | null;
   totalPaidCents: number;
+  tabId: string | null;
+  memberId: string;
+  venueId: string;
   isLoading: boolean;
   error: string | null;
 }) {
+  const [showPayDialog, setShowPayDialog] = useState(false);
+  const [payLoading, setPayLoading] = useState(false);
+
   if (isLoading) {
     return (
       <div style={{ background: '#FFFFFF', borderRadius: 8, boxShadow: '0 1px 3px rgba(0,0,0,0.08)', padding: 20, marginBottom: 16 }}>
@@ -89,6 +156,22 @@ function OpenTabCard({
 
   const tabTotal = items.reduce((s, i) => s + i.line_total_cents, 0);
   const amountDue = tabTotal - totalPaidCents;
+
+  const handlePayTab = async () => {
+    setPayLoading(true);
+    try {
+      const { data, error: fnErr } = await supabase.functions.invoke('create-checkout', {
+        body: { member_id: memberId, venue_id: venueId, purpose: 'tab_payment', amount_cents: amountDue, tab_id: tabId },
+      });
+      if (fnErr) throw new Error(fnErr.message);
+      if (!data?.success) throw new Error(data?.error || 'Failed to create checkout');
+      window.location.href = data.redirect_url;
+    } catch (err: any) {
+      toast.error(err.message || 'Something went wrong');
+      setPayLoading(false);
+      setShowPayDialog(false);
+    }
+  };
 
   return (
     <div style={{ background: '#FFFFFF', borderRadius: 8, boxShadow: '0 1px 3px rgba(0,0,0,0.08)', padding: 20, marginBottom: 16 }}>
@@ -136,6 +219,33 @@ function OpenTabCard({
           </span>
         </div>
       </div>
+
+      {/* Pay Tab button */}
+      {amountDue >= 200 && (
+        <button
+          onClick={() => setShowPayDialog(true)}
+          style={{
+            width: '100%', height: 48, background: '#1E8449', color: '#FFFFFF',
+            fontWeight: 600, fontSize: 16, borderRadius: 6, border: 'none', marginTop: 16, cursor: 'pointer',
+          }}
+        >
+          Pay {formatCents(amountDue)} Now
+        </button>
+      )}
+      {amountDue > 0 && amountDue < 200 && (
+        <p style={{ fontSize: 13, color: '#718096', textAlign: 'center', marginTop: 12 }}>
+          Remaining balance of {formatCents(amountDue)} is below the minimum online payment amount. Please settle at the bar.
+        </p>
+      )}
+
+      {showPayDialog && (
+        <PayTabDialog
+          amountCents={amountDue}
+          onConfirm={handlePayTab}
+          onCancel={() => setShowPayDialog(false)}
+          loading={payLoading}
+        />
+      )}
     </div>
   );
 }
@@ -224,6 +334,7 @@ export default function PortalBarTab() {
   const [openTabItems, setOpenTabItems] = useState<TabItem[] | null>(null);
   const [openTabOpenedAt, setOpenTabOpenedAt] = useState<string | null>(null);
   const [openTabPaid, setOpenTabPaid] = useState(0);
+  const [openTabId, setOpenTabId] = useState<string | null>(null);
   const [tabLoading, setTabLoading] = useState(true);
   const [tabError, setTabError] = useState<string | null>(null);
 
@@ -235,6 +346,9 @@ export default function PortalBarTab() {
   const [loadingMore, setLoadingMore] = useState(false);
 
   const [isFirstLoad, setIsFirstLoad] = useState(true);
+
+  // Credit load sheet
+  const [showCreditSheet, setShowCreditSheet] = useState(false);
 
   const fetchCredit = useCallback(async (silent = false) => {
     if (!memberId) return;
@@ -271,11 +385,13 @@ export default function PortalBarTab() {
       setOpenTabItems(null);
       setOpenTabOpenedAt(null);
       setOpenTabPaid(0);
+      setOpenTabId(null);
       setTabLoading(false);
       return;
     }
 
     setOpenTabOpenedAt(tabData.opened_at);
+    setOpenTabId(tabData.id);
 
     const [itemsRes, paymentsRes] = await Promise.all([
       supabase
@@ -332,7 +448,6 @@ export default function PortalBarTab() {
 
     if (!data) { setHistoryLoading(false); return; }
 
-    // Get totals for each tab
     const tabIds = data.map(t => t.id);
     const { data: allItems } = await supabase
       .from('tab_items')
@@ -387,12 +502,15 @@ export default function PortalBarTab() {
 
   return (
     <div>
-      <CreditBalanceCard balance={creditBalance} isLoading={creditLoading && isFirstLoad} />
+      <CreditBalanceCard balance={creditBalance} isLoading={creditLoading && isFirstLoad} onLoadCredit={() => setShowCreditSheet(true)} />
 
       <OpenTabCard
         items={tabLoading && isFirstLoad ? null : openTabItems}
         openedAt={openTabOpenedAt}
         totalPaidCents={openTabPaid}
+        tabId={openTabId}
+        memberId={memberId}
+        venueId={venueId}
         isLoading={tabLoading && isFirstLoad}
         error={tabError}
       />
@@ -420,6 +538,13 @@ export default function PortalBarTab() {
           )}
         </div>
       ) : null}
+
+      <CreditLoadSheet
+        open={showCreditSheet}
+        onClose={() => setShowCreditSheet(false)}
+        memberId={memberId}
+        venueId={venueId}
+      />
     </div>
   );
 }
