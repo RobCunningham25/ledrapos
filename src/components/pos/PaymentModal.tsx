@@ -141,10 +141,9 @@ export default function PaymentModal({
         <div className="flex-1 overflow-y-auto px-5 py-4">
           {/* Credit balance */}
           {memberId && (
-            <div className="flex items-center justify-between mb-3 px-3 py-2 rounded-lg bg-success/10">
-              <span className="text-sm font-medium text-success">Credit Available</span>
-              <span className="text-sm font-semibold text-success">{formatCents(creditBalance)}</span>
-            </div>
+            <p style={{ fontSize: 13, color: '#718096', marginBottom: 4 }}>
+              Available credit: {formatCents(creditBalance)}
+            </p>
           )}
 
           {/* Payment rows */}
