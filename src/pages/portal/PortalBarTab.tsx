@@ -576,7 +576,7 @@ export default function PortalBarTab() {
       </button>
 
       {/* Mobile layout */}
-      <div className="block lg:hidden" style={{ display: 'flex', flexDirection: 'column', gap: 16, paddingBottom: 100 }}>
+      <div className="flex flex-col lg:hidden" style={{ gap: 16, paddingBottom: 100 }}>
         <CreditBalanceBarCard
           balance={creditBalance}
           isLoading={creditLoading && isFirstLoad}
