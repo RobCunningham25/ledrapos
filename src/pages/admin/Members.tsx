@@ -50,7 +50,7 @@ export default function Members() {
     setLoading(true);
     const { data } = await supabase
       .from('members')
-      .select('id, first_name, last_name, membership_number, membership_type, is_active, auth_user_id, email, phone, partner_name')
+      .select('id, first_name, last_name, membership_number, membership_type, is_active, auth_user_id, email, phone, partner_name, partner_first_name, partner_last_name')
       .eq('venue_id', venueId)
       .order('last_name');
     setMembers((data as Member[]) || []);
