@@ -9,6 +9,7 @@ import { useAdminAuth } from '@/contexts/AdminAuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import AdminUsersTab from '@/components/admin/AdminUsersTab';
+import POSUsersTab from '@/components/admin/POSUsersTab';
 
 const PORTAL_TOGGLES = [
   { key: 'portal_tab_calendar', label: 'Calendar', helper: 'Show Calendar tab in member portal' },
