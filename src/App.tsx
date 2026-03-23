@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
+import { BrowserRouter, Route, Routes, Navigate, Outlet } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -38,56 +38,64 @@ function RootRedirect() {
   return null;
 }
 
+function VenueLayout() {
+  return (
+    <POSAuthProvider>
+      <CartProvider>
+        <Outlet />
+      </CartProvider>
+    </POSAuthProvider>
+  );
+}
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
-      <POSAuthProvider>
-        <CartProvider>
-          <Toaster />
-          <Sonner />
-          <BrowserRouter>
-            <Routes>
-              <Route path="/" element={<RootRedirect />} />
-              <Route path="/booking/:code" element={<PublicBookingPage />} />
-              <Route path="/:slug" element={<VenueResolver />}>
-                <Route index element={<Index />} />
-                <Route path="pos" element={<POS />} />
-                <Route path="admin/login" element={<AdminLogin />} />
-                <Route path="admin" element={
-                  <AdminAuthProvider>
-                    <AdminProtectedRoute />
-                  </AdminAuthProvider>
+      <Toaster />
+      <Sonner />
+      <BrowserRouter>
+        <Routes>
+          <Route path="/" element={<RootRedirect />} />
+          <Route path="/booking/:code" element={<PublicBookingPage />} />
+          <Route path="/:slug" element={<VenueResolver />}>
+            <Route element={<VenueLayout />}>
+              <Route index element={<Index />} />
+              <Route path="pos" element={<POS />} />
+              <Route path="admin/login" element={<AdminLogin />} />
+              <Route path="admin" element={
+                <AdminAuthProvider>
+                  <AdminProtectedRoute />
+                </AdminAuthProvider>
+              }>
+                <Route index element={<Navigate to="products" replace />} />
+                <Route path="products" element={<Products />} />
+                <Route path="members" element={<Members />} />
+                <Route path="members/:id" element={<MemberDetail />} />
+                <Route path="reports" element={<Reports />} />
+                <Route path="events" element={<Events />} />
+                <Route path="bookings" element={<AdminBookings />} />
+                <Route path="settings" element={<Settings />} />
+              </Route>
+              <Route path="portal/login" element={<PortalLogin />} />
+              <Route path="portal" element={<PortalProtectedRoute />}>
+                <Route element={
+                  <PortalAuthProvider>
+                    <PortalLayout />
+                  </PortalAuthProvider>
                 }>
-                  <Route index element={<Navigate to="products" replace />} />
-                  <Route path="products" element={<Products />} />
-                  <Route path="members" element={<Members />} />
-                  <Route path="members/:id" element={<MemberDetail />} />
-                  <Route path="reports" element={<Reports />} />
-                  <Route path="events" element={<Events />} />
-                  <Route path="bookings" element={<AdminBookings />} />
-                  <Route path="settings" element={<Settings />} />
-                </Route>
-                <Route path="portal/login" element={<PortalLogin />} />
-                <Route path="portal" element={<PortalProtectedRoute />}>
-                  <Route element={
-                    <PortalAuthProvider>
-                      <PortalLayout />
-                    </PortalAuthProvider>
-                  }>
-                    <Route index element={<PortalDashboard />} />
-                    <Route path="bar-tab" element={<PortalBarTab />} />
-                    <Route path="calendar" element={<PortalCalendar />} />
-                    <Route path="my-details" element={<PortalMyDetails />} />
-                    <Route path="bookings" element={<PortalBookings />} />
-                    <Route path="payment-result" element={<PortalPaymentResult />} />
-                  </Route>
+                  <Route index element={<PortalDashboard />} />
+                  <Route path="bar-tab" element={<PortalBarTab />} />
+                  <Route path="calendar" element={<PortalCalendar />} />
+                  <Route path="my-details" element={<PortalMyDetails />} />
+                  <Route path="bookings" element={<PortalBookings />} />
+                  <Route path="payment-result" element={<PortalPaymentResult />} />
                 </Route>
               </Route>
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </BrowserRouter>
-        </CartProvider>
-      </POSAuthProvider>
+            </Route>
+          </Route>
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
 );
