@@ -79,11 +79,13 @@ const App = () => (
                 <Route path="bookings" element={<AdminBookings />} />
                 <Route path="settings" element={<Settings />} />
               </Route>
-              <Route path="portal/login" element={<PortalLogin />} />
+              <Route path="portal/login" element={<PortalThemeProvider><PortalLogin /></PortalThemeProvider>} />
               <Route path="portal" element={<PortalProtectedRoute />}>
                 <Route element={
                   <PortalAuthProvider>
-                    <PortalLayout />
+                    <PortalThemeProvider>
+                      <PortalLayout />
+                    </PortalThemeProvider>
                   </PortalAuthProvider>
                 }>
                   <Route index element={<PortalDashboard />} />
