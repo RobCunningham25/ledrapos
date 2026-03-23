@@ -55,6 +55,310 @@ export type Database = {
           },
         ]
       }
+      booking_blackouts: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          end_date: string
+          id: string
+          reason: string | null
+          site_id: string | null
+          start_date: string
+          venue_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          end_date: string
+          id?: string
+          reason?: string | null
+          site_id?: string | null
+          start_date: string
+          venue_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          end_date?: string
+          id?: string
+          reason?: string | null
+          site_id?: string | null
+          start_date?: string
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "booking_blackouts_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "booking_sites"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "booking_blackouts_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      booking_payments: {
+        Row: {
+          amount_cents: number
+          booking_id: string
+          confirmed_at: string | null
+          confirmed_by: string | null
+          created_at: string
+          id: string
+          method: string
+          reference: string | null
+          status: string
+          venue_id: string
+        }
+        Insert: {
+          amount_cents: number
+          booking_id: string
+          confirmed_at?: string | null
+          confirmed_by?: string | null
+          created_at?: string
+          id?: string
+          method: string
+          reference?: string | null
+          status?: string
+          venue_id: string
+        }
+        Update: {
+          amount_cents?: number
+          booking_id?: string
+          confirmed_at?: string | null
+          confirmed_by?: string | null
+          created_at?: string
+          id?: string
+          method?: string
+          reference?: string | null
+          status?: string
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "booking_payments_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "booking_payments_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      booking_site_link: {
+        Row: {
+          booking_id: string
+          created_at: string
+          id: string
+          nights: number
+          price_per_night_cents: number
+          site_id: string
+          subtotal_cents: number
+          venue_id: string
+        }
+        Insert: {
+          booking_id: string
+          created_at?: string
+          id?: string
+          nights: number
+          price_per_night_cents: number
+          site_id: string
+          subtotal_cents: number
+          venue_id: string
+        }
+        Update: {
+          booking_id?: string
+          created_at?: string
+          id?: string
+          nights?: number
+          price_per_night_cents?: number
+          site_id?: string
+          subtotal_cents?: number
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "booking_site_link_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "booking_site_link_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "booking_sites"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "booking_site_link_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      booking_sites: {
+        Row: {
+          capacity: number | null
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          is_virtual: boolean
+          name: string
+          price_cents: number
+          pricing_tiers: Json | null
+          site_number: number | null
+          site_type: string
+          sort_order: number
+          venue_id: string
+        }
+        Insert: {
+          capacity?: number | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          is_virtual?: boolean
+          name: string
+          price_cents?: number
+          pricing_tiers?: Json | null
+          site_number?: number | null
+          site_type: string
+          sort_order?: number
+          venue_id: string
+        }
+        Update: {
+          capacity?: number | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          is_virtual?: boolean
+          name?: string
+          price_cents?: number
+          pricing_tiers?: Json | null
+          site_number?: number | null
+          site_type?: string
+          sort_order?: number
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "booking_sites_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bookings: {
+        Row: {
+          booking_code: string
+          cancelled_at: string | null
+          cancelled_by: string | null
+          check_in: string
+          check_out: string
+          created_at: string
+          created_by_member_id: string | null
+          expires_at: string | null
+          guest_email: string
+          guest_name: string
+          guest_phone: string | null
+          id: string
+          member_id: string | null
+          membership_number: string | null
+          notes: string | null
+          num_guests: number
+          payment_method: string | null
+          status: string
+          total_price_cents: number
+          venue_id: string
+        }
+        Insert: {
+          booking_code: string
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          check_in: string
+          check_out: string
+          created_at?: string
+          created_by_member_id?: string | null
+          expires_at?: string | null
+          guest_email: string
+          guest_name: string
+          guest_phone?: string | null
+          id?: string
+          member_id?: string | null
+          membership_number?: string | null
+          notes?: string | null
+          num_guests?: number
+          payment_method?: string | null
+          status?: string
+          total_price_cents?: number
+          venue_id: string
+        }
+        Update: {
+          booking_code?: string
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          check_in?: string
+          check_out?: string
+          created_at?: string
+          created_by_member_id?: string | null
+          expires_at?: string | null
+          guest_email?: string
+          guest_name?: string
+          guest_phone?: string | null
+          id?: string
+          member_id?: string | null
+          membership_number?: string | null
+          notes?: string | null
+          num_guests?: number
+          payment_method?: string | null
+          status?: string
+          total_price_cents?: number
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bookings_created_by_member_id_fkey"
+            columns: ["created_by_member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bookings_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bookings_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       checkout_sessions: {
         Row: {
           amount_cents: number
