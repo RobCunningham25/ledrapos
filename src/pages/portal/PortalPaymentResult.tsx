@@ -18,7 +18,7 @@ export default function PortalPaymentResult() {
   const [session, setSession] = useState<{ purpose: string; amount_cents: number; metadata?: any } | null>(null);
 
   useEffect(() => {
-    if (!sessionId) { navigate('/portal', { replace: true }); return; }
+    if (!sessionId) { navigate(portalPath(), { replace: true }); return; }
     if (status !== 'success') return;
 
     let attempts = 0;
