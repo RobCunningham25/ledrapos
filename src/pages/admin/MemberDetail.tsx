@@ -82,6 +82,7 @@ function getToday() {
 export default function MemberDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { adminPath } = useVenueNav();
   const { venueId } = useVenue();
 
   const [member, setMember] = useState<Member | null>(null);
