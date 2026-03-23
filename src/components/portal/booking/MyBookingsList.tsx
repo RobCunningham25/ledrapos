@@ -4,7 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { formatCents } from '@/utils/currency';
 import { PORTAL_THEME as T } from '@/constants/portalTheme';
 import { format } from 'date-fns';
-import { CreditCard, Building2, X } from 'lucide-react';
+import { CreditCard, Building2, X, ChevronDown, ChevronUp, Link as LinkIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import { usePortalAuth } from '@/contexts/PortalAuthContext';
 import EFTDetailsScreen from '@/components/portal/booking/EFTDetailsScreen';
@@ -24,13 +24,14 @@ export default function MyBookingsList({ venueId, memberId }: Props) {
   const [payModalBooking, setPayModalBooking] = useState<any>(null);
   const [payLoading, setPayLoading] = useState(false);
   const [showEFT, setShowEFT] = useState<{ code: string; total: number } | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  const { data: bookings } = useQuery({
+  const { data: bookings, isLoading } = useQuery({
     queryKey: ['portal-my-bookings', venueId, memberId],
     queryFn: async () => {
       const { data } = await supabase
         .from('bookings')
-        .select('id, booking_code, guest_name, check_in, check_out, num_guests, total_price_cents, status, expires_at, payment_method, booking_site_link(site_id, nights, booking_sites(name, site_type))')
+        .select('id, booking_code, guest_name, check_in, check_out, num_guests, total_price_cents, status, expires_at, payment_method, member_id, created_by_member_id, booking_site_link(site_id, nights, booking_sites(name, site_type))')
         .eq('venue_id', venueId)
         .or(`member_id.eq.${memberId},created_by_member_id.eq.${memberId}`)
         .order('check_in', { ascending: false });
@@ -83,9 +84,34 @@ export default function MyBookingsList({ venueId, memberId }: Props) {
     });
 
     queryClient.invalidateQueries({ queryKey: ['portal-my-bookings'] });
+    queryClient.invalidateQueries({ queryKey: ['portal-upcoming-bookings'] });
     setPayModalBooking(null);
     setShowEFT({ code: b.booking_code, total: b.total_price_cents });
   };
+
+  const handleCopyVisitorLink = async (bookingCode: string) => {
+    await navigator.clipboard.writeText(`${window.location.origin}/booking/${bookingCode}`);
+    toast.success('Link copied');
+  };
+
+  // Loading skeleton
+  if (isLoading) {
+    return (
+      <div style={{ marginBottom: 32 }}>
+        <h2 style={{ fontSize: 20, fontWeight: 600, color: T.navy, marginBottom: 16 }}>My Bookings</h2>
+        {[0, 1].map(i => (
+          <div key={i} style={{
+            background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 12,
+            padding: 16, marginBottom: 12,
+          }}>
+            <div style={{ height: 14, width: '60%', background: T.cardBorder, borderRadius: 4, marginBottom: 8 }} className="animate-pulse" />
+            <div style={{ height: 14, width: '40%', background: T.cardBorder, borderRadius: 4, marginBottom: 8 }} className="animate-pulse" />
+            <div style={{ height: 14, width: '30%', background: T.cardBorder, borderRadius: 4 }} className="animate-pulse" />
+          </div>
+        ))}
+      </div>
+    );
+  }
 
   if (!bookings || bookings.length === 0) return null;
 
@@ -98,45 +124,83 @@ export default function MyBookingsList({ venueId, memberId }: Props) {
         const siteType = link?.booking_sites?.site_type;
         const isDayVisitor = siteType === 'day_visitor';
         const nights = link?.nights || 0;
-
-        // Visual expired check
         const isVisuallyExpired = b.status === 'PENDING' && b.expires_at && new Date(b.expires_at) < new Date();
         const displayStatus = isVisuallyExpired ? 'EXPIRED' : b.status;
         const statusStyle = STATUS_STYLES[displayStatus] || STATUS_STYLES.PENDING;
-
         const canPay = b.status === 'PENDING' && b.total_price_cents > 0 && !isVisuallyExpired;
+        const isVisitorBooking = b.member_id !== memberId && b.created_by_member_id === memberId;
+        const isExpanded = expandedId === b.id;
 
         const fmtCI = (() => { try { return format(new Date(b.check_in + 'T12:00:00'), 'd MMM yyyy'); } catch { return b.check_in; } })();
         const fmtCO = (() => { try { return format(new Date(b.check_out + 'T12:00:00'), 'd MMM yyyy'); } catch { return b.check_out; } })();
+        const fmtCIFull = (() => { try { return format(new Date(b.check_in + 'T12:00:00'), 'EEEE, d MMMM yyyy'); } catch { return b.check_in; } })();
+        const fmtCOFull = (() => { try { return format(new Date(b.check_out + 'T12:00:00'), 'EEEE, d MMMM yyyy'); } catch { return b.check_out; } })();
 
         return (
           <div key={b.id} style={{
             background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 12,
-            boxShadow: T.cardShadow, padding: 16, marginBottom: 12,
-            display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 8,
-          }}>
-            <div>
-              <div style={{ fontFamily: 'monospace', fontSize: 13, color: T.textMuted }}>{b.booking_code}</div>
-              <div style={{ fontSize: 16, fontWeight: 600, color: T.textPrimary, marginTop: 2 }}>{siteName}</div>
-              <div style={{ fontSize: 14, color: T.textSecondary, marginTop: 2 }}>
-                {isDayVisitor ? `${fmtCI} · Day visit` : `${fmtCI} – ${fmtCO} · ${nights} night${nights !== 1 ? 's' : ''}`}
-              </div>
-              <div style={{ fontSize: 13, color: T.textMuted, marginTop: 2 }}>{b.num_guests} guest{b.num_guests !== 1 ? 's' : ''}</div>
+            boxShadow: T.cardShadow, padding: 16, marginBottom: 12, cursor: 'pointer', position: 'relative',
+          }}
+            onClick={(e) => {
+              const target = e.target as HTMLElement;
+              if (target.closest('button')) return;
+              setExpandedId(isExpanded ? null : b.id);
+            }}
+          >
+            {/* Chevron */}
+            <div style={{ position: 'absolute', top: 12, right: 12 }}>
+              {isExpanded ? <ChevronUp size={16} color={T.textMuted} /> : <ChevronDown size={16} color={T.textMuted} />}
             </div>
-            <div style={{ textAlign: 'right' }}>
-              <span style={{ ...statusStyle, fontSize: 12, fontWeight: 500, borderRadius: 9999, padding: '2px 10px', display: 'inline-block' }}>{displayStatus}</span>
-              <div style={{ fontSize: 15, fontWeight: 600, color: T.textPrimary, marginTop: 8 }}>
-                {b.total_price_cents === 0 ? 'Free' : formatCents(b.total_price_cents)}
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 8, paddingRight: 24 }}>
+              <div>
+                <div style={{ fontFamily: 'monospace', fontSize: 13, color: T.textMuted }}>{b.booking_code}</div>
+                <div style={{ fontSize: 16, fontWeight: 600, color: T.textPrimary, marginTop: 2 }}>{siteName}</div>
+                {isVisitorBooking && (
+                  <div style={{ fontSize: 13, color: T.textMuted, fontStyle: 'italic', marginTop: 2 }}>Booked for {b.guest_name}</div>
+                )}
+                <div style={{ fontSize: 14, color: T.textSecondary, marginTop: 2 }}>
+                  {isDayVisitor ? `${fmtCI} · Day visit` : `${fmtCI} – ${fmtCO} · ${nights} night${nights !== 1 ? 's' : ''}`}
+                </div>
+                <div style={{ fontSize: 13, color: T.textMuted, marginTop: 2 }}>{b.num_guests} guest{b.num_guests !== 1 ? 's' : ''}</div>
               </div>
-              {canPay && (
-                <button onClick={() => setPayModalBooking(b)} style={{
-                  marginTop: 8, background: T.teal, color: '#FFFFFF', borderRadius: 8, height: 36,
-                  fontSize: 13, fontWeight: 600, padding: '0 16px', border: 'none', cursor: 'pointer',
-                }}>
-                  Pay Now
-                </button>
-              )}
+              <div style={{ textAlign: 'right' }}>
+                <span style={{ ...statusStyle, fontSize: 12, fontWeight: 500, borderRadius: 9999, padding: '2px 10px', display: 'inline-block' }}>{displayStatus}</span>
+                <div style={{ fontSize: 15, fontWeight: 600, color: T.textPrimary, marginTop: 8 }}>
+                  {b.total_price_cents === 0 ? 'Free' : formatCents(b.total_price_cents)}
+                </div>
+                {canPay && (
+                  <button onClick={() => setPayModalBooking(b)} style={{
+                    marginTop: 8, background: T.teal, color: '#FFFFFF', borderRadius: 8, height: 36,
+                    fontSize: 13, fontWeight: 600, padding: '0 16px', border: 'none', cursor: 'pointer',
+                  }}>
+                    Pay Now
+                  </button>
+                )}
+              </div>
             </div>
+
+            {/* Expanded details */}
+            {isExpanded && (
+              <div style={{ paddingTop: 12, borderTop: `1px solid ${T.cardBorder}`, marginTop: 12 }}>
+                <div style={{ fontSize: 13, color: T.textSecondary, marginBottom: 4 }}>Check-in: {fmtCIFull}</div>
+                {!isDayVisitor && <div style={{ fontSize: 13, color: T.textSecondary, marginBottom: 4 }}>Check-out: {fmtCOFull}</div>}
+                <div style={{ fontSize: 13, color: T.textSecondary, marginBottom: 4 }}>Guests: {b.num_guests} guest{b.num_guests !== 1 ? 's' : ''}</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                  <span style={{ fontSize: 13, color: T.textMuted }}>Code: <span style={{ fontFamily: 'monospace' }}>{b.booking_code}</span></span>
+                  {isVisitorBooking && (
+                    <button onClick={() => handleCopyVisitorLink(b.booking_code)} style={{
+                      background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'inline-flex',
+                    }}>
+                      <LinkIcon size={16} color={T.teal} />
+                    </button>
+                  )}
+                </div>
+                <div style={{ fontSize: 13, color: T.textSecondary }}>
+                  Payment: {b.payment_method === 'yoco' ? 'Card' : b.payment_method === 'eft' ? 'EFT' : '—'}
+                </div>
+              </div>
+            )}
           </div>
         );
       })}
