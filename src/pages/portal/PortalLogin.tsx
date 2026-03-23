@@ -60,7 +60,7 @@ export default function PortalLogin() {
         return;
       }
 
-      navigate('/portal', { replace: true });
+      navigate(`/${slug}/portal`, { replace: true });
     }
 
     setLoading(false);
