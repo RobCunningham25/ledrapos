@@ -564,7 +564,7 @@ export default function PortalBarTab() {
     <div>
       {/* Back to Home */}
       <button
-        onClick={() => navigate('/portal')}
+        onClick={() => navigate(portalPath())}
         className="flex items-center gap-1"
         style={{
           background: 'none', border: 'none', cursor: 'pointer',

@@ -75,14 +75,14 @@ export default function PortalPaymentResult() {
               <XCircle size={48} color={T.amber} />
               <p style={{ fontSize: 20, fontWeight: 600, color: T.textPrimary, marginTop: 16 }}>Payment Cancelled</p>
               <p style={{ fontSize: 15, color: T.textMuted, marginTop: 8 }}>Your booking has been created but is still awaiting payment. You can pay later from your bookings page.</p>
-              <button onClick={() => navigate('/portal/bookings')} style={btnStyle}>View My Bookings</button>
+              <button onClick={() => navigate(portalPath('bookings'))} style={btnStyle}>View My Bookings</button>
             </>
           ) : (
             <>
               <AlertTriangle size={48} color={T.amber} />
               <p style={{ fontSize: 20, fontWeight: 600, color: T.textPrimary, marginTop: 16 }}>Payment Cancelled</p>
               <p style={{ fontSize: 15, color: T.textMuted, marginTop: 8 }}>No charge was made to your card.</p>
-              <button onClick={() => navigate('/portal')} style={btnStyle}>Back to Home</button>
+              <button onClick={() => navigate(portalPath())} style={btnStyle}>Back to Home</button>
             </>
           )}
         </div>
@@ -99,14 +99,14 @@ export default function PortalPaymentResult() {
               <XCircle size={48} color={T.danger} />
               <p style={{ fontSize: 20, fontWeight: 600, color: T.textPrimary, marginTop: 16 }}>Payment Failed</p>
               <p style={{ fontSize: 15, color: T.textMuted, marginTop: 8 }}>Something went wrong with the payment. Your booking is still pending — you can try again from your bookings page.</p>
-              <button onClick={() => navigate('/portal/bookings')} style={btnStyle}>View My Bookings</button>
+              <button onClick={() => navigate(portalPath('bookings'))} style={btnStyle}>View My Bookings</button>
             </>
           ) : (
             <>
               <XCircle size={48} color={T.danger} />
               <p style={{ fontSize: 20, fontWeight: 600, color: T.textPrimary, marginTop: 16 }}>Payment Failed</p>
               <p style={{ fontSize: 15, color: T.textMuted, marginTop: 8 }}>Something went wrong. Please try again or settle at the bar.</p>
-              <button onClick={() => navigate('/portal')} style={btnStyle}>Back to Home</button>
+              <button onClick={() => navigate(portalPath())} style={btnStyle}>Back to Home</button>
             </>
           )}
         </div>
@@ -135,8 +135,8 @@ export default function PortalPaymentResult() {
             )}
             <p style={{ fontSize: 14, color: T.textSecondary, marginTop: 8 }}>Your payment has been received and your booking is confirmed.</p>
             <p style={{ fontSize: 18, fontWeight: 600, color: T.textPrimary, marginTop: 8 }}>{formatCents(session.amount_cents)}</p>
-            <button onClick={() => navigate('/portal/bookings')} style={btnStyle}>View My Bookings</button>
-            <button onClick={() => navigate('/portal')} style={ghostBtnStyle}>Back to Home</button>
+            <button onClick={() => navigate(portalPath('bookings'))} style={btnStyle}>View My Bookings</button>
+            <button onClick={() => navigate(portalPath())} style={ghostBtnStyle}>Back to Home</button>
           </div>
         </div>
       );
@@ -153,7 +153,7 @@ export default function PortalPaymentResult() {
           <CheckCircle size={48} color={T.teal} />
           <p style={{ fontSize: 20, fontWeight: 600, color: T.textPrimary, marginTop: 16 }}>{heading}</p>
           <p style={{ fontSize: 15, color: T.textMuted, marginTop: 8 }}>{subtext}</p>
-          <button onClick={() => navigate('/portal')} style={btnStyle}>Back to Home</button>
+          <button onClick={() => navigate(portalPath())} style={btnStyle}>Back to Home</button>
         </div>
       </div>
     );
@@ -166,7 +166,7 @@ export default function PortalPaymentResult() {
         <p style={{ fontSize: 15, color: T.textMuted, marginTop: 16 }}>
           Your payment was received but is still being processed. Your balance will update shortly.
         </p>
-        <button onClick={() => navigate('/portal')} style={btnStyle}>Back to Home</button>
+        <button onClick={() => navigate(portalPath())} style={btnStyle}>Back to Home</button>
       </div>
     </div>
   );
