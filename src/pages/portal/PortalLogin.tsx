@@ -26,7 +26,7 @@ export default function PortalLogin() {
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
-        navigate('/portal', { replace: true });
+        navigate(`/${slug}/portal`, { replace: true });
       } else {
         setCheckingSession(false);
       }
