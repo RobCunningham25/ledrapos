@@ -28,11 +28,7 @@ interface Member {
   partner_last_name: string | null;
 }
 
-const TYPE_COLORS: Record<string, { text: string; bg: string }> = {
-  member: { text: '#2E5FA3', bg: 'rgba(46,95,163,0.1)' },
-  associate: { text: '#D68910', bg: 'rgba(214,137,16,0.1)' },
-  honorary: { text: '#1E8449', bg: 'rgba(30,132,73,0.1)' },
-};
+import { MEMBERSHIP_TYPE_COLORS, MEMBERSHIP_TYPES, getMembershipLabel } from '@/constants/membershipTypes';
 
 export default function Members() {
   const navigate = useNavigate();

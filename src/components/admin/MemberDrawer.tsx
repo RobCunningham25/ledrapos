@@ -187,9 +187,11 @@ export default function MemberDrawer({ isOpen, onClose, venueId, member, onSucce
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="ordinary">Ordinary</SelectItem>
+                <SelectItem value="pensioner">Pensioner</SelectItem>
+                <SelectItem value="honorary">Honorary</SelectItem>
                 <SelectItem value="member">Member</SelectItem>
                 <SelectItem value="associate">Associate</SelectItem>
-                <SelectItem value="honorary">Honorary</SelectItem>
               </SelectContent>
             </Select>
           </div>
