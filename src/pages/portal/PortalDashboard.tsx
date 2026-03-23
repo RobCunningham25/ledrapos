@@ -169,6 +169,80 @@ function WidgetCard({ title, linkLabel, linkTo, icon: Icon, emptyText }: {
   );
 }
 
+// ─── Upcoming Events Card (real data) ──────────────────────────
+function UpcomingEventsCard({ venueId }: { venueId: string }) {
+  const navigate = useNavigate();
+  const today = new Date().toISOString().slice(0, 10);
+
+  const { data: events = [] } = useQuery({
+    queryKey: ['portal-upcoming-events', venueId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('club_events')
+        .select('id, title, event_date, start_time, end_time')
+        .eq('venue_id', venueId)
+        .gte('event_date', today)
+        .order('event_date', { ascending: true })
+        .order('start_time', { ascending: true, nullsFirst: false })
+        .limit(3);
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!venueId,
+  });
+
+  const formatShort = (d: string) => {
+    const dt = new Date(d + 'T00:00:00');
+    return dt.toLocaleDateString('en-ZA', { weekday: 'short', day: 'numeric', month: 'short' });
+  };
+
+  const formatTime = (s: string | null, e: string | null) => {
+    if (!s) return null;
+    const start = s.slice(0, 5);
+    return e ? `${start} – ${e.slice(0, 5)}` : start;
+  };
+
+  return (
+    <div style={{
+      background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 12,
+      padding: 20, boxShadow: T.cardShadow,
+    }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <span style={{ fontSize: 16, fontWeight: 600, color: T.textPrimary }}>Upcoming Events</span>
+        <button
+          onClick={() => navigate('/portal/calendar')}
+          style={{ fontSize: 14, fontWeight: 500, color: T.teal, background: 'none', border: 'none', cursor: 'pointer' }}
+        >
+          View all →
+        </button>
+      </div>
+      {events.length === 0 ? (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 120 }}>
+          <Calendar size={40} color={T.cardBorder} />
+          <p style={{ fontSize: 14, color: T.textMuted, marginTop: 8 }}>No upcoming events</p>
+        </div>
+      ) : (
+        <div>
+          {events.map((ev, i) => (
+            <div key={ev.id} style={{
+              padding: '10px 0',
+              borderBottom: i < events.length - 1 ? `1px solid ${T.cardBorder}` : 'none',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                <span style={{ fontSize: 13, fontWeight: 600, color: T.navy }}>{formatShort(ev.event_date)}</span>
+                <span style={{ fontSize: 14, color: T.textPrimary }}>{ev.title}</span>
+              </div>
+              {formatTime(ev.start_time, ev.end_time) && (
+                <p style={{ fontSize: 13, color: T.textSecondary, margin: '2px 0 0' }}>{formatTime(ev.start_time, ev.end_time)}</p>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Dashboard Page ────────────────────────────────────────────
 export default function PortalDashboard() {
   const { member } = usePortalAuth();
