@@ -14,3 +14,6 @@ verify_jwt = false
 
 [functions.invite-admin]
 verify_jwt = false
+
+[functions.expire-bookings]
+verify_jwt = false
