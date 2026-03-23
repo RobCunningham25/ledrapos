@@ -1110,34 +1110,97 @@ export type Database = {
       }
       venues: {
         Row: {
+          accent_color: string
           address: string | null
+          booking_code_prefix: string
+          button_radius: string
+          card_background: string
+          card_border: string
+          card_radius: string
+          card_shadow: string
           contact_email: string | null
           contact_phone: string | null
           created_at: string | null
+          danger_color: string
+          hero_gradient: string | null
           id: string
           is_active: boolean | null
+          logo_url: string | null
           name: string
+          page_background: string
+          portal_domain: string | null
+          primary_color: string
           slug: string
+          success_color: string
+          tagline: string | null
+          tertiary_color: string | null
+          text_muted: string
+          text_primary: string
+          text_secondary: string
+          warning_color: string
+          welcome_message: string | null
         }
         Insert: {
+          accent_color?: string
           address?: string | null
+          booking_code_prefix?: string
+          button_radius?: string
+          card_background?: string
+          card_border?: string
+          card_radius?: string
+          card_shadow?: string
           contact_email?: string | null
           contact_phone?: string | null
           created_at?: string | null
+          danger_color?: string
+          hero_gradient?: string | null
           id?: string
           is_active?: boolean | null
+          logo_url?: string | null
           name: string
+          page_background?: string
+          portal_domain?: string | null
+          primary_color?: string
           slug: string
+          success_color?: string
+          tagline?: string | null
+          tertiary_color?: string | null
+          text_muted?: string
+          text_primary?: string
+          text_secondary?: string
+          warning_color?: string
+          welcome_message?: string | null
         }
         Update: {
+          accent_color?: string
           address?: string | null
+          booking_code_prefix?: string
+          button_radius?: string
+          card_background?: string
+          card_border?: string
+          card_radius?: string
+          card_shadow?: string
           contact_email?: string | null
           contact_phone?: string | null
           created_at?: string | null
+          danger_color?: string
+          hero_gradient?: string | null
           id?: string
           is_active?: boolean | null
+          logo_url?: string | null
           name?: string
+          page_background?: string
+          portal_domain?: string | null
+          primary_color?: string
           slug?: string
+          success_color?: string
+          tagline?: string | null
+          tertiary_color?: string | null
+          text_muted?: string
+          text_primary?: string
+          text_secondary?: string
+          warning_color?: string
+          welcome_message?: string | null
         }
         Relationships: []
       }
