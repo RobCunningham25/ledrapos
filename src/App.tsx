@@ -8,6 +8,7 @@ import { POSAuthProvider } from "@/contexts/POSAuthContext";
 import { CartProvider } from "@/contexts/CartContext";
 import { PortalAuthProvider } from "@/contexts/PortalAuthContext";
 import { AdminAuthProvider } from "@/contexts/AdminAuthContext";
+import { PortalThemeProvider } from "@/contexts/PortalThemeContext";
 import Index from "./pages/Index.tsx";
 import POS from "./pages/POS.tsx";
 import NotFound from "./pages/NotFound.tsx";
