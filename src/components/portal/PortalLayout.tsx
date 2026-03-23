@@ -20,6 +20,8 @@ export default function PortalLayout() {
   const { member, signOut } = usePortalAuth();
   const location = useLocation();
   const navigate = useNavigate();
+  const { portalPath } = useVenueNav();
+  const allTabs = usePortalTabs();
   const [enabledKeys, setEnabledKeys] = useState<Record<string, boolean>>({
     portal_tab_calendar: true,
     portal_tab_my_details: true,
