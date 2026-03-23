@@ -531,6 +531,7 @@ export default function PortalBarTab() {
       tabId={openTabId}
       memberId={memberId}
       venueId={venueId}
+      venueSlug={venueSlug}
       isLoading={tabLoading && isFirstLoad}
       error={tabError}
     />
