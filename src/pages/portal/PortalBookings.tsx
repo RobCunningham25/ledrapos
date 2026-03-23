@@ -90,7 +90,7 @@ export default function PortalBookings() {
   const handleConfirm = useCallback(async () => {
     if (!member || !selectedSiteId || !selectedSite) return;
 
-    const bookingCode = generateBookingCode();
+    const bookingCode = generateBookingCode(venue?.booking_code_prefix || 'VCA');
     const isFree = totalCents === 0;
     const isVisitor = bookingFor === 'visitor';
 
