@@ -1,22 +1,9 @@
-/**
- * expire-bookings — Flips PENDING EFT bookings past their expires_at to EXPIRED.
- *
- * SCHEDULING OPTIONS (configure separately — not implemented in code):
- *
- * Option 1 — Supabase pg_cron (requires pg_cron + pg_net extensions):
- *   SELECT cron.schedule('expire-eft-bookings', '*/15 * * * *', $$
- *     SELECT net.http_post(
- *       url := 'https://fgquwzzyudgcmfbuvmch.supabase.co/functions/v1/expire-bookings',
- *       headers := '{"Content-Type": "application/json", "Authorization": "Bearer <ANON_KEY>"}'::jsonb,
- *       body := '{}'::jsonb
- *     );
- *   $$);
- *
- * Option 2 — External cron (cron-job.org, Vercel cron, GitHub Actions):
- *   POST https://fgquwzzyudgcmfbuvmch.supabase.co/functions/v1/expire-bookings every 15 min
- *
- * Option 3 — Manual via admin panel "Process Expired" button
- */
+// expire-bookings — Flips PENDING EFT bookings past their expires_at to EXPIRED.
+//
+// SCHEDULING OPTIONS (configure separately):
+// 1. Supabase pg_cron: schedule every 15 min to POST this function URL
+// 2. External cron (cron-job.org, Vercel cron, GitHub Actions): POST every 15 min
+// 3. Manual: use "Process Expired" button in admin panel
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
