@@ -23,6 +23,7 @@ import { supabase } from '@/integrations/supabase/client';
 const POS = () => {
   const { currentUser, isAuthenticated, isLocked, refreshActivity, logout, setIsLocked } = usePOSAuth();
   const navigate = useNavigate();
+  const { posPath } = useVenueNav();
 
   useEffect(() => {
     if (!currentUser) return;
