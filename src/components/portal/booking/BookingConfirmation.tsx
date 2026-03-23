@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link as LinkIcon, CheckCircle2, CreditCard, Building2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { PORTAL_THEME as T } from '@/constants/portalTheme';
+import { useVenueNav } from '@/hooks/useVenueNav';
 import { formatCents } from '@/utils/currency';
 
 interface Props {
