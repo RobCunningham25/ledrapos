@@ -1,8 +1,13 @@
-import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { formatCents } from '@/utils/currency';
 import { PORTAL_THEME as T } from '@/constants/portalTheme';
 import { format } from 'date-fns';
+import { CreditCard, Building2, X } from 'lucide-react';
+import { toast } from 'sonner';
+import { usePortalAuth } from '@/contexts/PortalAuthContext';
+import EFTDetailsScreen from '@/components/portal/booking/EFTDetailsScreen';
 
 const STATUS_STYLES: Record<string, React.CSSProperties> = {
   PENDING: { background: '#FEF3C7', color: '#92400E', border: '1px solid #FDE68A' },
@@ -14,18 +19,73 @@ const STATUS_STYLES: Record<string, React.CSSProperties> = {
 interface Props { venueId: string; memberId: string; }
 
 export default function MyBookingsList({ venueId, memberId }: Props) {
+  const { member } = usePortalAuth();
+  const queryClient = useQueryClient();
+  const [payModalBooking, setPayModalBooking] = useState<any>(null);
+  const [payLoading, setPayLoading] = useState(false);
+  const [showEFT, setShowEFT] = useState<{ code: string; total: number } | null>(null);
+
   const { data: bookings } = useQuery({
     queryKey: ['portal-my-bookings', venueId, memberId],
     queryFn: async () => {
       const { data } = await supabase
         .from('bookings')
-        .select('id, booking_code, guest_name, check_in, check_out, num_guests, total_price_cents, status, booking_site_link(site_id, nights, booking_sites(name, site_type))')
+        .select('id, booking_code, guest_name, check_in, check_out, num_guests, total_price_cents, status, expires_at, payment_method, booking_site_link(site_id, nights, booking_sites(name, site_type))')
         .eq('venue_id', venueId)
         .or(`member_id.eq.${memberId},created_by_member_id.eq.${memberId}`)
         .order('check_in', { ascending: false });
       return data || [];
     },
   });
+
+  if (showEFT) {
+    return <EFTDetailsScreen venueId={venueId} bookingCode={showEFT.code} totalCents={showEFT.total} />;
+  }
+
+  const handlePayCard = async (b: any) => {
+    if (!member) return;
+    setPayLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('create-checkout', {
+        body: {
+          member_id: member.id,
+          venue_id: member.venue_id,
+          purpose: 'booking_payment',
+          amount_cents: b.total_price_cents,
+          booking_id: b.id,
+        },
+      });
+      if (error || !data?.redirect_url) {
+        toast.error(data?.error || error?.message || 'Failed to create payment');
+        setPayLoading(false);
+        return;
+      }
+      window.location.href = data.redirect_url;
+    } catch (e: any) {
+      toast.error(e.message || 'Payment error');
+      setPayLoading(false);
+    }
+  };
+
+  const handlePayEFT = async (b: any) => {
+    if (!member) return;
+    await supabase.from('bookings').update({
+      payment_method: 'eft',
+      expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+    }).eq('id', b.id);
+
+    await supabase.from('booking_payments').insert({
+      venue_id: member.venue_id,
+      booking_id: b.id,
+      amount_cents: b.total_price_cents,
+      method: 'eft',
+      status: 'pending',
+    });
+
+    queryClient.invalidateQueries({ queryKey: ['portal-my-bookings'] });
+    setPayModalBooking(null);
+    setShowEFT({ code: b.booking_code, total: b.total_price_cents });
+  };
 
   if (!bookings || bookings.length === 0) return null;
 
@@ -38,7 +98,14 @@ export default function MyBookingsList({ venueId, memberId }: Props) {
         const siteType = link?.booking_sites?.site_type;
         const isDayVisitor = siteType === 'day_visitor';
         const nights = link?.nights || 0;
-        const statusStyle = STATUS_STYLES[b.status] || STATUS_STYLES.PENDING;
+
+        // Visual expired check
+        const isVisuallyExpired = b.status === 'PENDING' && b.expires_at && new Date(b.expires_at) < new Date();
+        const displayStatus = isVisuallyExpired ? 'EXPIRED' : b.status;
+        const statusStyle = STATUS_STYLES[displayStatus] || STATUS_STYLES.PENDING;
+
+        const canPay = b.status === 'PENDING' && b.total_price_cents > 0 && !isVisuallyExpired;
+
         const fmtCI = (() => { try { return format(new Date(b.check_in + 'T12:00:00'), 'd MMM yyyy'); } catch { return b.check_in; } })();
         const fmtCO = (() => { try { return format(new Date(b.check_out + 'T12:00:00'), 'd MMM yyyy'); } catch { return b.check_out; } })();
 
@@ -57,14 +124,72 @@ export default function MyBookingsList({ venueId, memberId }: Props) {
               <div style={{ fontSize: 13, color: T.textMuted, marginTop: 2 }}>{b.num_guests} guest{b.num_guests !== 1 ? 's' : ''}</div>
             </div>
             <div style={{ textAlign: 'right' }}>
-              <span style={{ ...statusStyle, fontSize: 12, fontWeight: 500, borderRadius: 9999, padding: '2px 10px', display: 'inline-block' }}>{b.status}</span>
+              <span style={{ ...statusStyle, fontSize: 12, fontWeight: 500, borderRadius: 9999, padding: '2px 10px', display: 'inline-block' }}>{displayStatus}</span>
               <div style={{ fontSize: 15, fontWeight: 600, color: T.textPrimary, marginTop: 8 }}>
                 {b.total_price_cents === 0 ? 'Free' : formatCents(b.total_price_cents)}
               </div>
+              {canPay && (
+                <button onClick={() => setPayModalBooking(b)} style={{
+                  marginTop: 8, background: T.teal, color: '#FFFFFF', borderRadius: 8, height: 36,
+                  fontSize: 13, fontWeight: 600, padding: '0 16px', border: 'none', cursor: 'pointer',
+                }}>
+                  Pay Now
+                </button>
+              )}
             </div>
           </div>
         );
       })}
+
+      {/* Payment method modal */}
+      {payModalBooking && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
+        }} onClick={() => !payLoading && setPayModalBooking(null)}>
+          <div style={{
+            background: T.cardBg, borderRadius: 12, padding: 24, maxWidth: 440, width: '100%',
+            boxShadow: '0 8px 32px rgba(0,0,0,0.2)', position: 'relative',
+          }} onClick={e => e.stopPropagation()}>
+            <button onClick={() => !payLoading && setPayModalBooking(null)} style={{
+              position: 'absolute', top: 12, right: 12, background: 'none', border: 'none', cursor: 'pointer',
+            }}>
+              <X size={20} color={T.textMuted} />
+            </button>
+
+            <h3 style={{ fontSize: 20, fontWeight: 700, color: T.navy, textAlign: 'center', marginBottom: 4 }}>Choose Payment Method</h3>
+            <p style={{ fontSize: 14, fontWeight: 600, color: T.textPrimary, textAlign: 'center', fontFamily: 'monospace' }}>{payModalBooking.booking_code}</p>
+            <p style={{ fontSize: 18, fontWeight: 600, color: T.navy, textAlign: 'center', marginBottom: 20 }}>
+              Total: {formatCents(payModalBooking.total_price_cents)}
+            </p>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <button onClick={() => handlePayCard(payModalBooking)} disabled={payLoading}
+                style={{
+                  background: T.cardBg, border: `2px solid ${T.cardBorder}`, borderRadius: 12,
+                  padding: 20, cursor: payLoading ? 'not-allowed' : 'pointer', textAlign: 'center',
+                  opacity: payLoading ? 0.7 : 1,
+                }}>
+                <CreditCard size={36} color={T.navy} style={{ margin: '0 auto 8px' }} />
+                <div style={{ fontSize: 15, fontWeight: 600, color: T.textPrimary }}>Pay by Card</div>
+                <div style={{ fontSize: 12, color: T.textMuted, marginTop: 2 }}>
+                  {payLoading ? 'Redirecting...' : 'Instant via Yoco'}
+                </div>
+              </button>
+              <button onClick={() => handlePayEFT(payModalBooking)} disabled={payLoading}
+                style={{
+                  background: T.cardBg, border: `2px solid ${T.cardBorder}`, borderRadius: 12,
+                  padding: 20, cursor: payLoading ? 'not-allowed' : 'pointer', textAlign: 'center',
+                  opacity: payLoading ? 0.7 : 1,
+                }}>
+                <Building2 size={36} color={T.navy} style={{ margin: '0 auto 8px' }} />
+                <div style={{ fontSize: 15, fontWeight: 600, color: T.textPrimary }}>Pay by EFT</div>
+                <div style={{ fontSize: 12, color: T.textMuted, marginTop: 2 }}>Bank transfer · 24hr</div>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

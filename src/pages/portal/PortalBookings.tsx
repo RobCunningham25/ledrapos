@@ -12,6 +12,7 @@ import BookingDatesStep, { getPerNightPrice, type BookingSite } from '@/componen
 import BookingDetailsStep from '@/components/portal/booking/BookingDetailsStep';
 import BookingReviewStep from '@/components/portal/booking/BookingReviewStep';
 import BookingConfirmation from '@/components/portal/booking/BookingConfirmation';
+import EFTDetailsScreen from '@/components/portal/booking/EFTDetailsScreen';
 import MyBookingsList from '@/components/portal/booking/MyBookingsList';
 
 const CODE_CHARS = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
@@ -37,6 +38,9 @@ export default function PortalBookings() {
   const [guestPhone, setGuestPhone] = useState(member?.phone || '');
   const [notes, setNotes] = useState('');
   const [confirmedCode, setConfirmedCode] = useState<string | null>(null);
+  const [confirmedBookingId, setConfirmedBookingId] = useState<string | null>(null);
+  const [paymentLoading, setPaymentLoading] = useState(false);
+  const [showEFT, setShowEFT] = useState(false);
 
   const venueId = member?.venue_id || '';
   const selectedSite = useMemo(() => sites.find(s => s.id === selectedSiteId), [sites, selectedSiteId]);
@@ -112,9 +116,64 @@ export default function PortalBookings() {
 
     queryClient.invalidateQueries({ queryKey: ['portal-my-bookings'] });
     setConfirmedCode(bookingCode);
+    setConfirmedBookingId(booking.id);
   }, [member, selectedSiteId, selectedSite, venueId, guestName, guestEmail, guestPhone, checkIn, checkOut, isDayVisitor, numGuests, totalCents, notes, nights, perNight, queryClient]);
 
+  const handleSelectPayment = useCallback(async (method: 'card' | 'eft') => {
+    if (!confirmedBookingId || !member) return;
+
+    if (method === 'card') {
+      setPaymentLoading(true);
+      try {
+        const { data, error } = await supabase.functions.invoke('create-checkout', {
+          body: {
+            member_id: member.id,
+            venue_id: member.venue_id,
+            purpose: 'booking_payment',
+            amount_cents: totalCents,
+            booking_id: confirmedBookingId,
+          },
+        });
+        if (error || !data?.redirect_url) {
+          toast.error(data?.error || error?.message || 'Failed to create payment');
+          setPaymentLoading(false);
+          return;
+        }
+        window.location.href = data.redirect_url;
+      } catch (e: any) {
+        toast.error(e.message || 'Payment error');
+        setPaymentLoading(false);
+      }
+    } else {
+      // EFT flow
+      await supabase.from('bookings').update({
+        payment_method: 'eft',
+        expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+      }).eq('id', confirmedBookingId);
+
+      await supabase.from('booking_payments').insert({
+        venue_id: member.venue_id,
+        booking_id: confirmedBookingId,
+        amount_cents: totalCents,
+        method: 'eft',
+        status: 'pending',
+      });
+
+      queryClient.invalidateQueries({ queryKey: ['portal-my-bookings'] });
+      setShowEFT(true);
+    }
+  }, [confirmedBookingId, member, totalCents, queryClient]);
+
   if (!member) return null;
+
+  // EFT details screen
+  if (showEFT && confirmedCode) {
+    return (
+      <div style={{ maxWidth: 800, margin: '0 auto', padding: '24px 16px' }}>
+        <EFTDetailsScreen venueId={venueId} bookingCode={confirmedCode} totalCents={totalCents} />
+      </div>
+    );
+  }
 
   return (
     <div style={{ maxWidth: 800, margin: '0 auto', padding: '24px 16px' }}>
@@ -125,7 +184,14 @@ export default function PortalBookings() {
 
       {/* Confirmation screen */}
       {confirmedCode ? (
-        <BookingConfirmation bookingCode={confirmedCode} isFree={totalCents === 0} />
+        <BookingConfirmation
+          bookingCode={confirmedCode}
+          isFree={totalCents === 0}
+          bookingId={confirmedBookingId}
+          totalCents={totalCents}
+          onSelectPayment={totalCents > 0 ? handleSelectPayment : undefined}
+          paymentLoading={paymentLoading}
+        />
       ) : (
         <>
           <h2 style={{ fontSize: 20, fontWeight: 600, color: T.navy, marginTop: 32, marginBottom: 16 }}>New Booking</h2>
