@@ -125,7 +125,7 @@ function CreditTabCard({ memberId, venueId }: { memberId: string; venueId: strin
             Load Credit
           </button>
           <button
-            onClick={() => navigate('/portal/bar-tab')}
+            onClick={() => navigate(portalPath('bar-tab'))}
             style={{
               flex: 1, height: 44, borderRadius: 10, fontWeight: 600, fontSize: 14,
               background: 'rgba(255,255,255,0.15)', color: '#FFFFFF',
