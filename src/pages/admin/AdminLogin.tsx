@@ -145,7 +145,7 @@ export default function AdminLogin() {
       if (signInData.user) {
         const linked = await linkAdminUser(signInData.user.id, signInData.user.email!);
         if (linked) {
-          navigate('/admin/products', { replace: true });
+          navigate(`/${slug}/admin/products`, { replace: true });
         }
       }
     }
