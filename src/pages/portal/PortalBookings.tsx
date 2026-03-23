@@ -3,7 +3,6 @@ import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { usePortalAuth } from '@/contexts/PortalAuthContext';
 import { useVenue } from '@/contexts/VenueContext';
-import { PORTAL_THEME as T } from '@/constants/portalTheme';
 import { toast } from 'sonner';
 import { differenceInCalendarDays } from 'date-fns';
 
@@ -196,7 +195,7 @@ export default function PortalBookings() {
 
   return (
     <div style={{ maxWidth: 800, margin: '0 auto', padding: '24px 16px' }}>
-      <h1 style={{ fontSize: 24, fontWeight: 700, color: T.navy, marginBottom: 8 }}>Book</h1>
+      <h1 style={{ fontSize: 24, fontWeight: 700, color: 'var(--portal-primary)', marginBottom: 8 }}>Book</h1>
 
       <MyBookingsList venueId={venueId} memberId={member.id} />
 
@@ -213,7 +212,7 @@ export default function PortalBookings() {
         />
       ) : (
         <>
-          <h2 style={{ fontSize: 20, fontWeight: 600, color: T.navy, marginTop: 32, marginBottom: 16 }}>New Booking</h2>
+          <h2 style={{ fontSize: 20, fontWeight: 600, color: 'var(--portal-primary)', marginTop: 32, marginBottom: 16 }}>New Booking</h2>
           <BookingStepIndicator current={step} />
 
           {step === 1 && (

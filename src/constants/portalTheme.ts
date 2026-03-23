@@ -1,3 +1,6 @@
+// FALLBACK VALUES ONLY — portal components should read from PortalThemeContext CSS variables.
+// These values are used as defaults if venue branding fields are null.
+
 export const PORTAL_THEME = {
   // Backgrounds
   pageBg: '#FAF8F5',

@@ -1,22 +1,16 @@
 import { useState } from 'react';
 import { Home, Tent, Sun } from 'lucide-react';
 import { formatCents } from '@/utils/currency';
-import { PORTAL_THEME as T } from '@/constants/portalTheme';
 import { format } from 'date-fns';
 
 interface Props {
-  siteType: 'caravan' | 'camping' | 'day_visitor';
-  siteName: string;
-  checkIn: string; checkOut: string;
-  nights: number; numGuests: number;
+  siteType: 'caravan' | 'camping' | 'day_visitor'; siteName: string;
+  checkIn: string; checkOut: string; nights: number; numGuests: number;
   perNightCents: number; totalCents: number;
   guestName: string; guestEmail: string; guestPhone: string;
   membershipNumber: string; notes: string;
-  bookingFor?: 'self' | 'visitor';
-  memberName?: string;
-  onBack: () => void;
-  onEditStep: (step: number) => void;
-  onConfirm: () => Promise<void>;
+  bookingFor?: 'self' | 'visitor'; memberName?: string;
+  onBack: () => void; onEditStep: (step: number) => void; onConfirm: () => Promise<void>;
 }
 
 const TYPE_ICONS: Record<string, typeof Home> = { caravan: Home, camping: Tent, day_visitor: Sun };
@@ -25,8 +19,8 @@ const TYPE_LABELS: Record<string, string> = { caravan: 'Caravan', camping: 'Camp
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, marginBottom: 8 }}>
-      <span style={{ color: T.textMuted }}>{label}</span>
-      <span style={{ color: T.textPrimary, fontWeight: 500, textAlign: 'right' }}>{value}</span>
+      <span style={{ color: 'var(--portal-text-muted)' }}>{label}</span>
+      <span style={{ color: 'var(--portal-text-primary)', fontWeight: 500, textAlign: 'right' }}>{value}</span>
     </div>
   );
 }
@@ -34,8 +28,8 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
 function SectionHeader({ title, onEdit }: { title: string; onEdit?: () => void }) {
   return (
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-      <span style={{ fontSize: 15, fontWeight: 600, color: T.textPrimary }}>{title}</span>
-      {onEdit && <span onClick={onEdit} style={{ fontSize: 13, color: T.teal, cursor: 'pointer' }}>Edit</span>}
+      <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--portal-text-primary)' }}>{title}</span>
+      {onEdit && <span onClick={onEdit} style={{ fontSize: 13, color: 'var(--portal-accent)', cursor: 'pointer' }}>Edit</span>}
     </div>
   );
 }
@@ -60,8 +54,7 @@ export default function BookingReviewStep(props: Props) {
 
   return (
     <div>
-      <div style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 12, boxShadow: T.cardShadow, padding: 24 }}>
-        {/* Stay details */}
+      <div style={{ background: 'var(--portal-card-bg)', border: `1px solid var(--portal-card-border)`, borderRadius: 'var(--portal-card-radius)', boxShadow: 'var(--portal-card-shadow)', padding: 24 }}>
         <SectionHeader title="Stay Details" onEdit={() => onEditStep(2)} />
         <Row label="Type" value={<span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Icon size={16} />{TYPE_LABELS[siteType]}</span>} />
         {siteType === 'caravan' && <Row label="Site" value={siteName} />}
@@ -70,41 +63,37 @@ export default function BookingReviewStep(props: Props) {
         <Row label={isDayVisitor ? 'Duration' : 'Nights'} value={isDayVisitor ? '1 day' : `${nights}`} />
         <Row label="Guests" value={numGuests} />
 
-        <div style={{ borderBottom: `1px solid ${T.cardBorder}`, margin: '16px 0' }} />
+        <div style={{ borderBottom: `1px solid var(--portal-card-border)`, margin: '16px 0' }} />
 
-        {/* Guest/Visitor details */}
         <SectionHeader title={isVisitor ? 'Visitor Details' : 'Guest Details'} onEdit={() => onEditStep(3)} />
-        {isVisitor && memberName && (
-          <Row label="Booked by" value={memberName} />
-        )}
+        {isVisitor && memberName && <Row label="Booked by" value={memberName} />}
         <Row label="Name" value={guestName} />
         <Row label="Email" value={guestEmail} />
         {guestPhone && <Row label="Phone" value={guestPhone} />}
         {!isVisitor && <Row label="Membership #" value={membershipNumber} />}
-        {notes && <><div style={{ fontSize: 14, color: T.textMuted, marginTop: 4 }}>Notes: {notes}</div></>}
+        {notes && <div style={{ fontSize: 14, color: 'var(--portal-text-muted)', marginTop: 4 }}>Notes: {notes}</div>}
 
-        <div style={{ borderBottom: `1px solid ${T.cardBorder}`, margin: '16px 0' }} />
+        <div style={{ borderBottom: `1px solid var(--portal-card-border)`, margin: '16px 0' }} />
 
-        {/* Pricing */}
         <SectionHeader title="Pricing" />
-        <div style={{ fontSize: 14, color: T.textPrimary }}>
+        <div style={{ fontSize: 14, color: 'var(--portal-text-primary)' }}>
           {isDayVisitor ? 'Day Visitor: Free' : `${siteName}: ${nights} night${nights !== 1 ? 's' : ''} × ${formatCents(perNightCents)} = ${formatCents(totalCents)}`}
         </div>
 
-        <div style={{ borderBottom: `2px solid ${T.cardBorder}`, margin: '16px 0' }} />
+        <div style={{ borderBottom: `2px solid var(--portal-card-border)`, margin: '16px 0' }} />
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span style={{ fontSize: 18, fontWeight: 700, color: T.navy }}>Total</span>
-          <span style={{ fontSize: 24, fontWeight: 700, color: isFree ? T.teal : T.navy }}>
+          <span style={{ fontSize: 18, fontWeight: 700, color: 'var(--portal-primary)' }}>Total</span>
+          <span style={{ fontSize: 24, fontWeight: 700, color: isFree ? 'var(--portal-accent)' : 'var(--portal-primary)' }}>
             {isFree ? 'Free' : formatCents(totalCents)}
           </span>
         </div>
       </div>
 
       <div style={{ display: 'flex', gap: 12, marginTop: 24, justifyContent: 'center', flexWrap: 'wrap' }}>
-        <button onClick={onBack} style={{ border: `1px solid ${T.cardBorder}`, borderRadius: 10, height: 52, padding: '0 24px', background: 'transparent', color: T.textSecondary, fontSize: 15, fontWeight: 500, cursor: 'pointer' }}>Back</button>
+        <button onClick={onBack} style={{ border: `1px solid var(--portal-card-border)`, borderRadius: 'var(--portal-button-radius)', height: 52, padding: '0 24px', background: 'transparent', color: 'var(--portal-text-secondary)', fontSize: 15, fontWeight: 500, cursor: 'pointer' }}>Back</button>
         <button onClick={handleConfirm} disabled={loading}
-          style={{ background: T.teal, color: '#FFFFFF', borderRadius: 10, height: 52, fontSize: 16, fontWeight: 600, border: 'none', padding: '0 40px', cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.7 : 1, maxWidth: 400, flex: 1 }}>
+          style={{ background: 'var(--portal-accent)', color: '#FFFFFF', borderRadius: 'var(--portal-button-radius)', height: 52, fontSize: 16, fontWeight: 600, border: 'none', padding: '0 40px', cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.7 : 1, maxWidth: 400, flex: 1 }}>
           {loading ? 'Creating Booking…' : 'Confirm Booking'}
         </button>
       </div>

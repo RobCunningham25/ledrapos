@@ -3,10 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { useVenueNav } from '@/hooks/useVenueNav';
 import { useQuery } from '@tanstack/react-query';
 import { usePortalAuth } from '@/contexts/PortalAuthContext';
+import { usePortalTheme } from '@/contexts/PortalThemeContext';
 import { usePortalCredit } from '@/hooks/usePortalCredit';
 import { usePortalOpenTab } from '@/hooks/usePortalOpenTab';
 import { formatCents } from '@/utils/currency';
-import { PORTAL_THEME as T } from '@/constants/portalTheme';
 import { Calendar, BedDouble } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import CreditLoadSheet from '@/components/portal/CreditLoadSheet';
@@ -62,9 +62,8 @@ function WeatherWidget() {
         <img src={`https://openweathermap.org/img/wn/${weather.icon}@2x.png`} alt="" style={{ width: 48, height: 48 }} />
       )}
       <div style={{ textAlign: 'right' }}>
-        <p style={{ fontSize: 20, fontWeight: 700, color: T.textPrimary, margin: 0 }}>{weather.temp}°C</p>
-        <p style={{ fontSize: 12, color: T.textMuted, margin: 0, textTransform: 'capitalize' }}>{weather.desc}</p>
-        <p style={{ fontSize: 11, color: T.textMuted, margin: 0 }}>Vaal Dam</p>
+        <p style={{ fontSize: 20, fontWeight: 700, color: 'var(--portal-text-primary)', margin: 0 }}>{weather.temp}°C</p>
+        <p style={{ fontSize: 12, color: 'var(--portal-text-muted)', margin: 0, textTransform: 'capitalize' }}>{weather.desc}</p>
       </div>
     </div>
   );
@@ -84,7 +83,7 @@ function CreditTabCard({ memberId, venueId }: { memberId: string; venueId: strin
   return (
     <>
       <div style={{
-        background: T.creditCardGradient,
+        background: 'var(--portal-hero-gradient)',
         borderRadius: 16, padding: 24,
         boxShadow: '0 4px 16px rgba(27,58,75,0.2)',
       }}>
@@ -119,7 +118,7 @@ function CreditTabCard({ memberId, venueId }: { memberId: string; venueId: strin
           <button
             onClick={() => setShowCredit(true)}
             style={{
-              flex: 1, height: 44, borderRadius: 10, fontWeight: 600, fontSize: 14,
+              flex: 1, height: 44, borderRadius: 'var(--portal-button-radius)', fontWeight: 600, fontSize: 14,
               background: 'rgba(255,255,255,0.15)', color: '#FFFFFF',
               border: '1px solid rgba(255,255,255,0.2)', cursor: 'pointer',
             }}
@@ -129,7 +128,7 @@ function CreditTabCard({ memberId, venueId }: { memberId: string; venueId: strin
           <button
             onClick={() => navigate(portalPath('bar-tab'))}
             style={{
-              flex: 1, height: 44, borderRadius: 10, fontWeight: 600, fontSize: 14,
+              flex: 1, height: 44, borderRadius: 'var(--portal-button-radius)', fontWeight: 600, fontSize: 14,
               background: 'rgba(255,255,255,0.15)', color: '#FFFFFF',
               border: '1px solid rgba(255,255,255,0.2)', cursor: 'pointer',
             }}
@@ -177,6 +176,7 @@ function UpcomingBookingsCard({ venueId, memberId }: { venueId: string; memberId
     return dt.toLocaleDateString('en-ZA', { day: 'numeric', month: 'short' });
   };
 
+  // Semantic status colours — NOT themed
   const STATUS_PILL: Record<string, React.CSSProperties> = {
     PENDING: { background: '#FEF3C7', color: '#92400E' },
     PAID: { background: '#D1FAE5', color: '#065F46' },
@@ -184,14 +184,14 @@ function UpcomingBookingsCard({ venueId, memberId }: { venueId: string; memberId
 
   return (
     <div style={{
-      background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 12,
-      padding: 20, boxShadow: T.cardShadow,
+      background: 'var(--portal-card-bg)', border: `1px solid var(--portal-card-border)`, borderRadius: 'var(--portal-card-radius)',
+      padding: 20, boxShadow: 'var(--portal-card-shadow)',
     }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <span style={{ fontSize: 16, fontWeight: 600, color: T.textPrimary }}>Your Bookings</span>
+        <span style={{ fontSize: 16, fontWeight: 600, color: 'var(--portal-text-primary)' }}>Your Bookings</span>
         <button
           onClick={() => navigate(portalPath('bookings'))}
-          style={{ fontSize: 14, fontWeight: 500, color: T.teal, background: 'none', border: 'none', cursor: 'pointer' }}
+          style={{ fontSize: 14, fontWeight: 500, color: 'var(--portal-accent)', background: 'none', border: 'none', cursor: 'pointer' }}
         >
           Book now →
         </button>
@@ -199,16 +199,16 @@ function UpcomingBookingsCard({ venueId, memberId }: { venueId: string; memberId
       {showLoading ? (
         <div>
           {[0, 1].map(i => (
-            <div key={i} style={{ padding: '10px 0', borderBottom: i === 0 ? `1px solid ${T.cardBorder}` : 'none' }}>
-              <div style={{ height: 14, width: '60%', background: T.cardBorder, borderRadius: 4, marginBottom: 6 }} className="animate-pulse" />
-              <div style={{ height: 14, width: '40%', background: T.cardBorder, borderRadius: 4 }} className="animate-pulse" />
+            <div key={i} style={{ padding: '10px 0', borderBottom: i === 0 ? `1px solid var(--portal-card-border)` : 'none' }}>
+              <div style={{ height: 14, width: '60%', background: 'var(--portal-card-border)', borderRadius: 4, marginBottom: 6 }} className="animate-pulse" />
+              <div style={{ height: 14, width: '40%', background: 'var(--portal-card-border)', borderRadius: 4 }} className="animate-pulse" />
             </div>
           ))}
         </div>
       ) : !bookings || bookings.length === 0 ? (
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 120 }}>
-          <BedDouble size={40} color={T.cardBorder} />
-          <p style={{ fontSize: 14, color: T.textMuted, marginTop: 8 }}>No upcoming bookings</p>
+          <BedDouble size={40} color="var(--portal-card-border)" />
+          <p style={{ fontSize: 14, color: 'var(--portal-text-muted)', marginTop: 8 }}>No upcoming bookings</p>
         </div>
       ) : (
         <div>
@@ -221,11 +221,11 @@ function UpcomingBookingsCard({ venueId, memberId }: { venueId: string; memberId
             return (
               <div key={b.id} style={{
                 padding: '10px 0',
-                borderBottom: i < bookings.length - 1 ? `1px solid ${T.cardBorder}` : 'none',
+                borderBottom: i < bookings.length - 1 ? `1px solid var(--portal-card-border)` : 'none',
               }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: 14, fontWeight: 500, color: T.textPrimary }}>{siteName}</span>
-                  <span style={{ fontSize: 13, color: T.textSecondary }}>
+                  <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--portal-text-primary)' }}>{siteName}</span>
+                  <span style={{ fontSize: 13, color: 'var(--portal-text-secondary)' }}>
                     {isDayVisitor ? `${fmtShort(b.check_in)} · Day visit` : `${fmtShort(b.check_in)}–${fmtShort(b.check_out)}`}
                   </span>
                 </div>
@@ -277,36 +277,36 @@ function UpcomingEventsCard({ venueId }: { venueId: string }) {
 
   return (
     <div style={{
-      background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 12,
-      padding: 20, boxShadow: T.cardShadow,
+      background: 'var(--portal-card-bg)', border: `1px solid var(--portal-card-border)`, borderRadius: 'var(--portal-card-radius)',
+      padding: 20, boxShadow: 'var(--portal-card-shadow)',
     }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <span style={{ fontSize: 16, fontWeight: 600, color: T.textPrimary }}>Upcoming Events</span>
+        <span style={{ fontSize: 16, fontWeight: 600, color: 'var(--portal-text-primary)' }}>Upcoming Events</span>
         <button
           onClick={() => navigate(portalPath('calendar'))}
-          style={{ fontSize: 14, fontWeight: 500, color: T.teal, background: 'none', border: 'none', cursor: 'pointer' }}
+          style={{ fontSize: 14, fontWeight: 500, color: 'var(--portal-accent)', background: 'none', border: 'none', cursor: 'pointer' }}
         >
           View all →
         </button>
       </div>
       {events.length === 0 ? (
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 120 }}>
-          <Calendar size={40} color={T.cardBorder} />
-          <p style={{ fontSize: 14, color: T.textMuted, marginTop: 8 }}>No upcoming events</p>
+          <Calendar size={40} color="var(--portal-card-border)" />
+          <p style={{ fontSize: 14, color: 'var(--portal-text-muted)', marginTop: 8 }}>No upcoming events</p>
         </div>
       ) : (
         <div>
           {events.map((ev, i) => (
             <div key={ev.id} style={{
               padding: '10px 0',
-              borderBottom: i < events.length - 1 ? `1px solid ${T.cardBorder}` : 'none',
+              borderBottom: i < events.length - 1 ? `1px solid var(--portal-card-border)` : 'none',
             }}>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-                <span style={{ fontSize: 13, fontWeight: 600, color: T.navy }}>{formatShort(ev.event_date)}</span>
-                <span style={{ fontSize: 14, color: T.textPrimary }}>{ev.title}</span>
+                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--portal-primary)' }}>{formatShort(ev.event_date)}</span>
+                <span style={{ fontSize: 14, color: 'var(--portal-text-primary)' }}>{ev.title}</span>
               </div>
               {formatTime(ev.start_time, ev.end_time) && (
-                <p style={{ fontSize: 13, color: T.textSecondary, margin: '2px 0 0' }}>{formatTime(ev.start_time, ev.end_time)}</p>
+                <p style={{ fontSize: 13, color: 'var(--portal-text-secondary)', margin: '2px 0 0' }}>{formatTime(ev.start_time, ev.end_time)}</p>
               )}
             </div>
           ))}
@@ -319,6 +319,7 @@ function UpcomingEventsCard({ venueId }: { venueId: string }) {
 // ─── Dashboard Page ────────────────────────────────────────────
 export default function PortalDashboard() {
   const { member } = usePortalAuth();
+  const T = usePortalTheme();
   const memberId = member?.id ?? '';
   const venueId = member?.venue_id ?? '';
 
@@ -327,10 +328,12 @@ export default function PortalDashboard() {
       {/* Greeting + Weather */}
       <div className="flex items-start justify-between" style={{ marginBottom: 24 }}>
         <div>
-          <h1 style={{ fontSize: 24, fontWeight: 700, color: T.textPrimary, margin: 0 }}>
+          <h1 style={{ fontSize: 24, fontWeight: 700, color: 'var(--portal-text-primary)', margin: 0 }}>
             {getGreeting()}, {member?.first_name}
           </h1>
-          <p style={{ fontSize: 14, color: T.textMuted, marginTop: 4 }}>{formatDate()}</p>
+          <p style={{ fontSize: 14, color: 'var(--portal-text-muted)', marginTop: 4 }}>
+            {T.welcomeMessage || formatDate()}
+          </p>
         </div>
         <WeatherWidget />
       </div>

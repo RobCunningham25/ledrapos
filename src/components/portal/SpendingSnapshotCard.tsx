@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { formatCents } from '@/utils/currency';
-import { PORTAL_THEME as T } from '@/constants/portalTheme';
 import { Skeleton } from '@/components/ui/skeleton';
 import { startOfMonth } from 'date-fns';
 
@@ -12,8 +11,8 @@ interface SpendingSnapshot {
 }
 
 const cardStyle: React.CSSProperties = {
-  background: T.cardBg, borderRadius: 12, border: `1px solid ${T.cardBorder}`,
-  boxShadow: T.cardShadow, padding: 20,
+  background: 'var(--portal-card-bg)', borderRadius: 'var(--portal-card-radius)', border: `1px solid var(--portal-card-border)`,
+  boxShadow: 'var(--portal-card-shadow)', padding: 20,
 };
 
 export default function SpendingSnapshotCard({ memberId, venueId }: { memberId: string; venueId: string }) {
@@ -56,7 +55,6 @@ export default function SpendingSnapshotCard({ memberId, venueId }: { memberId: 
 
       const totalSpend = (items || []).reduce((s, i) => s + i.line_total_cents, 0);
 
-      // Top product
       const qtyMap = new Map<string, number>();
       (items || []).forEach(i => {
         qtyMap.set(i.product_id, (qtyMap.get(i.product_id) || 0) + i.qty);
@@ -97,7 +95,7 @@ export default function SpendingSnapshotCard({ memberId, venueId }: { memberId: 
   if (!data || (data.tabsClosed === 0)) {
     return (
       <div style={{ ...cardStyle, textAlign: 'center', minHeight: 80, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <p style={{ fontSize: 14, color: T.textMuted }}>No activity this month</p>
+        <p style={{ fontSize: 14, color: 'var(--portal-text-muted)' }}>No activity this month</p>
       </div>
     );
   }
@@ -110,14 +108,14 @@ export default function SpendingSnapshotCard({ memberId, venueId }: { memberId: 
 
   return (
     <div style={cardStyle}>
-      <p style={{ fontSize: 14, fontWeight: 600, color: T.textPrimary, marginBottom: 16 }}>This Month</p>
+      <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--portal-text-primary)', marginBottom: 16 }}>This Month</p>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         {stats.map(s => (
           <div key={s.label}>
-            <p style={{ fontSize: 12, color: T.textMuted, margin: 0 }}>{s.label}</p>
+            <p style={{ fontSize: 12, color: 'var(--portal-text-muted)', margin: 0 }}>{s.label}</p>
             <p style={{
               fontSize: s.size, fontWeight: s.size === 15 ? 600 : 700,
-              color: s.muted ? T.textMuted : T.textPrimary, margin: '2px 0 0',
+              color: s.muted ? 'var(--portal-text-muted)' : 'var(--portal-text-primary)', margin: '2px 0 0',
             }}>{s.value}</p>
           </div>
         ))}

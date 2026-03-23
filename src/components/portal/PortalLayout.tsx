@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { usePortalAuth } from '@/contexts/PortalAuthContext';
+import { usePortalTheme } from '@/contexts/PortalThemeContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Home, Calendar, User, BedDouble, LogOut } from 'lucide-react';
-import { PORTAL_THEME as T } from '@/constants/portalTheme';
 import { useVenueNav } from '@/hooks/useVenueNav';
 
 function usePortalTabs() {
@@ -18,6 +18,7 @@ function usePortalTabs() {
 
 export default function PortalLayout() {
   const { member, signOut } = usePortalAuth();
+  const T = usePortalTheme();
   const location = useLocation();
   const navigate = useNavigate();
   const { portalPath } = useVenueNav();
@@ -59,14 +60,15 @@ export default function PortalLayout() {
   };
 
   return (
-    <div className="flex" style={{ minHeight: '100vh', background: T.pageBg }}>
+    <div className="flex" style={{ minHeight: '100vh', background: 'var(--portal-page-bg)' }}>
       {/* Desktop sidebar — hidden below lg */}
       <aside
         className="hidden lg:flex flex-col shrink-0"
-        style={{ width: 240, background: T.navy, position: 'fixed', top: 0, left: 0, bottom: 0, zIndex: 30 }}
+        style={{ width: 240, background: 'var(--portal-primary)', position: 'fixed', top: 0, left: 0, bottom: 0, zIndex: 30 }}
       >
-        <div style={{ padding: '24px 20px 0' }}>
-          <span style={{ fontWeight: 700, fontSize: 18, color: '#FFFFFF' }}>Vaal Cruising Association</span>
+        <div style={{ padding: '24px 20px 0', display: 'flex', alignItems: 'center', gap: 10 }}>
+          {T.logoUrl && <img src={T.logoUrl} alt="" style={{ maxHeight: 36, objectFit: 'contain' }} />}
+          <span style={{ fontWeight: 700, fontSize: 18, color: '#FFFFFF' }}>{T.venueName}</span>
         </div>
         <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', padding: '8px 20px 0', marginBottom: 32 }}>
           Welcome, {member?.first_name}
@@ -87,9 +89,9 @@ export default function PortalLayout() {
                   fontSize: 14,
                   fontWeight: active ? 600 : 500,
                   color: active ? '#FFFFFF' : 'rgba(255,255,255,0.6)',
-                  background: active ? 'rgba(42,157,143,0.2)' : 'transparent',
+                  background: active ? 'rgba(255,255,255,0.12)' : 'transparent',
                   border: 'none',
-                  borderLeft: active ? `3px solid ${T.teal}` : '3px solid transparent',
+                  borderLeft: active ? `3px solid var(--portal-accent)` : '3px solid transparent',
                   cursor: 'pointer',
                   textAlign: 'left',
                   transition: 'background 150ms',
@@ -126,14 +128,17 @@ export default function PortalLayout() {
         {/* Top bar */}
         <header
           className="flex items-center justify-between shrink-0"
-          style={{ height: 64, background: T.navy, padding: '0 20px' }}
+          style={{ height: 64, background: 'var(--portal-primary)', padding: '0 20px' }}
         >
-          <span className="hidden lg:inline" style={{ fontWeight: 600, fontSize: 16, color: '#FFFFFF' }}>
-            Vaal Cruising Association
-          </span>
-          <span className="lg:hidden" style={{ fontWeight: 600, fontSize: 16, color: '#FFFFFF' }}>
-            VCA
-          </span>
+          <div className="flex items-center gap-2">
+            {T.logoUrl && <img src={T.logoUrl} alt="" className="lg:hidden" style={{ maxHeight: 28, objectFit: 'contain' }} />}
+            <span className="hidden lg:inline" style={{ fontWeight: 600, fontSize: 16, color: '#FFFFFF' }}>
+              {T.venueName}
+            </span>
+            <span className="lg:hidden" style={{ fontWeight: 600, fontSize: 16, color: '#FFFFFF' }}>
+              {T.venueName}
+            </span>
+          </div>
           <div className="flex items-center gap-3">
             <span style={{ fontSize: 14, color: 'rgba(255,255,255,0.8)' }}>{member?.first_name}</span>
             <button
@@ -160,15 +165,15 @@ export default function PortalLayout() {
           className="flex items-center shrink-0 lg:hidden"
           style={{
             height: 64,
-            background: '#FFFFFF',
-            borderTop: `1px solid ${T.cardBorder}`,
+            background: 'var(--portal-card-bg)',
+            borderTop: `1px solid var(--portal-card-border)`,
             boxShadow: '0 -2px 8px rgba(43,35,25,0.04)',
             paddingBottom: 'env(safe-area-inset-bottom)',
           }}
         >
           {visibleTabs.map(tab => {
             const active = isActive(tab.path);
-            const color = active ? T.navy : T.textMuted;
+            const color = active ? 'var(--portal-primary)' : 'var(--portal-text-muted)';
             return (
               <button
                 key={tab.path}
@@ -182,7 +187,7 @@ export default function PortalLayout() {
                 {active && (
                   <div style={{
                     position: 'absolute', top: 0, left: '50%', transform: 'translateX(-50%)',
-                    width: 32, height: 3, borderRadius: 2, background: T.teal,
+                    width: 32, height: 3, borderRadius: 2, background: 'var(--portal-accent)',
                   }} />
                 )}
                 <tab.icon size={24} color={color} strokeWidth={active ? 2.5 : 2} />

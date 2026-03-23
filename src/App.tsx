@@ -8,6 +8,7 @@ import { POSAuthProvider } from "@/contexts/POSAuthContext";
 import { CartProvider } from "@/contexts/CartContext";
 import { PortalAuthProvider } from "@/contexts/PortalAuthContext";
 import { AdminAuthProvider } from "@/contexts/AdminAuthContext";
+import { PortalThemeProvider } from "@/contexts/PortalThemeContext";
 import Index from "./pages/Index.tsx";
 import POS from "./pages/POS.tsx";
 import NotFound from "./pages/NotFound.tsx";
@@ -78,11 +79,13 @@ const App = () => (
                 <Route path="bookings" element={<AdminBookings />} />
                 <Route path="settings" element={<Settings />} />
               </Route>
-              <Route path="portal/login" element={<PortalLogin />} />
+              <Route path="portal/login" element={<PortalThemeProvider><PortalLogin /></PortalThemeProvider>} />
               <Route path="portal" element={<PortalProtectedRoute />}>
                 <Route element={
                   <PortalAuthProvider>
-                    <PortalLayout />
+                    <PortalThemeProvider>
+                      <PortalLayout />
+                    </PortalThemeProvider>
                   </PortalAuthProvider>
                 }>
                   <Route index element={<PortalDashboard />} />
