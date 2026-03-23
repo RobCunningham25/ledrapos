@@ -47,8 +47,8 @@ export function PortalAuthProvider({ children }: { children: ReactNode }) {
     await supabase.auth.signOut();
     setSession(null);
     setMember(null);
-    navigate('/portal/login', { replace: true });
-  }, [navigate]);
+    navigate(`/${slug}/portal/login`, { replace: true });
+  }, [navigate, slug]);
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, newSession) => {

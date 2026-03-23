@@ -79,8 +79,8 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
     await supabase.auth.signOut();
     setAdminUser(null);
     setSession(null);
-    navigate('/admin/login', { replace: true });
-  }, [navigate]);
+    navigate(`/${slug}/admin/login`, { replace: true });
+  }, [navigate, slug]);
 
   return (
     <AdminAuthContext.Provider value={{ adminUser, session, isLoading, signOut }}>
