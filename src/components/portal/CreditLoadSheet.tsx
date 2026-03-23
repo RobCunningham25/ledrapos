@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { formatCents } from '@/utils/currency';
 import { supabase } from '@/integrations/supabase/client';
+import { useVenue } from '@/contexts/VenueContext';
 import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
 
