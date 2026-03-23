@@ -1,6 +1,6 @@
 import { ReactNode, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Package, Users, CalendarDays, BarChart3, Settings, Menu, X, LogOut } from 'lucide-react';
+import { Package, Users, CalendarDays, BedDouble, BarChart3, Settings, Menu, X, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useAdminAuth } from '@/contexts/AdminAuthContext';
