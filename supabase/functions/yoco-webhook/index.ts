@@ -164,6 +164,85 @@ Deno.serve(async (req: Request) => {
         if (rpcErr) {
           throw new Error(`process_payment failed: ${rpcErr.message}`);
         }
+      } else if (session.purpose === "booking_payment") {
+        const bookingId = session.booking_id;
+
+        // Fetch booking
+        const { data: booking, error: bookingError } = await supabase
+          .from("bookings")
+          .select("id, status, total_price_cents")
+          .eq("id", bookingId)
+          .single();
+
+        if (bookingError || !booking) {
+          console.error("Booking not found for payment:", bookingId);
+          await supabase
+            .from("checkout_sessions")
+            .update({
+              status: "failed",
+              yoco_payment_id: payload.id,
+              completed_at: new Date().toISOString(),
+              metadata: { ...session.metadata, error: "Booking not found" },
+            })
+            .eq("id", session.id);
+          return new Response("OK", { status: 200 });
+        }
+
+        if (booking.status === "PAID") {
+          // Idempotent — booking already paid
+          await supabase
+            .from("checkout_sessions")
+            .update({
+              status: "completed",
+              yoco_payment_id: payload.id,
+              completed_at: new Date().toISOString(),
+              metadata: { ...session.metadata, note: "Booking was already PAID — idempotent" },
+            })
+            .eq("id", session.id);
+          return new Response("OK", { status: 200 });
+        }
+
+        if (booking.status === "CANCELLED" || booking.status === "EXPIRED") {
+          // Convert to member credit — money is never lost
+          if (session.member_id) {
+            await supabase.from("member_credits").insert({
+              venue_id: session.venue_id,
+              member_id: session.member_id,
+              amount_cents: session.amount_cents,
+              type: "CREDIT",
+              method: "CARD",
+              description: `Booking ${session.metadata?.booking_code || bookingId} was ${booking.status.toLowerCase()} — payment converted to credit`,
+            });
+          }
+          await supabase
+            .from("checkout_sessions")
+            .update({
+              status: "completed",
+              yoco_payment_id: payload.id,
+              completed_at: new Date().toISOString(),
+              metadata: { ...session.metadata, note: `Booking was ${booking.status} — converted to member credit` },
+            })
+            .eq("id", session.id);
+          return new Response("OK", { status: 200 });
+        }
+
+        // Normal case: booking is PENDING — process payment
+        // 1. Insert confirmed booking_payment
+        await supabase.from("booking_payments").insert({
+          venue_id: session.venue_id,
+          booking_id: bookingId,
+          amount_cents: session.amount_cents,
+          method: "yoco",
+          reference: session.yoco_checkout_id,
+          status: "confirmed",
+          confirmed_at: new Date().toISOString(),
+        });
+
+        // 2. Update booking status to PAID
+        await supabase
+          .from("bookings")
+          .update({ status: "PAID" })
+          .eq("id", bookingId);
       }
 
       // Mark completed

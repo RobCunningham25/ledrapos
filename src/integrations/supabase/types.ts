@@ -362,6 +362,7 @@ export type Database = {
       checkout_sessions: {
         Row: {
           amount_cents: number
+          booking_id: string | null
           completed_at: string | null
           created_at: string | null
           id: string
@@ -376,6 +377,7 @@ export type Database = {
         }
         Insert: {
           amount_cents: number
+          booking_id?: string | null
           completed_at?: string | null
           created_at?: string | null
           id?: string
@@ -390,6 +392,7 @@ export type Database = {
         }
         Update: {
           amount_cents?: number
+          booking_id?: string | null
           completed_at?: string | null
           created_at?: string | null
           id?: string
@@ -403,6 +406,13 @@ export type Database = {
           yoco_payment_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "checkout_sessions_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "checkout_sessions_member_id_fkey"
             columns: ["member_id"]

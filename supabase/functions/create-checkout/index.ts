@@ -21,7 +21,7 @@ Deno.serve(async (req: Request) => {
     );
 
     const body = await req.json();
-    const { member_id, venue_id, purpose, amount_cents, tab_id } = body;
+    const { member_id, venue_id, purpose, amount_cents, tab_id, booking_id } = body;
 
     // Validate required fields
     if (!member_id || !venue_id || !purpose || !amount_cents) {
@@ -38,9 +38,9 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    if (purpose !== "credit_load" && purpose !== "tab_payment") {
+    if (purpose !== "credit_load" && purpose !== "tab_payment" && purpose !== "booking_payment") {
       return new Response(
-        JSON.stringify({ error: "Invalid purpose. Must be 'credit_load' or 'tab_payment'" }),
+        JSON.stringify({ error: "Invalid purpose. Must be 'credit_load', 'tab_payment', or 'booking_payment'" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -48,6 +48,13 @@ Deno.serve(async (req: Request) => {
     if (purpose === "tab_payment" && !tab_id) {
       return new Response(
         JSON.stringify({ error: "tab_id is required for tab payments" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    if (purpose === "booking_payment" && !booking_id) {
+      return new Response(
+        JSON.stringify({ error: "booking_id is required for booking payments" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -126,28 +133,75 @@ Deno.serve(async (req: Request) => {
       }
     }
 
+    // Booking payment validations
+    let bookingData: any = null;
+    if (purpose === "booking_payment") {
+      const { data: booking, error: bookingError } = await supabase
+        .from("bookings")
+        .select("id, status, total_price_cents, booking_code, guest_name, venue_id")
+        .eq("id", booking_id)
+        .single();
+
+      if (bookingError || !booking) {
+        return new Response(
+          JSON.stringify({ error: "Booking not found" }),
+          { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      if (booking.status !== "PENDING") {
+        return new Response(
+          JSON.stringify({ error: "Booking is not in PENDING status" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      if (booking.venue_id !== venue_id) {
+        return new Response(
+          JSON.stringify({ error: "Booking does not belong to this venue" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      if (amount_cents !== booking.total_price_cents) {
+        return new Response(
+          JSON.stringify({ error: "Amount must equal booking total" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      bookingData = booking;
+    }
+
     // Build line item description
-    const lineItemDescription = purpose === "credit_load"
-      ? `${venue.name} — Credit Top-Up`
-      : `${venue.name} — Bar Tab Payment`;
+    let lineItemDescription: string;
+    if (purpose === "credit_load") {
+      lineItemDescription = `${venue.name} — Credit Top-Up`;
+    } else if (purpose === "tab_payment") {
+      lineItemDescription = `${venue.name} — Bar Tab Payment`;
+    } else {
+      lineItemDescription = `${venue.name} — Booking ${bookingData.booking_code}`;
+    }
 
     // Create checkout session record
+    const sessionInsert: any = {
+      venue_id,
+      member_id,
+      purpose,
+      tab_id: purpose === "tab_payment" ? tab_id : null,
+      booking_id: purpose === "booking_payment" ? booking_id : null,
+      amount_cents,
+      status: "pending",
+      metadata: {
+        member_name: `${member.first_name} ${member.last_name}`,
+        membership_number: member.membership_number,
+        venue_name: venue.name,
+        line_item_description: lineItemDescription,
+        ...(purpose === "booking_payment"
+          ? { booking_code: bookingData.booking_code, guest_name: bookingData.guest_name }
+          : {}),
+      },
+    };
+
     const { data: session, error: sessionErr } = await supabase
       .from("checkout_sessions")
-      .insert({
-        venue_id,
-        member_id,
-        purpose,
-        tab_id: tab_id || null,
-        amount_cents,
-        status: "pending",
-        metadata: {
-          member_name: `${member.first_name} ${member.last_name}`,
-          membership_number: member.membership_number,
-          venue_name: venue.name,
-          line_item_description: lineItemDescription,
-        },
-      })
+      .insert(sessionInsert)
       .select("id")
       .single();
 
@@ -156,6 +210,14 @@ Deno.serve(async (req: Request) => {
         JSON.stringify({ error: "Failed to create checkout session" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
+    }
+
+    // Update booking payment_method to yoco
+    if (purpose === "booking_payment") {
+      await supabase
+        .from("bookings")
+        .update({ payment_method: "yoco" })
+        .eq("id", booking_id);
     }
 
     const YOCO_SECRET_KEY = Deno.env.get("YOCO_SECRET_KEY");
