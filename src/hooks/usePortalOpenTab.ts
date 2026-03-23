@@ -64,6 +64,7 @@ export function usePortalOpenTab(memberId: string, venueId: string) {
 
     setTotalPaidCents((paymentsRes.data || []).reduce((s, p) => s + p.amount_cents, 0));
     setIsLoading(false);
+    setHasFetched(true);
   }, [memberId, venueId]);
 
   useEffect(() => { fetch(); }, [fetch]);
@@ -71,5 +72,7 @@ export function usePortalOpenTab(memberId: string, venueId: string) {
   const tabTotal = items ? items.reduce((s, i) => s + i.line_total_cents, 0) : 0;
   const amountDue = tabTotal - totalPaidCents;
 
-  return { items, openedAt, totalPaidCents, tabId, tabTotal, amountDue, isLoading, error, refetch: fetch };
+  const effectiveLoading = (!memberId || !venueId) ? false : (isLoading && !hasFetched);
+
+  return { items, openedAt, totalPaidCents, tabId, tabTotal, amountDue, isLoading: effectiveLoading, error, refetch: fetch };
 }

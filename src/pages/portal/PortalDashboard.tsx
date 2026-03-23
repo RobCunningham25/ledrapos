@@ -256,6 +256,8 @@ function UpcomingEventsCard({ venueId }: { venueId: string }) {
       return data;
     },
     enabled: !!venueId,
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
   });
 
   const formatShort = (d: string) => {

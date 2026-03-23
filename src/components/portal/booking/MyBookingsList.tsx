@@ -97,7 +97,7 @@ export default function MyBookingsList({ venueId, memberId }: Props) {
   };
 
   // Loading skeleton
-  if (isLoading) {
+  if (isLoading && fetchStatus !== 'idle') {
     return (
       <div style={{ marginBottom: 32 }}>
         <h2 style={{ fontSize: 20, fontWeight: 600, color: T.navy, marginBottom: 16 }}>My Bookings</h2>

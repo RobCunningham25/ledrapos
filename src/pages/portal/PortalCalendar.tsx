@@ -92,6 +92,8 @@ export default function PortalCalendar() {
       return data as ClubEvent[];
     },
     enabled: !!venueId,
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
   });
 
   const eventsByDate = useMemo(() => {

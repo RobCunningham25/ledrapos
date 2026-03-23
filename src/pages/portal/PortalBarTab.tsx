@@ -345,7 +345,7 @@ export default function PortalBarTab() {
 
   // History
   const [closedTabs, setClosedTabs] = useState<ClosedTab[]>([]);
-  const [historyLoading, setHistoryLoading] = useState(true);
+  const [historyLoading, setHistoryLoading] = useState(false);
   const [historyOffset, setHistoryOffset] = useState(0);
   const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
