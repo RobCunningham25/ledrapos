@@ -12,7 +12,7 @@ import PINLogin from '@/components/pos/PINLogin';
 import LockScreen from '@/components/pos/LockScreen';
 import TabPanel from '@/components/pos/TabPanel';
 import OpenTabsPanel from '@/components/pos/OpenTabsPanel';
-import OpenTabsModal from '@/components/pos/OpenTabsModal';
+
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
