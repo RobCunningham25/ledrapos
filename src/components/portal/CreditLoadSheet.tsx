@@ -42,7 +42,7 @@ export default function CreditLoadSheet({ open, onClose, memberId, venueId }: Cr
 
     try {
       const { data, error } = await supabase.functions.invoke('create-checkout', {
-        body: { member_id: memberId, venue_id: venueId, purpose: 'credit_load', amount_cents: amountCents },
+        body: { member_id: memberId, venue_id: venueId, venue_slug: venueSlug, purpose: 'credit_load', amount_cents: amountCents },
       });
 
       if (error) throw new Error(error.message);

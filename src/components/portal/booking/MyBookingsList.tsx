@@ -53,6 +53,7 @@ export default function MyBookingsList({ venueId, memberId }: Props) {
         body: {
           member_id: member.id,
           venue_id: member.venue_id,
+          venue_slug: venueSlug,
           purpose: 'booking_payment',
           amount_cents: b.total_price_cents,
           booking_id: b.id,

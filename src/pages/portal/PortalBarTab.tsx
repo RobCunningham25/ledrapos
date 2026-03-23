@@ -139,7 +139,7 @@ function OpenTabCard({
     setPayLoading(true);
     try {
       const { data, error: fnErr } = await supabase.functions.invoke('create-checkout', {
-        body: { member_id: memberId, venue_id: venueId, purpose: 'tab_payment', amount_cents: amountDue, tab_id: tabId },
+        body: { member_id: memberId, venue_id: venueId, venue_slug: venueSlug, purpose: 'tab_payment', amount_cents: amountDue, tab_id: tabId },
       });
       if (fnErr) throw new Error(fnErr.message);
       if (!data?.success) throw new Error(data?.error || 'Failed to create checkout');

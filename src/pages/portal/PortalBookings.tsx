@@ -147,6 +147,7 @@ export default function PortalBookings() {
           body: {
             member_id: member.id,
             venue_id: member.venue_id,
+            venue_slug: venueSlug,
             purpose: 'booking_payment',
             amount_cents: totalCents,
             booking_id: confirmedBookingId,
