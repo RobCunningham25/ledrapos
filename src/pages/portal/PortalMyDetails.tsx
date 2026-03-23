@@ -5,7 +5,6 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Loader2, X } from 'lucide-react';
 import { toast } from 'sonner';
-import { PORTAL_THEME as T } from '@/constants/portalTheme';
 
 interface SiteRow { id: string; site_number: string }
 interface ShedRow { id: string; shed_number: string }
@@ -123,17 +122,17 @@ export default function PortalMyDetails() {
   };
   const removeBoat = async (id: string) => { await supabase.from('member_boats').delete().eq('id', id); fetchBoats(); };
 
-  const inputStyle: React.CSSProperties = { height: 44, borderRadius: 8, fontSize: 14, borderColor: T.cardBorder };
-  const labelStyle: React.CSSProperties = { fontSize: 13, fontWeight: 500, color: T.textSecondary, marginBottom: 4, display: 'block' };
+  const inputStyle: React.CSSProperties = { height: 44, borderRadius: 8, fontSize: 14, borderColor: 'var(--portal-card-border)' };
+  const labelStyle: React.CSSProperties = { fontSize: 13, fontWeight: 500, color: 'var(--portal-text-secondary)', marginBottom: 4, display: 'block' };
   const sectionCardStyle: React.CSSProperties = {
-    background: T.cardBg, borderRadius: 12, border: `1px solid ${T.cardBorder}`,
-    padding: 20, marginBottom: 16, boxShadow: T.cardShadow,
+    background: 'var(--portal-card-bg)', borderRadius: 'var(--portal-card-radius)', border: `1px solid var(--portal-card-border)`,
+    padding: 20, marginBottom: 16, boxShadow: 'var(--portal-card-shadow)',
   };
-  const sectionHeading: React.CSSProperties = { fontSize: 16, fontWeight: 600, color: T.textPrimary, marginBottom: 16 };
+  const sectionHeading: React.CSSProperties = { fontSize: 16, fontWeight: 600, color: 'var(--portal-text-primary)', marginBottom: 16 };
 
   return (
     <div style={{ paddingTop: 24, paddingBottom: 100 }}>
-      <h1 style={{ fontSize: 22, fontWeight: 600, color: T.textPrimary, marginBottom: 24 }}>My Details</h1>
+      <h1 style={{ fontSize: 22, fontWeight: 600, color: 'var(--portal-text-primary)', marginBottom: 24 }}>My Details</h1>
 
       {/* Section 1: Personal Details */}
       <div style={sectionCardStyle}>
@@ -150,8 +149,8 @@ export default function PortalMyDetails() {
           <div>
             <label style={labelStyle}>Email</label>
             <Input type="email" value={personal.email} onChange={e => setPersonal(p => ({ ...p, email: e.target.value }))} style={inputStyle} />
-            <p style={{ fontSize: 12, color: T.textMuted, marginTop: 4 }}>Used for portal login and communications</p>
-            <p style={{ fontSize: 12, color: T.textMuted, marginTop: 2 }}>Changing your email here updates your contact details. Your login email remains unchanged.</p>
+            <p style={{ fontSize: 12, color: 'var(--portal-text-muted)', marginTop: 4 }}>Used for portal login and communications</p>
+            <p style={{ fontSize: 12, color: 'var(--portal-text-muted)', marginTop: 2 }}>Changing your email here updates your contact details. Your login email remains unchanged.</p>
           </div>
           <div>
             <label style={labelStyle}>Cellphone</label>
@@ -166,7 +165,7 @@ export default function PortalMyDetails() {
             <Input value={personal.emergency_contact_phone} onChange={e => setPersonal(p => ({ ...p, emergency_contact_phone: e.target.value }))} style={inputStyle} />
           </div>
         </div>
-        <Button onClick={savePersonal} disabled={savingPersonal} className="mt-4 w-full sm:w-auto" style={{ height: 44, background: T.navy, color: '#FFFFFF', fontWeight: 600, borderRadius: 10, paddingLeft: 24, paddingRight: 24 }}>
+        <Button onClick={savePersonal} disabled={savingPersonal} className="mt-4 w-full sm:w-auto" style={{ height: 44, background: 'var(--portal-primary)', color: '#FFFFFF', fontWeight: 600, borderRadius: 'var(--portal-button-radius)', paddingLeft: 24, paddingRight: 24 }}>
           {savingPersonal && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
           Save Personal Details
         </Button>
@@ -193,7 +192,7 @@ export default function PortalMyDetails() {
             <Input value={partner.partner_phone} onChange={e => setPartner(p => ({ ...p, partner_phone: e.target.value }))} style={inputStyle} />
           </div>
         </div>
-        <Button onClick={savePartner} disabled={savingPartner} className="mt-4 w-full sm:w-auto" style={{ height: 44, background: T.navy, color: '#FFFFFF', fontWeight: 600, borderRadius: 10, paddingLeft: 24, paddingRight: 24 }}>
+        <Button onClick={savePartner} disabled={savingPartner} className="mt-4 w-full sm:w-auto" style={{ height: 44, background: 'var(--portal-primary)', color: '#FFFFFF', fontWeight: 600, borderRadius: 'var(--portal-button-radius)', paddingLeft: 24, paddingRight: 24 }}>
           {savingPartner && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
           Save Partner Details
         </Button>
@@ -202,13 +201,13 @@ export default function PortalMyDetails() {
       {/* Section 3: Site Numbers */}
       <div style={sectionCardStyle}>
         <h2 style={sectionHeading}>Site Numbers</h2>
-        {sites.length === 0 && <p style={{ fontSize: 13, color: T.textMuted, marginBottom: 12 }}>No sites added</p>}
+        {sites.length === 0 && <p style={{ fontSize: 13, color: 'var(--portal-text-muted)', marginBottom: 12 }}>No sites added</p>}
         <div className="flex flex-wrap gap-2 mb-3">
           {sites.map(s => (
-            <span key={s.id} className="inline-flex items-center gap-1" style={{ fontSize: 14, color: T.textPrimary, background: T.pageBg, border: `1px solid ${T.cardBorder}`, borderRadius: 16, padding: '6px 14px' }}>
+            <span key={s.id} className="inline-flex items-center gap-1" style={{ fontSize: 14, color: 'var(--portal-text-primary)', background: 'var(--portal-page-bg)', border: `1px solid var(--portal-card-border)`, borderRadius: 16, padding: '6px 14px' }}>
               {s.site_number}
-              <button onClick={() => removeSite(s.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: T.textMuted, display: 'flex', alignItems: 'center' }}
-                onMouseEnter={e => (e.currentTarget.style.color = T.danger)} onMouseLeave={e => (e.currentTarget.style.color = T.textMuted)}>
+              <button onClick={() => removeSite(s.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--portal-text-muted)', display: 'flex', alignItems: 'center' }}
+                onMouseEnter={e => (e.currentTarget.style.color = 'var(--portal-danger)')} onMouseLeave={e => (e.currentTarget.style.color = 'var(--portal-text-muted)')}>
                 <X size={14} />
               </button>
             </span>
@@ -216,20 +215,20 @@ export default function PortalMyDetails() {
         </div>
         <div className="flex items-center gap-2">
           <Input placeholder="Site number" value={newSite} onChange={e => setNewSite(e.target.value)} style={{ ...inputStyle, width: 160 }} onKeyDown={e => e.key === 'Enter' && addSite()} />
-          <Button onClick={addSite} style={{ height: 36, background: T.teal, color: '#FFFFFF', fontWeight: 500, borderRadius: 10, paddingLeft: 14, paddingRight: 14 }}>Add</Button>
+          <Button onClick={addSite} style={{ height: 36, background: 'var(--portal-accent)', color: '#FFFFFF', fontWeight: 500, borderRadius: 'var(--portal-button-radius)', paddingLeft: 14, paddingRight: 14 }}>Add</Button>
         </div>
       </div>
 
       {/* Section 4: Boat Shed Numbers */}
       <div style={sectionCardStyle}>
         <h2 style={sectionHeading}>Boat Shed Numbers</h2>
-        {sheds.length === 0 && <p style={{ fontSize: 13, color: T.textMuted, marginBottom: 12 }}>No sheds added</p>}
+        {sheds.length === 0 && <p style={{ fontSize: 13, color: 'var(--portal-text-muted)', marginBottom: 12 }}>No sheds added</p>}
         <div className="flex flex-wrap gap-2 mb-3">
           {sheds.map(s => (
-            <span key={s.id} className="inline-flex items-center gap-1" style={{ fontSize: 14, color: T.textPrimary, background: T.pageBg, border: `1px solid ${T.cardBorder}`, borderRadius: 16, padding: '6px 14px' }}>
+            <span key={s.id} className="inline-flex items-center gap-1" style={{ fontSize: 14, color: 'var(--portal-text-primary)', background: 'var(--portal-page-bg)', border: `1px solid var(--portal-card-border)`, borderRadius: 16, padding: '6px 14px' }}>
               {s.shed_number}
-              <button onClick={() => removeShed(s.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: T.textMuted, display: 'flex', alignItems: 'center' }}
-                onMouseEnter={e => (e.currentTarget.style.color = T.danger)} onMouseLeave={e => (e.currentTarget.style.color = T.textMuted)}>
+              <button onClick={() => removeShed(s.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--portal-text-muted)', display: 'flex', alignItems: 'center' }}
+                onMouseEnter={e => (e.currentTarget.style.color = 'var(--portal-danger)')} onMouseLeave={e => (e.currentTarget.style.color = 'var(--portal-text-muted)')}>
                 <X size={14} />
               </button>
             </span>
@@ -237,27 +236,27 @@ export default function PortalMyDetails() {
         </div>
         <div className="flex items-center gap-2">
           <Input placeholder="Shed number" value={newShed} onChange={e => setNewShed(e.target.value)} style={{ ...inputStyle, width: 160 }} onKeyDown={e => e.key === 'Enter' && addShed()} />
-          <Button onClick={addShed} style={{ height: 36, background: T.teal, color: '#FFFFFF', fontWeight: 500, borderRadius: 10, paddingLeft: 14, paddingRight: 14 }}>Add</Button>
+          <Button onClick={addShed} style={{ height: 36, background: 'var(--portal-accent)', color: '#FFFFFF', fontWeight: 500, borderRadius: 'var(--portal-button-radius)', paddingLeft: 14, paddingRight: 14 }}>Add</Button>
         </div>
       </div>
 
       {/* Section 5: Boats */}
       <div style={sectionCardStyle}>
         <h2 style={sectionHeading}>Boats</h2>
-        {boats.length === 0 && <p style={{ fontSize: 13, color: T.textMuted, marginBottom: 12 }}>No boats added</p>}
+        {boats.length === 0 && <p style={{ fontSize: 13, color: 'var(--portal-text-muted)', marginBottom: 12 }}>No boats added</p>}
         <div className="space-y-2 mb-3">
           {boats.map(b => (
-            <div key={b.id} className="relative" style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 8, padding: 12 }}>
-              <p style={{ fontWeight: 500, color: T.textPrimary }}>{b.boat_name}</p>
-              <p style={{ fontSize: 13, color: T.textMuted }}>{b.registration_number || 'No registration'}</p>
-              <button onClick={() => removeBoat(b.id)} className="absolute top-3 right-3" style={{ fontSize: 13, color: T.danger, background: 'none', border: 'none', cursor: 'pointer' }}>Remove</button>
+            <div key={b.id} className="relative" style={{ background: 'var(--portal-card-bg)', border: `1px solid var(--portal-card-border)`, borderRadius: 8, padding: 12 }}>
+              <p style={{ fontWeight: 500, color: 'var(--portal-text-primary)' }}>{b.boat_name}</p>
+              <p style={{ fontSize: 13, color: 'var(--portal-text-muted)' }}>{b.registration_number || 'No registration'}</p>
+              <button onClick={() => removeBoat(b.id)} className="absolute top-3 right-3" style={{ fontSize: 13, color: 'var(--portal-danger)', background: 'none', border: 'none', cursor: 'pointer' }}>Remove</button>
             </div>
           ))}
         </div>
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
           <Input placeholder="Boat name" value={newBoatName} onChange={e => setNewBoatName(e.target.value)} style={{ ...inputStyle, flex: 1 }} />
           <Input placeholder="Registration number" value={newBoatReg} onChange={e => setNewBoatReg(e.target.value)} style={{ ...inputStyle, flex: 1 }} />
-          <Button onClick={addBoat} style={{ height: 36, background: T.teal, color: '#FFFFFF', fontWeight: 500, borderRadius: 10, paddingLeft: 14, paddingRight: 14, flexShrink: 0 }}>Add</Button>
+          <Button onClick={addBoat} style={{ height: 36, background: 'var(--portal-accent)', color: '#FFFFFF', fontWeight: 500, borderRadius: 'var(--portal-button-radius)', paddingLeft: 14, paddingRight: 14, flexShrink: 0 }}>Add</Button>
         </div>
       </div>
     </div>
