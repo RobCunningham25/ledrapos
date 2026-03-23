@@ -56,7 +56,9 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<RootRedirect />} />
-          <Route path="/booking/:code" element={<PublicBookingPage />} />
+          <Route path="booking">
+            <Route path=":code" element={<PublicBookingPage />} />
+          </Route>
           <Route path="/:slug" element={<VenueResolver />}>
             <Route element={<VenueLayout />}>
               <Route index element={<Index />} />
