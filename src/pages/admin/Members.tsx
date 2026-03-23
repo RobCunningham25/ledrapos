@@ -28,11 +28,7 @@ interface Member {
   partner_last_name: string | null;
 }
 
-const TYPE_COLORS: Record<string, { text: string; bg: string }> = {
-  member: { text: '#2E5FA3', bg: 'rgba(46,95,163,0.1)' },
-  associate: { text: '#D68910', bg: 'rgba(214,137,16,0.1)' },
-  honorary: { text: '#1E8449', bg: 'rgba(30,132,73,0.1)' },
-};
+import { MEMBERSHIP_TYPE_COLORS, MEMBERSHIP_TYPES, getMembershipLabel } from '@/constants/membershipTypes';
 
 export default function Members() {
   const navigate = useNavigate();
@@ -129,9 +125,9 @@ export default function Members() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Types</SelectItem>
-            <SelectItem value="member">Member</SelectItem>
-            <SelectItem value="associate">Associate</SelectItem>
-            <SelectItem value="honorary">Honorary</SelectItem>
+            {MEMBERSHIP_TYPES.map(t => (
+              <SelectItem key={t} value={t}>{getMembershipLabel(t)}</SelectItem>
+            ))}
           </SelectContent>
         </Select>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
@@ -172,7 +168,7 @@ export default function Members() {
               </tr>
             )}
             {filteredMembers.map(m => {
-              const tc = TYPE_COLORS[m.membership_type] || TYPE_COLORS.member;
+              const tc = MEMBERSHIP_TYPE_COLORS[m.membership_type] || MEMBERSHIP_TYPE_COLORS.member;
               return (
                 <tr key={m.id} className="border-b border-border hover:bg-accent/30 transition-colors">
                   <td className="px-4 py-3 font-medium text-foreground">{m.first_name} {m.last_name}</td>
@@ -182,7 +178,7 @@ export default function Members() {
                       display: 'inline-block', padding: '2px 10px', borderRadius: 999,
                       fontSize: 12, fontWeight: 600, color: tc.text, background: tc.bg,
                     }}>
-                      {m.membership_type.charAt(0).toUpperCase() + m.membership_type.slice(1)}
+                      {getMembershipLabel(m.membership_type)}
                     </span>
                   </td>
                   <td className="px-4 py-3" style={{ fontSize: 13, color: '#718096', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>

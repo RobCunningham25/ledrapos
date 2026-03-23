@@ -65,11 +65,7 @@ interface PaymentDetail {
   reference: string | null;
 }
 
-const TYPE_COLORS: Record<string, { text: string; bg: string }> = {
-  member: { text: '#2E5FA3', bg: 'rgba(46,95,163,0.1)' },
-  associate: { text: '#D68910', bg: 'rgba(214,137,16,0.1)' },
-  honorary: { text: '#1E8449', bg: 'rgba(30,132,73,0.1)' },
-};
+import { MEMBERSHIP_TYPE_COLORS, getMembershipLabel } from '@/constants/membershipTypes';
 
 function getMonthStart() {
   const d = new Date();
@@ -381,7 +377,7 @@ export default function MemberDetail() {
   const totalLoaded = credits.filter(c => c.type === 'CREDIT').reduce((s, c) => s + c.amount_cents, 0);
   const totalSpent = credits.filter(c => c.type === 'DEBIT').reduce((s, c) => s + c.amount_cents, 0);
 
-  const tc = member ? TYPE_COLORS[member.membership_type] || TYPE_COLORS.member : TYPE_COLORS.member;
+  const tc = member ? MEMBERSHIP_TYPE_COLORS[member.membership_type] || MEMBERSHIP_TYPE_COLORS.ordinary : MEMBERSHIP_TYPE_COLORS.ordinary;
 
   if (loading) {
     return (
@@ -434,7 +430,7 @@ export default function MemberDetail() {
             fontSize: 12, fontWeight: 600, color: tc.text, background: tc.bg,
           }}
         >
-          {member.membership_type.charAt(0).toUpperCase() + member.membership_type.slice(1)}
+          {getMembershipLabel(member.membership_type)}
         </span>
         <span
           style={{
