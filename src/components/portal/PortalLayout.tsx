@@ -4,6 +4,7 @@ import { usePortalAuth } from '@/contexts/PortalAuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Home, Calendar, User, BedDouble, LogOut } from 'lucide-react';
 import { PORTAL_THEME as T } from '@/constants/portalTheme';
+import { useVenueNav } from '@/hooks/useVenueNav';
 
 const allTabs = [
   { label: 'Home', icon: Home, path: '/portal', key: null },
