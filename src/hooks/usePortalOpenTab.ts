@@ -15,7 +15,8 @@ export function usePortalOpenTab(memberId: string, venueId: string) {
   const [openedAt, setOpenedAt] = useState<string | null>(null);
   const [totalPaidCents, setTotalPaidCents] = useState(0);
   const [tabId, setTabId] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
+  const [hasFetched, setHasFetched] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const fetch = useCallback(async (silent = false) => {
