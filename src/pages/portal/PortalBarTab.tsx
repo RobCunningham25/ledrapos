@@ -30,6 +30,7 @@ import { toast } from 'sonner';
 import { format, formatDistanceToNow } from 'date-fns';
 import { ChevronDown, ChevronUp, Loader2, ArrowLeft, Receipt } from 'lucide-react';
 import { useVenueNav } from '@/hooks/useVenueNav';
+import { useVenue } from '@/contexts/VenueContext';
 import { Skeleton } from '@/components/ui/skeleton';
 import CreditLoadSheet from '@/components/portal/CreditLoadSheet';
 import CreditBalanceBarCard from '@/components/portal/CreditBalanceBarCard';

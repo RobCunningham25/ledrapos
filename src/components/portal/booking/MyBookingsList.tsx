@@ -21,6 +21,7 @@ interface Props { venueId: string; memberId: string; }
 
 export default function MyBookingsList({ venueId, memberId }: Props) {
   const { member } = usePortalAuth();
+  const { venueSlug } = useVenue();
   const queryClient = useQueryClient();
   const [payModalBooking, setPayModalBooking] = useState<any>(null);
   const [payLoading, setPayLoading] = useState(false);
