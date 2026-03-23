@@ -175,6 +175,7 @@ export default function PortalBookings() {
       });
 
       queryClient.invalidateQueries({ queryKey: ['portal-my-bookings'] });
+      queryClient.invalidateQueries({ queryKey: ['portal-upcoming-bookings'] });
       setShowEFT(true);
     }
   }, [confirmedBookingId, member, totalCents, queryClient]);
