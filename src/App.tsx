@@ -19,6 +19,7 @@ import MemberDetail from "./pages/admin/MemberDetail.tsx";
 import Reports from "./pages/admin/Reports.tsx";
 import Settings from "./pages/admin/Settings.tsx";
 import Events from "./pages/admin/Events.tsx";
+import AdminBookings from "./pages/admin/Bookings.tsx";
 import PortalLogin from "./pages/portal/PortalLogin.tsx";
 import PortalProtectedRoute from "./components/portal/PortalProtectedRoute.tsx";
 import PortalLayout from "./components/portal/PortalLayout.tsx";
