@@ -168,7 +168,7 @@ export default function Members() {
               </tr>
             )}
             {filteredMembers.map(m => {
-              const tc = TYPE_COLORS[m.membership_type] || TYPE_COLORS.member;
+              const tc = MEMBERSHIP_TYPE_COLORS[m.membership_type] || MEMBERSHIP_TYPE_COLORS.member;
               return (
                 <tr key={m.id} className="border-b border-border hover:bg-accent/30 transition-colors">
                   <td className="px-4 py-3 font-medium text-foreground">{m.first_name} {m.last_name}</td>
