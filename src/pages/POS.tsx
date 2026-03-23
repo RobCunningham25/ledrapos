@@ -83,75 +83,39 @@ function LeftPanel() {
 }
 
 function TopBar({
-  userName, userRole, onTestLock, onLogout,
+  userName, userRole, onLogout,
 }: {
-  userName: string; userRole: string; onTestLock: () => void; onLogout: () => void;
+  userName: string; userRole: string; onLogout: () => void;
 }) {
   const [time, setTime] = useState(new Date());
-  const [showTabs, setShowTabs] = useState(false);
-  const [openTabCount, setOpenTabCount] = useState(0);
-  const { venueId } = useVenue();
 
   useEffect(() => {
     const id = setInterval(() => setTime(new Date()), 1000);
     return () => clearInterval(id);
   }, []);
 
-  useEffect(() => {
-    const fetch = async () => {
-      const { count } = await supabase
-        .from('tabs')
-        .select('id', { count: 'exact', head: true })
-        .eq('venue_id', venueId)
-        .eq('status', 'OPEN');
-      setOpenTabCount(count || 0);
-    };
-    fetch();
-    const id = setInterval(fetch, 15000);
-    return () => clearInterval(id);
-  }, [venueId]);
-
   const formatted = time.toLocaleDateString('en-ZA', {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
   }) + '  •  ' + time.toLocaleTimeString('en-ZA', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
 
   return (
-    <>
-      <header className="h-14 shrink-0 flex items-center justify-between px-4 bg-card border-b border-border">
-        <span className="text-base font-bold text-primary">LedraPOS</span>
-        <span className="text-sm text-muted-foreground hidden sm:block">{formatted}</span>
-        <div className="flex items-center gap-3">
-          <Button
-            variant="outline"
-            size="sm"
-            className="text-xs relative"
-            onClick={() => setShowTabs(true)}
-          >
-            Open Tabs
-            {openTabCount > 0 && (
-              <span className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center">
-                {openTabCount}
-              </span>
-            )}
-          </Button>
-          <span className="text-sm text-muted-foreground">
-            {userName} <span className="text-xs">({userRole})</span>
-          </span>
-          <Button variant="outline" size="sm" className="text-xs text-muted-foreground" onClick={onTestLock}>
-            Test Lock
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="text-xs text-destructive border-destructive/30 hover:bg-destructive/10"
-            onClick={onLogout}
-          >
-            Log Out
-          </Button>
-        </div>
-      </header>
-      <OpenTabsModal open={showTabs} onClose={() => setShowTabs(false)} />
-    </>
+    <header className="h-14 shrink-0 flex items-center justify-between px-4 bg-card border-b border-border">
+      <span className="text-base font-bold text-primary">LedraPOS</span>
+      <span className="text-sm text-muted-foreground hidden sm:block">{formatted}</span>
+      <div className="flex items-center gap-3">
+        <span className="text-sm text-muted-foreground">
+          {userName} <span className="text-xs">({userRole})</span>
+        </span>
+        <Button
+          variant="outline"
+          size="sm"
+          className="text-xs text-destructive border-destructive/30 hover:bg-destructive/10"
+          onClick={onLogout}
+        >
+          Log Out
+        </Button>
+      </div>
+    </header>
   );
 }
 
