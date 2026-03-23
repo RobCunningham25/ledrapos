@@ -7,6 +7,7 @@ import { format } from 'date-fns';
 import { CreditCard, Building2, X, ChevronDown, ChevronUp, Link as LinkIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import { usePortalAuth } from '@/contexts/PortalAuthContext';
+import { useVenue } from '@/contexts/VenueContext';
 import EFTDetailsScreen from '@/components/portal/booking/EFTDetailsScreen';
 
 const STATUS_STYLES: Record<string, React.CSSProperties> = {

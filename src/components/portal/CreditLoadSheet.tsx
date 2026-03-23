@@ -16,6 +16,7 @@ interface CreditLoadSheetProps {
 }
 
 export default function CreditLoadSheet({ open, onClose, memberId, venueId }: CreditLoadSheetProps) {
+  const { venueSlug } = useVenue();
   const [selectedQuick, setSelectedQuick] = useState<number | null>(null);
   const [customValue, setCustomValue] = useState('');
   const [loading, setLoading] = useState(false);
