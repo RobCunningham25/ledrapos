@@ -1,12 +1,11 @@
 import { useMemberFavourites } from '@/hooks/useMemberFavourites';
 import { formatCents } from '@/utils/currency';
-import { PORTAL_THEME as T } from '@/constants/portalTheme';
 import { CATEGORY_COLORS, getCategoryLabel } from '@/constants/productCategories';
 import { Skeleton } from '@/components/ui/skeleton';
 
 const cardStyle: React.CSSProperties = {
-  background: T.cardBg, borderRadius: 12, border: `1px solid ${T.cardBorder}`,
-  boxShadow: T.cardShadow, padding: 20,
+  background: 'var(--portal-card-bg)', borderRadius: 'var(--portal-card-radius)', border: `1px solid var(--portal-card-border)`,
+  boxShadow: 'var(--portal-card-shadow)', padding: 20,
 };
 
 export default function FavouritesCard({ memberId, venueId }: { memberId: string; venueId: string }) {
@@ -26,11 +25,11 @@ export default function FavouritesCard({ memberId, venueId }: { memberId: string
 
   return (
     <div style={cardStyle}>
-      <p style={{ fontSize: 14, fontWeight: 600, color: T.textPrimary, marginBottom: 12 }}>Your Favourites</p>
+      <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--portal-text-primary)', marginBottom: 12 }}>Your Favourites</p>
       {favouriteProducts.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '12px 0' }}>
-          <p style={{ fontSize: 14, color: T.textMuted, margin: 0 }}>No favourites yet</p>
-          <p style={{ fontSize: 12, color: T.textMuted, margin: '4px 0 0' }}>Ask the bar staff to add your usual drinks</p>
+          <p style={{ fontSize: 14, color: 'var(--portal-text-muted)', margin: 0 }}>No favourites yet</p>
+          <p style={{ fontSize: 12, color: 'var(--portal-text-muted)', margin: '4px 0 0' }}>Ask the bar staff to add your usual drinks</p>
         </div>
       ) : (
         <>
@@ -40,22 +39,22 @@ export default function FavouritesCard({ memberId, venueId }: { memberId: string
               style={{
                 display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                 padding: '10px 0',
-                borderBottom: idx < displayItems.length - 1 ? `1px solid ${T.cardBorder}` : 'none',
+                borderBottom: idx < displayItems.length - 1 ? `1px solid var(--portal-card-border)` : 'none',
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontSize: 14, fontWeight: 500, color: T.textPrimary }}>{p.name}</span>
+                <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--portal-text-primary)' }}>{p.name}</span>
                 <span style={{
                   fontSize: 11, fontWeight: 600, padding: '1px 6px', borderRadius: 8,
                   color: '#FFFFFF',
                   background: CATEGORY_COLORS[p.category] || CATEGORY_COLORS.other,
                 }}>{getCategoryLabel(p.category)}</span>
               </div>
-              <span style={{ fontSize: 14, color: T.textMuted, whiteSpace: 'nowrap' }}>{formatCents(p.selling_price_cents)}</span>
+              <span style={{ fontSize: 14, color: 'var(--portal-text-muted)', whiteSpace: 'nowrap' }}>{formatCents(p.selling_price_cents)}</span>
             </div>
           ))}
           {remaining > 0 && (
-            <p style={{ fontSize: 12, color: T.textMuted, textAlign: 'center', marginTop: 8 }}>and {remaining} more</p>
+            <p style={{ fontSize: 12, color: 'var(--portal-text-muted)', textAlign: 'center', marginTop: 8 }}>and {remaining} more</p>
           )}
         </>
       )}

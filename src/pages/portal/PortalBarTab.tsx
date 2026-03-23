@@ -25,7 +25,6 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { usePortalAuth } from '@/contexts/PortalAuthContext';
 import { formatCents } from '@/utils/currency';
-import { PORTAL_THEME as T } from '@/constants/portalTheme';
 import { toast } from 'sonner';
 import { format, formatDistanceToNow } from 'date-fns';
 import { ChevronDown, ChevronUp, Loader2, ArrowLeft, Receipt } from 'lucide-react';
@@ -55,8 +54,8 @@ interface ClosedTab {
 }
 
 const cardStyle: React.CSSProperties = {
-  background: T.cardBg, borderRadius: 12, border: `1px solid ${T.cardBorder}`,
-  boxShadow: T.cardShadow, padding: 24,
+  background: 'var(--portal-card-bg)', borderRadius: 'var(--portal-card-radius)', border: `1px solid var(--portal-card-border)`,
+  boxShadow: 'var(--portal-card-shadow)', padding: 24,
 };
 
 // ─── Pay Tab Confirmation Dialog ─────────────────────────────────────
@@ -68,19 +67,19 @@ function PayTabDialog({ amountCents, onConfirm, onCancel, loading }: {
       <div onClick={onCancel} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 50 }} />
       <div style={{
         position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)',
-        maxWidth: 320, width: 'calc(100% - 32px)', background: T.cardBg, borderRadius: 12,
+        maxWidth: 320, width: 'calc(100% - 32px)', background: 'var(--portal-card-bg)', borderRadius: 'var(--portal-card-radius)',
         padding: 24, boxShadow: '0 4px 12px rgba(0,0,0,0.15)', zIndex: 51, textAlign: 'center',
-        border: `1px solid ${T.cardBorder}`,
+        border: `1px solid var(--portal-card-border)`,
       }}>
-        <p style={{ fontSize: 16, color: T.textPrimary }}>Pay your tab of {formatCents(amountCents)} via card?</p>
+        <p style={{ fontSize: 16, color: 'var(--portal-text-primary)' }}>Pay your tab of {formatCents(amountCents)} via card?</p>
         <div style={{ display: 'flex', gap: 12, marginTop: 20 }}>
           <button onClick={onCancel} style={{
-            flex: 1, height: 44, border: `1px solid ${T.cardBorder}`, background: T.cardBg,
-            color: T.textSecondary, fontWeight: 500, borderRadius: 10, cursor: 'pointer',
+            flex: 1, height: 44, border: `1px solid var(--portal-card-border)`, background: 'var(--portal-card-bg)',
+            color: 'var(--portal-text-secondary)', fontWeight: 500, borderRadius: 'var(--portal-button-radius)', cursor: 'pointer',
           }}>Cancel</button>
           <button disabled={loading} onClick={onConfirm} style={{
-            flex: 1, height: 44, background: T.teal, color: '#FFFFFF',
-            fontWeight: 600, borderRadius: 10, border: 'none',
+            flex: 1, height: 44, background: 'var(--portal-accent)', color: '#FFFFFF',
+            fontWeight: 600, borderRadius: 'var(--portal-button-radius)', border: 'none',
             cursor: loading ? 'default' : 'pointer',
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
           }}>
@@ -115,7 +114,7 @@ function OpenTabCard({
   if (error) {
     return (
       <div style={{ ...cardStyle, textAlign: 'center' }}>
-        <p style={{ fontSize: 14, color: T.danger }}>Couldn't load data — pull down to retry</p>
+        <p style={{ fontSize: 14, color: 'var(--portal-danger)' }}>Couldn't load data — pull down to retry</p>
       </div>
     );
   }
@@ -126,9 +125,9 @@ function OpenTabCard({
         ...cardStyle, textAlign: 'center', minHeight: 200,
         display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8,
       }}>
-        <Receipt size={40} color={T.cardBorder} />
-        <p style={{ fontSize: 16, fontWeight: 500, color: T.textMuted, margin: 0 }}>No open tab</p>
-        <p style={{ fontSize: 13, color: T.textMuted, margin: 0 }}>Your next tab will appear here</p>
+        <Receipt size={40} color="var(--portal-card-border)" />
+        <p style={{ fontSize: 16, fontWeight: 500, color: 'var(--portal-text-muted)', margin: 0 }}>No open tab</p>
+        <p style={{ fontSize: 13, color: 'var(--portal-text-muted)', margin: 0 }}>Your next tab will appear here</p>
       </div>
     );
   }
@@ -153,21 +152,21 @@ function OpenTabCard({
   };
 
   const thStyle: React.CSSProperties = {
-    fontSize: 12, fontWeight: 600, color: T.textMuted, textTransform: 'uppercase',
-    letterSpacing: '0.05em', padding: '8px 8px', borderBottom: `1px solid ${T.cardBorder}`,
+    fontSize: 12, fontWeight: 600, color: 'var(--portal-text-muted)', textTransform: 'uppercase',
+    letterSpacing: '0.05em', padding: '8px 8px', borderBottom: `1px solid var(--portal-card-border)`,
   };
 
   return (
     <div style={cardStyle}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-        <p style={{ fontSize: 18, fontWeight: 600, color: T.textPrimary, margin: 0 }}>Your Open Tab</p>
+        <p style={{ fontSize: 18, fontWeight: 600, color: 'var(--portal-text-primary)', margin: 0 }}>Your Open Tab</p>
         <span style={{
-          fontSize: 12, fontWeight: 600, color: '#FFFFFF', background: T.amber,
+          fontSize: 12, fontWeight: 600, color: '#FFFFFF', background: 'var(--portal-warning)',
           padding: '2px 10px', borderRadius: 12,
         }}>OPEN</span>
       </div>
       {openedAt && (
-        <p style={{ fontSize: 13, color: T.textMuted, margin: '0 0 12px' }}>
+        <p style={{ fontSize: 13, color: 'var(--portal-text-muted)', margin: '0 0 12px' }}>
           Opened {formatDistanceToNow(new Date(openedAt), { addSuffix: true })}
         </p>
       )}
@@ -185,11 +184,11 @@ function OpenTabCard({
           </thead>
           <tbody>
             {items.map((item, idx) => (
-              <tr key={item.id} style={{ background: idx % 2 === 0 ? '#FAF8F5' : '#FFFFFF' }}>
-                <td style={{ fontSize: 14, fontWeight: 500, color: T.textPrimary, padding: '10px 8px' }}>{item.product_name}</td>
-                <td style={{ fontSize: 14, color: T.textSecondary, padding: '10px 8px', textAlign: 'center' }}>{item.qty}</td>
-                <td style={{ fontSize: 14, color: T.textMuted, padding: '10px 8px', textAlign: 'right' }}>{formatCents(item.unit_price_cents)}</td>
-                <td style={{ fontSize: 14, fontWeight: 600, color: T.textPrimary, padding: '10px 8px', textAlign: 'right' }}>{formatCents(item.line_total_cents)}</td>
+              <tr key={item.id} style={{ background: idx % 2 === 0 ? 'var(--portal-page-bg)' : 'var(--portal-card-bg)' }}>
+                <td style={{ fontSize: 14, fontWeight: 500, color: 'var(--portal-text-primary)', padding: '10px 8px' }}>{item.product_name}</td>
+                <td style={{ fontSize: 14, color: 'var(--portal-text-secondary)', padding: '10px 8px', textAlign: 'center' }}>{item.qty}</td>
+                <td style={{ fontSize: 14, color: 'var(--portal-text-muted)', padding: '10px 8px', textAlign: 'right' }}>{formatCents(item.unit_price_cents)}</td>
+                <td style={{ fontSize: 14, fontWeight: 600, color: 'var(--portal-text-primary)', padding: '10px 8px', textAlign: 'right' }}>{formatCents(item.line_total_cents)}</td>
               </tr>
             ))}
           </tbody>
@@ -197,23 +196,23 @@ function OpenTabCard({
       </div>
 
       {/* Totals */}
-      <div style={{ borderTop: `2px solid ${T.cardBorder}`, paddingTop: 12, marginTop: 4 }}>
+      <div style={{ borderTop: `2px solid var(--portal-card-border)`, paddingTop: 12, marginTop: 4 }}>
         <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 12 }}>
-          <span style={{ fontSize: 15, fontWeight: 600, color: T.textPrimary }}>Total:</span>
-          <span style={{ fontSize: 18, fontWeight: 700, color: T.textPrimary }}>{formatCents(tabTotal)}</span>
+          <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--portal-text-primary)' }}>Total:</span>
+          <span style={{ fontSize: 18, fontWeight: 700, color: 'var(--portal-text-primary)' }}>{formatCents(tabTotal)}</span>
         </div>
         {totalPaidCents > 0 && (
           <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 12, marginTop: 4 }}>
-            <span style={{ fontSize: 14, color: T.teal }}>Credit Applied:</span>
-            <span style={{ fontSize: 14, color: T.teal }}>- {formatCents(totalPaidCents)}</span>
+            <span style={{ fontSize: 14, color: 'var(--portal-accent)' }}>Credit Applied:</span>
+            <span style={{ fontSize: 14, color: 'var(--portal-accent)' }}>- {formatCents(totalPaidCents)}</span>
           </div>
         )}
         <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 12, marginTop: 4 }}>
-          <span style={{ fontSize: 15, fontWeight: 600, color: amountDue > 0 ? T.danger : T.teal }}>
+          <span style={{ fontSize: 15, fontWeight: 600, color: amountDue > 0 ? 'var(--portal-danger)' : 'var(--portal-accent)' }}>
             {amountDue > 0 ? 'Outstanding:' : 'Settled'}
           </span>
           {amountDue > 0 && (
-            <span style={{ fontSize: 15, fontWeight: 600, color: T.danger }}>{formatCents(amountDue)}</span>
+            <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--portal-danger)' }}>{formatCents(amountDue)}</span>
           )}
         </div>
       </div>
@@ -225,8 +224,8 @@ function OpenTabCard({
             onClick={() => setShowPayDialog(true)}
             className="w-full lg:w-auto"
             style={{
-              minWidth: 200, height: 48, background: T.navy, color: '#FFFFFF',
-              fontWeight: 600, fontSize: 16, borderRadius: 10, border: 'none', cursor: 'pointer',
+              minWidth: 200, height: 48, background: 'var(--portal-primary)', color: '#FFFFFF',
+              fontWeight: 600, fontSize: 16, borderRadius: 'var(--portal-button-radius)', border: 'none', cursor: 'pointer',
             }}
           >
             Pay {formatCents(amountDue)} Now
@@ -234,7 +233,7 @@ function OpenTabCard({
         </div>
       )}
       {amountDue > 0 && amountDue < 200 && (
-        <p style={{ fontSize: 13, color: T.textMuted, textAlign: 'center', marginTop: 12 }}>
+        <p style={{ fontSize: 13, color: 'var(--portal-text-muted)', textAlign: 'center', marginTop: 12 }}>
           Remaining balance of {formatCents(amountDue)} is below the minimum online payment amount. Please settle at the bar.
         </p>
       )}
@@ -284,38 +283,38 @@ function ClosedTabCard({ tab, venueId }: { tab: ClosedTab; venueId: string }) {
   return (
     <div
       style={{
-        background: T.cardBg, borderRadius: 12, border: `1px solid ${T.cardBorder}`,
-        boxShadow: T.cardShadow, padding: 16, marginBottom: 8, cursor: 'pointer',
+        background: 'var(--portal-card-bg)', borderRadius: 'var(--portal-card-radius)', border: `1px solid var(--portal-card-border)`,
+        boxShadow: 'var(--portal-card-shadow)', padding: 16, marginBottom: 8, cursor: 'pointer',
       }}
       onClick={() => setExpanded(e => !e)}
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
-          <span style={{ fontSize: 14, fontWeight: 500, color: T.textPrimary }}>
+          <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--portal-text-primary)' }}>
             {format(new Date(tab.closed_at), 'dd MMM yyyy')}
           </span>
-          <p style={{ fontSize: 12, color: T.textMuted, margin: '2px 0 0' }}>
+          <p style={{ fontSize: 12, color: 'var(--portal-text-muted)', margin: '2px 0 0' }}>
             Opened {format(new Date(tab.opened_at), 'HH:mm')} — Closed {format(new Date(tab.closed_at), 'HH:mm')}
           </p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{
-            fontSize: 11, fontWeight: 600, color: T.teal,
+            fontSize: 11, fontWeight: 600, color: 'var(--portal-accent)',
             background: 'rgba(42,157,143,0.1)', padding: '2px 8px', borderRadius: 10,
           }}>CLOSED</span>
-          <span style={{ fontSize: 14, fontWeight: 600, color: T.textPrimary }}>{formatCents(tab.total_cents)}</span>
-          {expanded ? <ChevronUp size={16} color={T.textMuted} /> : <ChevronDown size={16} color={T.textMuted} />}
+          <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--portal-text-primary)' }}>{formatCents(tab.total_cents)}</span>
+          {expanded ? <ChevronUp size={16} color="var(--portal-text-muted)" /> : <ChevronDown size={16} color="var(--portal-text-muted)" />}
         </div>
       </div>
       {expanded && (
-        <div style={{ marginTop: 10, borderTop: `1px solid ${T.cardBorder}`, paddingTop: 8, background: '#FAF8F5', borderRadius: 8, padding: 8 }}>
+        <div style={{ marginTop: 10, borderTop: `1px solid var(--portal-card-border)`, paddingTop: 8, background: 'var(--portal-page-bg)', borderRadius: 8, padding: 8 }}>
           {!items ? (
             <Skeleton className="h-4 w-full" />
           ) : items.length === 0 ? (
-            <p style={{ fontSize: 13, color: T.textMuted }}>No items</p>
+            <p style={{ fontSize: 13, color: 'var(--portal-text-muted)' }}>No items</p>
           ) : (
             items.map((it, i) => (
-              <p key={i} style={{ fontSize: 13, color: T.textSecondary, padding: '6px 0', margin: 0 }}>
+              <p key={i} style={{ fontSize: 13, color: 'var(--portal-text-secondary)', padding: '6px 0', margin: 0 }}>
                 {it.product_name} × {it.qty} — {formatCents(it.line_total_cents)}
               </p>
             ))
@@ -541,21 +540,21 @@ export default function PortalBarTab() {
     <>
       {historyLoading && isFirstLoad ? (
         <div>
-          <p style={{ fontSize: 16, fontWeight: 600, color: T.textPrimary, marginBottom: 12 }}>Tab History</p>
+          <p style={{ fontSize: 16, fontWeight: 600, color: 'var(--portal-text-primary)', marginBottom: 12 }}>Tab History</p>
           {[1, 2].map(i => (
             <Skeleton key={i} className="h-16 w-full mb-2 rounded-lg" />
           ))}
         </div>
       ) : closedTabs.length > 0 ? (
         <div>
-          <p style={{ fontSize: 16, fontWeight: 600, color: T.textPrimary, marginBottom: 12 }}>Tab History</p>
+          <p style={{ fontSize: 16, fontWeight: 600, color: 'var(--portal-text-primary)', marginBottom: 12 }}>Tab History</p>
           {closedTabs.map(tab => (
             <ClosedTabCard key={tab.id} tab={tab} venueId={venueId} />
           ))}
           {hasMore && (
             <p
               onClick={loadingMore ? undefined : handleLoadMore}
-              style={{ fontSize: 14, color: T.teal, textAlign: 'center', padding: 12, cursor: 'pointer', opacity: loadingMore ? 0.5 : 1 }}
+              style={{ fontSize: 14, color: 'var(--portal-accent)', textAlign: 'center', padding: 12, cursor: 'pointer', opacity: loadingMore ? 0.5 : 1 }}
             >
               {loadingMore ? 'Loading…' : 'Load older tabs'}
             </p>
@@ -573,7 +572,7 @@ export default function PortalBarTab() {
         className="flex items-center gap-1"
         style={{
           background: 'none', border: 'none', cursor: 'pointer',
-          fontSize: 14, fontWeight: 500, color: T.teal, marginBottom: 20, padding: 0,
+          fontSize: 14, fontWeight: 500, color: 'var(--portal-accent)', marginBottom: 20, padding: 0,
         }}
       >
         <ArrowLeft size={16} />

@@ -64,16 +64,16 @@ export default function CreditLoadSheet({ open, onClose, memberId, venueId }: Cr
         style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 50 }}
       />
       <div style={{
-        position: 'fixed', bottom: 0, left: 0, right: 0, background: '#FFFFFF',
+        position: 'fixed', bottom: 0, left: 0, right: 0, background: 'var(--portal-card-bg)',
         borderRadius: '16px 16px 0 0', padding: 24, zIndex: 51,
         animation: 'slideUp 200ms ease-out',
       }}>
         <style>{`@keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }`}</style>
 
         {/* Handle bar */}
-        <div style={{ width: 40, height: 4, background: '#E2E8F0', borderRadius: 2, margin: '0 auto 20px' }} />
+        <div style={{ width: 40, height: 4, background: 'var(--portal-card-border)', borderRadius: 2, margin: '0 auto 20px' }} />
 
-        <p style={{ fontSize: 18, fontWeight: 600, color: '#1A202C', marginBottom: 20 }}>Load Credit</p>
+        <p style={{ fontSize: 18, fontWeight: 600, color: 'var(--portal-text-primary)', marginBottom: 20 }}>Load Credit</p>
 
         {/* Quick amounts */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
@@ -82,9 +82,9 @@ export default function CreditLoadSheet({ open, onClose, memberId, venueId }: Cr
               key={amt}
               onClick={() => handleQuickSelect(amt)}
               style={{
-                height: 56, border: `2px solid ${selectedQuick === amt ? '#2E5FA3' : '#E2E8F0'}`,
-                borderRadius: 8, background: selectedQuick === amt ? 'rgba(46,95,163,0.06)' : '#FFFFFF',
-                fontSize: 18, fontWeight: 600, color: '#1A202C', cursor: 'pointer',
+                height: 56, border: `2px solid ${selectedQuick === amt ? 'var(--portal-accent)' : 'var(--portal-card-border)'}`,
+                borderRadius: 8, background: selectedQuick === amt ? 'rgba(42,157,143,0.06)' : 'var(--portal-card-bg)',
+                fontSize: 18, fontWeight: 600, color: 'var(--portal-text-primary)', cursor: 'pointer',
               }}
             >
               {formatCents(amt)}
@@ -93,9 +93,9 @@ export default function CreditLoadSheet({ open, onClose, memberId, venueId }: Cr
         </div>
 
         {/* Custom amount */}
-        <p style={{ fontSize: 13, color: '#718096', marginTop: 16, marginBottom: 8 }}>Or enter a custom amount</p>
+        <p style={{ fontSize: 13, color: 'var(--portal-text-muted)', marginTop: 16, marginBottom: 8 }}>Or enter a custom amount</p>
         <div style={{ position: 'relative' }}>
-          <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', fontSize: 18, fontWeight: 600, color: '#718096' }}>R</span>
+          <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', fontSize: 18, fontWeight: 600, color: 'var(--portal-text-muted)' }}>R</span>
           <input
             type="number"
             inputMode="decimal"
@@ -103,14 +103,14 @@ export default function CreditLoadSheet({ open, onClose, memberId, venueId }: Cr
             value={customValue}
             onChange={e => handleCustomChange(e.target.value)}
             style={{
-              width: '100%', height: 48, border: '1px solid #E2E8F0', borderRadius: 6,
+              width: '100%', height: 48, border: `1px solid var(--portal-card-border)`, borderRadius: 6,
               fontSize: 18, fontWeight: 600, paddingLeft: 32, paddingRight: 12,
               outline: 'none', boxSizing: 'border-box',
             }}
           />
         </div>
         {belowMin && (
-          <p style={{ fontSize: 13, color: '#C0392B', marginTop: 4 }}>Minimum amount is R 2.00</p>
+          <p style={{ fontSize: 13, color: 'var(--portal-danger)', marginTop: 4 }}>Minimum amount is R 2.00</p>
         )}
 
         {/* Confirm */}
@@ -118,8 +118,8 @@ export default function CreditLoadSheet({ open, onClose, memberId, venueId }: Cr
           disabled={!canConfirm}
           onClick={handleConfirm}
           style={{
-            width: '100%', height: 48, background: '#2E5FA3', color: '#FFFFFF',
-            fontWeight: 600, fontSize: 16, borderRadius: 6, border: 'none', marginTop: 20,
+            width: '100%', height: 48, background: 'var(--portal-primary)', color: '#FFFFFF',
+            fontWeight: 600, fontSize: 16, borderRadius: 'var(--portal-button-radius)', border: 'none', marginTop: 20,
             cursor: canConfirm ? 'pointer' : 'default', opacity: canConfirm ? 1 : 0.5,
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
           }}
