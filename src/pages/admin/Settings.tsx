@@ -181,10 +181,8 @@ export default function Settings() {
 
         {/* POS Users Tab (placeholder) */}
         <TabsContent value="pos-users">
-          <div className="max-w-lg">
-            <div className="bg-white rounded-[8px] border p-8 text-center" style={{ borderColor: '#E2E8F0', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}>
-              <p className="text-sm font-medium" style={{ color: '#718096' }}>POS user management coming soon</p>
-            </div>
+          <div className="max-w-2xl">
+            <POSUsersTab />
           </div>
         </TabsContent>
       </Tabs>
