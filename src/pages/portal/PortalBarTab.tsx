@@ -333,7 +333,7 @@ export default function PortalBarTab() {
 
   // Credit balance
   const [creditBalance, setCreditBalance] = useState(0);
-  const [creditLoading, setCreditLoading] = useState(true);
+  const [creditLoading, setCreditLoading] = useState(false);
 
   // Open tab
   const [openTabItems, setOpenTabItems] = useState<TabItem[] | null>(null);
