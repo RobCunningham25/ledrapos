@@ -331,6 +331,7 @@ export default function PortalBarTab() {
   const { member } = usePortalAuth();
   const navigate = useNavigate();
   const { portalPath } = useVenueNav();
+  const { venueSlug } = useVenue();
   const memberId = member?.id ?? '';
   const venueId = member?.venue_id ?? '';
 
