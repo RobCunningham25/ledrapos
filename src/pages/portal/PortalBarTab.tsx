@@ -95,10 +95,10 @@ function PayTabDialog({ amountCents, onConfirm, onCancel, loading }: {
 
 // ─── Open Tab Card ───────────────────────────────────────────────────
 function OpenTabCard({
-  items, openedAt, totalPaidCents, tabId, memberId, venueId, isLoading, error,
+  items, openedAt, totalPaidCents, tabId, memberId, venueId, venueSlug, isLoading, error,
 }: {
   items: TabItem[] | null; openedAt: string | null; totalPaidCents: number;
-  tabId: string | null; memberId: string; venueId: string; isLoading: boolean; error: string | null;
+  tabId: string | null; memberId: string; venueId: string; venueSlug: string; isLoading: boolean; error: string | null;
 }) {
   const [showPayDialog, setShowPayDialog] = useState(false);
   const [payLoading, setPayLoading] = useState(false);
