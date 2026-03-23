@@ -146,6 +146,7 @@ function CreditTabCard({ memberId, venueId }: { memberId: string; venueId: strin
 
 // ─── Upcoming Bookings Card (real data) ────────────────────────
 function UpcomingBookingsCard({ venueId, memberId }: { venueId: string; memberId: string }) {
+  const { portalPath } = useVenueNav();
   const navigate = useNavigate();
   const today = new Date().toISOString().slice(0, 10);
 
