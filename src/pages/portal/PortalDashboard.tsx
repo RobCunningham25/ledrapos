@@ -75,6 +75,7 @@ function CreditTabCard({ memberId, venueId }: { memberId: string; venueId: strin
   const { balance, isLoading: creditLoading } = usePortalCredit(memberId, venueId);
   const { tabTotal, amountDue, isLoading: tabLoading, items } = usePortalOpenTab(memberId, venueId);
   const [showCredit, setShowCredit] = useState(false);
+  const { portalPath } = useVenueNav();
   const navigate = useNavigate();
 
   const hasTab = items !== null && items.length > 0;
