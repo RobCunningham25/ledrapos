@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { usePOSAuth } from '@/contexts/POSAuthContext';
 import { useVenue } from '@/contexts/VenueContext';
+import { useVenueNav } from '@/hooks/useVenueNav';
 import { Loader2 } from 'lucide-react';
 
 const MAX_PIN_LENGTH = 6;
