@@ -21,7 +21,7 @@ Deno.serve(async (req: Request) => {
     );
 
     const body = await req.json();
-    const { member_id, venue_id, purpose, amount_cents, tab_id, booking_id } = body;
+    const { member_id, venue_id, venue_slug, purpose, amount_cents, tab_id, booking_id } = body;
 
     // Validate required fields — member_id is optional for booking_payment (visitor bookings)
     if (!venue_id || !purpose || !amount_cents) {
