@@ -65,11 +65,7 @@ interface PaymentDetail {
   reference: string | null;
 }
 
-const TYPE_COLORS: Record<string, { text: string; bg: string }> = {
-  member: { text: '#2E5FA3', bg: 'rgba(46,95,163,0.1)' },
-  associate: { text: '#D68910', bg: 'rgba(214,137,16,0.1)' },
-  honorary: { text: '#1E8449', bg: 'rgba(30,132,73,0.1)' },
-};
+import { MEMBERSHIP_TYPE_COLORS, getMembershipLabel } from '@/constants/membershipTypes';
 
 function getMonthStart() {
   const d = new Date();
