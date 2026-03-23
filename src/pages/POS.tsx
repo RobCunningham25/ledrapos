@@ -36,7 +36,7 @@ const POS = () => {
   if (!currentUser) return <PINLogin />;
   if (isLocked) return <LockScreen />;
 
-  const handleLogout = async () => { await logout(); navigate(`/${venueId ? '' : ''}pos`); };
+  const handleLogout = async () => { await logout(); navigate(posPath); };
 
   return (
     <div className="flex flex-col h-screen overflow-hidden">

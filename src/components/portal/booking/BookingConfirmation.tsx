@@ -132,7 +132,7 @@ export default function BookingConfirmation({ bookingCode, isFree, bookingId, to
             style={{ background: T.navy, color: '#FFFFFF', borderRadius: 10, height: 44, border: 'none', padding: '0 32px', fontSize: 15, fontWeight: 600, cursor: 'pointer', width: '100%', maxWidth: 300 }}>
             View My Bookings
           </button>
-          <button onClick={() => navigate('/portal')}
+          <button onClick={() => navigate(portalPath())}
             style={{ background: 'transparent', border: `1px solid ${T.cardBorder}`, color: T.textSecondary, borderRadius: 10, height: 44, padding: '0 32px', fontSize: 15, fontWeight: 500, cursor: 'pointer', width: '100%', maxWidth: 300 }}>
             Back to Home
           </button>
