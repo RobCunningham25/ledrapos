@@ -4,7 +4,7 @@
 // This is a manual step — Lovable cannot configure it automatically.
 
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,6 +12,7 @@ import { Eye, EyeOff } from 'lucide-react';
 
 export default function PortalLogin() {
   const navigate = useNavigate();
+  const { slug } = useParams<{ slug: string }>();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -25,7 +26,7 @@ export default function PortalLogin() {
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
-        navigate('/portal', { replace: true });
+        navigate(`/${slug}/portal`, { replace: true });
       } else {
         setCheckingSession(false);
       }
@@ -59,7 +60,7 @@ export default function PortalLogin() {
         return;
       }
 
-      navigate('/portal', { replace: true });
+      navigate(`/${slug}/portal`, { replace: true });
     }
 
     setLoading(false);

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link as LinkIcon, CheckCircle2, CreditCard, Building2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { PORTAL_THEME as T } from '@/constants/portalTheme';
+import { useVenueNav } from '@/hooks/useVenueNav';
 import { formatCents } from '@/utils/currency';
 
 interface Props {
@@ -17,6 +18,7 @@ interface Props {
 
 export default function BookingConfirmation({ bookingCode, isFree, bookingId, totalCents = 0, bookingFor = 'self', guestName, onSelectPayment, paymentLoading }: Props) {
   const navigate = useNavigate();
+  const { portalPath } = useVenueNav();
   const [copied, setCopied] = useState(false);
   const isVisitor = bookingFor === 'visitor';
   const showPayment = !isFree && totalCents > 0 && onSelectPayment && !isVisitor;
@@ -130,7 +132,7 @@ export default function BookingConfirmation({ bookingCode, isFree, bookingId, to
             style={{ background: T.navy, color: '#FFFFFF', borderRadius: 10, height: 44, border: 'none', padding: '0 32px', fontSize: 15, fontWeight: 600, cursor: 'pointer', width: '100%', maxWidth: 300 }}>
             View My Bookings
           </button>
-          <button onClick={() => navigate('/portal')}
+          <button onClick={() => navigate(portalPath())}
             style={{ background: 'transparent', border: `1px solid ${T.cardBorder}`, color: T.textSecondary, borderRadius: 10, height: 44, padding: '0 32px', fontSize: 15, fontWeight: 500, cursor: 'pointer', width: '100%', maxWidth: 300 }}>
             Back to Home
           </button>

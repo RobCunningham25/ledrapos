@@ -5,6 +5,7 @@ import { useCart } from '@/contexts/CartContext';
 import { usePOSProducts } from '@/hooks/usePOSProducts';
 import { useMemberFavourites } from '@/hooks/useMemberFavourites';
 import { useVenue } from '@/contexts/VenueContext';
+import { useVenueNav } from '@/hooks/useVenueNav';
 import { formatCents } from '@/utils/currency';
 import { CATEGORIES, CATEGORY_COLORS } from '@/constants/productCategories';
 import PINLogin from '@/components/pos/PINLogin';
@@ -22,6 +23,7 @@ import { supabase } from '@/integrations/supabase/client';
 const POS = () => {
   const { currentUser, isAuthenticated, isLocked, refreshActivity, logout, setIsLocked } = usePOSAuth();
   const navigate = useNavigate();
+  const { posPath } = useVenueNav();
 
   useEffect(() => {
     if (!currentUser) return;
@@ -34,7 +36,7 @@ const POS = () => {
   if (!currentUser) return <PINLogin />;
   if (isLocked) return <LockScreen />;
 
-  const handleLogout = async () => { await logout(); navigate('/pos'); };
+  const handleLogout = async () => { await logout(); navigate(posPath); };
 
   return (
     <div className="flex flex-col h-screen overflow-hidden">

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useVenueNav } from '@/hooks/useVenueNav';
 import { useQuery } from '@tanstack/react-query';
 import { usePortalAuth } from '@/contexts/PortalAuthContext';
 import { usePortalCredit } from '@/hooks/usePortalCredit';
@@ -74,6 +75,7 @@ function CreditTabCard({ memberId, venueId }: { memberId: string; venueId: strin
   const { balance, isLoading: creditLoading } = usePortalCredit(memberId, venueId);
   const { tabTotal, amountDue, isLoading: tabLoading, items } = usePortalOpenTab(memberId, venueId);
   const [showCredit, setShowCredit] = useState(false);
+  const { portalPath } = useVenueNav();
   const navigate = useNavigate();
 
   const hasTab = items !== null && items.length > 0;
@@ -125,7 +127,7 @@ function CreditTabCard({ memberId, venueId }: { memberId: string; venueId: strin
             Load Credit
           </button>
           <button
-            onClick={() => navigate('/portal/bar-tab')}
+            onClick={() => navigate(portalPath('bar-tab'))}
             style={{
               flex: 1, height: 44, borderRadius: 10, fontWeight: 600, fontSize: 14,
               background: 'rgba(255,255,255,0.15)', color: '#FFFFFF',
@@ -144,6 +146,7 @@ function CreditTabCard({ memberId, venueId }: { memberId: string; venueId: strin
 
 // ─── Upcoming Bookings Card (real data) ────────────────────────
 function UpcomingBookingsCard({ venueId, memberId }: { venueId: string; memberId: string }) {
+  const { portalPath } = useVenueNav();
   const navigate = useNavigate();
   const today = new Date().toISOString().slice(0, 10);
 
@@ -187,7 +190,7 @@ function UpcomingBookingsCard({ venueId, memberId }: { venueId: string; memberId
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <span style={{ fontSize: 16, fontWeight: 600, color: T.textPrimary }}>Your Bookings</span>
         <button
-          onClick={() => navigate('/portal/bookings')}
+          onClick={() => navigate(portalPath('bookings'))}
           style={{ fontSize: 14, fontWeight: 500, color: T.teal, background: 'none', border: 'none', cursor: 'pointer' }}
         >
           Book now →
@@ -238,6 +241,7 @@ function UpcomingBookingsCard({ venueId, memberId }: { venueId: string; memberId
 
 // ─── Upcoming Events Card (real data) ──────────────────────────
 function UpcomingEventsCard({ venueId }: { venueId: string }) {
+  const { portalPath } = useVenueNav();
   const navigate = useNavigate();
   const today = new Date().toISOString().slice(0, 10);
 
@@ -279,7 +283,7 @@ function UpcomingEventsCard({ venueId }: { venueId: string }) {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <span style={{ fontSize: 16, fontWeight: 600, color: T.textPrimary }}>Upcoming Events</span>
         <button
-          onClick={() => navigate('/portal/calendar')}
+          onClick={() => navigate(portalPath('calendar'))}
           style={{ fontSize: 14, fontWeight: 500, color: T.teal, background: 'none', border: 'none', cursor: 'pointer' }}
         >
           View all →

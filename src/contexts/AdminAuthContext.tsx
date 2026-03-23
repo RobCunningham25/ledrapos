@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import type { Session } from '@supabase/supabase-js';
 
@@ -24,6 +24,7 @@ const AdminAuthContext = createContext<AdminAuthContextType | undefined>(undefin
 
 export function AdminAuthProvider({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
+  const { slug } = useParams<{ slug: string }>();
   const [adminUser, setAdminUser] = useState<AdminUser | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -78,8 +79,8 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
     await supabase.auth.signOut();
     setAdminUser(null);
     setSession(null);
-    navigate('/admin/login', { replace: true });
-  }, [navigate]);
+    navigate(`/${slug}/admin/login`, { replace: true });
+  }, [navigate, slug]);
 
   return (
     <AdminAuthContext.Provider value={{ adminUser, session, isLoading, signOut }}>

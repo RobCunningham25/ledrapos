@@ -4,18 +4,24 @@ import { usePortalAuth } from '@/contexts/PortalAuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Home, Calendar, User, BedDouble, LogOut } from 'lucide-react';
 import { PORTAL_THEME as T } from '@/constants/portalTheme';
+import { useVenueNav } from '@/hooks/useVenueNav';
 
-const allTabs = [
-  { label: 'Home', icon: Home, path: '/portal', key: null },
-  { label: 'Calendar', icon: Calendar, path: '/portal/calendar', key: 'portal_tab_calendar' },
-  { label: 'My Details', icon: User, path: '/portal/my-details', key: 'portal_tab_my_details' },
-  { label: 'Bookings', icon: BedDouble, path: '/portal/bookings', key: 'portal_tab_bookings' },
-];
+function usePortalTabs() {
+  const { portalPath } = useVenueNav();
+  return [
+    { label: 'Home', icon: Home, path: portalPath(), key: null },
+    { label: 'Calendar', icon: Calendar, path: portalPath('calendar'), key: 'portal_tab_calendar' },
+    { label: 'My Details', icon: User, path: portalPath('my-details'), key: 'portal_tab_my_details' },
+    { label: 'Bookings', icon: BedDouble, path: portalPath('bookings'), key: 'portal_tab_bookings' },
+  ];
+}
 
 export default function PortalLayout() {
   const { member, signOut } = usePortalAuth();
   const location = useLocation();
   const navigate = useNavigate();
+  const { portalPath } = useVenueNav();
+  const allTabs = usePortalTabs();
   const [enabledKeys, setEnabledKeys] = useState<Record<string, boolean>>({
     portal_tab_calendar: true,
     portal_tab_my_details: true,
@@ -47,7 +53,8 @@ export default function PortalLayout() {
   const visibleTabs = allTabs.filter(t => t.key === null || enabledKeys[t.key]);
 
   const isActive = (path: string) => {
-    if (path === '/portal') return location.pathname === '/portal' || location.pathname === '/portal/bar-tab';
+    const portalHome = portalPath();
+    if (path === portalHome) return location.pathname === portalHome || location.pathname === portalPath('bar-tab');
     return location.pathname.startsWith(path);
   };
 

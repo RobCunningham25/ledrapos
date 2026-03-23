@@ -4,6 +4,7 @@ import { Package, Users, CalendarDays, BedDouble, BarChart3, Settings, Menu, X, 
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useAdminAuth } from '@/contexts/AdminAuthContext';
+import { useVenueNav } from '@/hooks/useVenueNav';
 
 interface AdminLayoutProps {
   children: ReactNode;
@@ -11,13 +12,13 @@ interface AdminLayoutProps {
   action?: ReactNode;
 }
 
-const navItems = [
-  { label: 'Products', path: '/admin/products', icon: Package },
-  { label: 'Members', path: '/admin/members', icon: Users },
-  { label: 'Events', path: '/admin/events', icon: CalendarDays },
-  { label: 'Bookings', path: '/admin/bookings', icon: BedDouble },
-  { label: 'Reports', path: '/admin/reports', icon: BarChart3 },
-  { label: 'Settings', path: '/admin/settings', icon: Settings },
+const navKeys = [
+  { label: 'Products', sub: 'products', icon: Package },
+  { label: 'Members', sub: 'members', icon: Users },
+  { label: 'Events', sub: 'events', icon: CalendarDays },
+  { label: 'Bookings', sub: 'bookings', icon: BedDouble },
+  { label: 'Reports', sub: 'reports', icon: BarChart3 },
+  { label: 'Settings', sub: 'settings', icon: Settings },
 ];
 
 export default function AdminLayout({ children, title, action }: AdminLayoutProps) {
@@ -25,9 +26,12 @@ export default function AdminLayout({ children, title, action }: AdminLayoutProp
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { adminUser, signOut } = useAdminAuth();
+  const { adminPath } = useVenueNav();
+
+  const navItems = navKeys.map(item => ({ ...item, path: adminPath(item.sub) }));
 
   const isActive = (path: string) =>
-    location.pathname === path || (path === '/admin/products' && location.pathname === '/admin');
+    location.pathname === path || (path === adminPath('products') && location.pathname === adminPath());
 
   const sidebar = (
     <div className="flex h-full flex-col">

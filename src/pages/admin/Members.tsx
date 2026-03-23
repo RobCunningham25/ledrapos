@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useVenueNav } from '@/hooks/useVenueNav';
 import AdminLayout from '@/components/admin/AdminLayout';
 import MemberDrawer from '@/components/admin/MemberDrawer';
 import MemberFavouritesDrawer from '@/components/admin/MemberFavouritesDrawer';
@@ -35,6 +36,7 @@ const TYPE_COLORS: Record<string, { text: string; bg: string }> = {
 
 export default function Members() {
   const navigate = useNavigate();
+  const { adminPath } = useVenueNav();
   const { venueId } = useVenue();
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
@@ -219,7 +221,7 @@ export default function Members() {
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-1">
                       <button
-                        onClick={() => navigate(`/admin/members/${m.id}`)}
+                        onClick={() => navigate(adminPath(`members/${m.id}`))}
                         title="View"
                         className="w-8 h-8 flex items-center justify-center rounded transition-colors"
                         style={{ color: '#718096' }}

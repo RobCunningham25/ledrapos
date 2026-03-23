@@ -1,8 +1,9 @@
-import { Navigate, Outlet } from 'react-router-dom';
+import { Navigate, Outlet, useParams } from 'react-router-dom';
 import { useAdminAuth } from '@/contexts/AdminAuthContext';
 
 export default function AdminProtectedRoute() {
   const { adminUser, isLoading } = useAdminAuth();
+  const { slug } = useParams<{ slug: string }>();
 
   if (isLoading) {
     return (
@@ -13,7 +14,7 @@ export default function AdminProtectedRoute() {
   }
 
   if (!adminUser) {
-    return <Navigate to="/admin/login" replace />;
+    return <Navigate to={`/${slug}/admin/login`} replace />;
   }
 
   return <Outlet />;

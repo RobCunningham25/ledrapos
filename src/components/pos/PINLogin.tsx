@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { usePOSAuth } from '@/contexts/POSAuthContext';
 import { useVenue } from '@/contexts/VenueContext';
+import { useVenueNav } from '@/hooks/useVenueNav';
 import { Loader2 } from 'lucide-react';
 
 const MAX_PIN_LENGTH = 6;
@@ -12,6 +13,7 @@ const PINLogin = () => {
   const [loading, setLoading] = useState(false);
   const { login } = usePOSAuth();
   const { venueName } = useVenue();
+  const { posPath } = useVenueNav();
   const navigate = useNavigate();
 
   const handleDigit = (digit: string) => {
@@ -32,7 +34,7 @@ const PINLogin = () => {
     const result = await login(pin);
     setLoading(false);
     if (result.success) {
-      navigate('/pos');
+      navigate(posPath);
     } else {
       setPin('');
       setError(result.error || 'Invalid PIN, please try again');

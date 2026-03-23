@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import type { Session } from '@supabase/supabase-js';
 
@@ -28,6 +28,7 @@ const PortalAuthContext = createContext<PortalAuthContextType | undefined>(undef
 
 export function PortalAuthProvider({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
+  const { slug } = useParams<{ slug: string }>();
   const [session, setSession] = useState<Session | null>(null);
   const [member, setMember] = useState<MemberRecord | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -46,8 +47,8 @@ export function PortalAuthProvider({ children }: { children: ReactNode }) {
     await supabase.auth.signOut();
     setSession(null);
     setMember(null);
-    navigate('/portal/login', { replace: true });
-  }, [navigate]);
+    navigate(`/${slug}/portal/login`, { replace: true });
+  }, [navigate, slug]);
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, newSession) => {

@@ -1,24 +1,31 @@
 import { Link } from 'react-router-dom';
 import { Monitor, Settings } from 'lucide-react';
 import { useVenue } from '@/contexts/VenueContext';
+import { useVenueNav } from '@/hooks/useVenueNav';
 
 const navCards = [
   {
     title: 'POS Till',
     description: 'Ring up sales, manage tabs, and process payments',
     icon: Monitor,
-    to: '/pos',
+    key: 'pos',
   },
   {
     title: 'Admin Panel',
     description: 'Manage products, members, and venue settings',
     icon: Settings,
-    to: '/admin',
+    key: 'admin',
   },
 ];
 
 const Index = () => {
   const { venueName } = useVenue();
+  const { posPath, adminPath } = useVenueNav();
+
+  const paths: Record<string, string> = {
+    pos: posPath,
+    admin: adminPath(),
+  };
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-page px-4">
@@ -30,8 +37,8 @@ const Index = () => {
       <div className="flex w-full max-w-2xl justify-center gap-6">
         {navCards.map((card) => (
           <Link
-            key={card.to}
-            to={card.to}
+            key={card.key}
+            to={paths[card.key]}
             className="group flex w-full max-w-xs flex-col items-center rounded-lg border border-border bg-card p-6 shadow-subtle transition-shadow hover:shadow-md"
           >
             <card.icon className="mb-4 h-10 w-10 text-primary opacity-80 group-hover:opacity-100" />

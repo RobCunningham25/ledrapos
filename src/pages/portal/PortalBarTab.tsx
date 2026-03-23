@@ -29,6 +29,7 @@ import { PORTAL_THEME as T } from '@/constants/portalTheme';
 import { toast } from 'sonner';
 import { format, formatDistanceToNow } from 'date-fns';
 import { ChevronDown, ChevronUp, Loader2, ArrowLeft, Receipt } from 'lucide-react';
+import { useVenueNav } from '@/hooks/useVenueNav';
 import { Skeleton } from '@/components/ui/skeleton';
 import CreditLoadSheet from '@/components/portal/CreditLoadSheet';
 import CreditBalanceBarCard from '@/components/portal/CreditBalanceBarCard';
@@ -328,6 +329,7 @@ function ClosedTabCard({ tab, venueId }: { tab: ClosedTab; venueId: string }) {
 export default function PortalBarTab() {
   const { member } = usePortalAuth();
   const navigate = useNavigate();
+  const { portalPath } = useVenueNav();
   const memberId = member?.id ?? '';
   const venueId = member?.venue_id ?? '';
 
@@ -564,7 +566,7 @@ export default function PortalBarTab() {
     <div>
       {/* Back to Home */}
       <button
-        onClick={() => navigate('/portal')}
+        onClick={() => navigate(portalPath())}
         className="flex items-center gap-1"
         style={{
           background: 'none', border: 'none', cursor: 'pointer',

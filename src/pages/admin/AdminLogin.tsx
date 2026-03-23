@@ -17,7 +17,7 @@
 // ============================================================
 
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -28,6 +28,7 @@ type View = 'login' | 'signup' | 'forgot';
 
 export default function AdminLogin() {
   const navigate = useNavigate();
+  const { slug } = useParams<{ slug: string }>();
   const { toast } = useToast();
   const [view, setView] = useState<View>('login');
   const [email, setEmail] = useState('');
@@ -50,7 +51,7 @@ export default function AdminLogin() {
           .maybeSingle();
 
         if (admin) {
-          navigate('/admin/products', { replace: true });
+          navigate(`/${slug}/admin/products`, { replace: true });
           return;
         }
       }
@@ -100,7 +101,7 @@ export default function AdminLogin() {
     if (data.user) {
       const linked = await linkAdminUser(data.user.id, data.user.email!);
       if (linked) {
-        navigate('/admin/products', { replace: true });
+        navigate(`/${slug}/admin/products`, { replace: true });
       }
     }
     setLoading(false);
@@ -140,7 +141,7 @@ export default function AdminLogin() {
       if (signInData.user) {
         const linked = await linkAdminUser(signInData.user.id, signInData.user.email!);
         if (linked) {
-          navigate('/admin/products', { replace: true });
+          navigate(`/${slug}/admin/products`, { replace: true });
         }
       }
     }
@@ -153,7 +154,7 @@ export default function AdminLogin() {
     setLoading(true);
 
     const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/admin/login`,
+      redirectTo: `${window.location.origin}/${slug}/admin/login`,
     });
 
     if (resetError) {

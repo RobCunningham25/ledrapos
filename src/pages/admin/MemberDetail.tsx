@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useVenueNav } from '@/hooks/useVenueNav';
 import AdminLayout from '@/components/admin/AdminLayout';
 import MemberDrawer from '@/components/admin/MemberDrawer';
 import MemberDetailsTab from '@/components/admin/MemberDetailsTab';
@@ -81,6 +82,7 @@ function getToday() {
 export default function MemberDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { adminPath } = useVenueNav();
   const { venueId } = useVenue();
 
   const [member, setMember] = useState<Member | null>(null);
@@ -413,7 +415,7 @@ export default function MemberDetail() {
     }>
       {/* Back link */}
       <button
-        onClick={() => navigate('/admin/members')}
+        onClick={() => navigate(adminPath('members'))}
         className="flex items-center gap-1 mb-4 transition-colors"
         style={{ fontSize: 14, color: '#718096' }}
         onMouseEnter={e => (e.currentTarget.style.color = '#2E5FA3')}
