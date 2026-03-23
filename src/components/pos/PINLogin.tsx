@@ -13,6 +13,7 @@ const PINLogin = () => {
   const [loading, setLoading] = useState(false);
   const { login } = usePOSAuth();
   const { venueName } = useVenue();
+  const { posPath } = useVenueNav();
   const navigate = useNavigate();
 
   const handleDigit = (digit: string) => {
