@@ -9,7 +9,9 @@ import { useVenueNav } from '@/hooks/useVenueNav';
 export default function PortalPaymentResult() {
   const [params] = useSearchParams();
   const navigate = useNavigate();
+  const { portalPath } = useVenueNav();
   const sessionId = params.get('session_id');
+  const status = params.get('status');
   const status = params.get('status');
 
   const [pollState, setPollState] = useState<'polling' | 'completed' | 'timeout'>('polling');
