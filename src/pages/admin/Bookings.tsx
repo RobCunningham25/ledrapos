@@ -503,7 +503,29 @@ export default function AdminBookings() {
 
       {/* TAB 2: Pending EFT */}
       {activeTab === 'pending-eft' && (
-        <div>
+        <div className="space-y-4">
+          <div className="flex justify-end">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9 text-[13px] text-muted-foreground border-border"
+              onClick={async () => {
+                try {
+                  const { data, error } = await supabase.functions.invoke('expire-bookings');
+                  if (error) throw error;
+                  const count = data?.expired_count || 0;
+                  toast.success(count > 0 ? `Expired ${count} booking(s)` : 'No expired bookings found');
+                  queryClient.invalidateQueries({ queryKey: ['admin-bookings'] });
+                  queryClient.invalidateQueries({ queryKey: ['admin-bookings-pending-eft'] });
+                  queryClient.invalidateQueries({ queryKey: ['admin-booking-stats'] });
+                } catch (e: any) {
+                  toast.error(e.message || 'Failed to process expired bookings');
+                }
+              }}
+            >
+              Process Expired
+            </Button>
+          </div>
           {renderBookingsTable(pendingEftBookings || [], false, true, true)}
         </div>
       )}
