@@ -12,6 +12,7 @@ import { Eye, EyeOff } from 'lucide-react';
 
 export default function PortalLogin() {
   const navigate = useNavigate();
+  const { slug } = useParams<{ slug: string }>();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
