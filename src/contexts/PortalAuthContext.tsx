@@ -28,6 +28,7 @@ const PortalAuthContext = createContext<PortalAuthContextType | undefined>(undef
 
 export function PortalAuthProvider({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
+  const { slug } = useParams<{ slug: string }>();
   const [session, setSession] = useState<Session | null>(null);
   const [member, setMember] = useState<MemberRecord | null>(null);
   const [isLoading, setIsLoading] = useState(true);
