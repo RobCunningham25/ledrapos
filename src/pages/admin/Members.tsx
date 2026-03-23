@@ -220,7 +220,7 @@ export default function Members() {
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-1">
                       <button
-                        onClick={() => navigate(`/admin/members/${m.id}`)}
+                        onClick={() => navigate(adminPath(`members/${m.id}`))}
                         title="View"
                         className="w-8 h-8 flex items-center justify-center rounded transition-colors"
                         style={{ color: '#718096' }}
