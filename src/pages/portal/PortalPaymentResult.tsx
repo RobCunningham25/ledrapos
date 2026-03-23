@@ -4,6 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { formatCents } from '@/utils/currency';
 import { PORTAL_THEME as T } from '@/constants/portalTheme';
 import { CheckCircle, XCircle, AlertTriangle, Loader2, CheckCircle2 } from 'lucide-react';
+import { useVenueNav } from '@/hooks/useVenueNav';
 
 export default function PortalPaymentResult() {
   const [params] = useSearchParams();
