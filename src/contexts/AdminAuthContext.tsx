@@ -24,6 +24,7 @@ const AdminAuthContext = createContext<AdminAuthContextType | undefined>(undefin
 
 export function AdminAuthProvider({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
+  const { slug } = useParams<{ slug: string }>();
   const [adminUser, setAdminUser] = useState<AdminUser | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
