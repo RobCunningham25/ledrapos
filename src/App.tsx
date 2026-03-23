@@ -3,7 +3,7 @@ import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { VenueProvider } from "@/contexts/VenueContext";
+import { VenueResolver } from "@/contexts/VenueContext";
 import { POSAuthProvider } from "@/contexts/POSAuthContext";
 import { CartProvider } from "@/contexts/CartContext";
 import { PortalAuthProvider } from "@/contexts/PortalAuthContext";
@@ -33,25 +33,32 @@ import PublicBookingPage from "./pages/PublicBookingPage.tsx";
 
 const queryClient = new QueryClient();
 
+function RootRedirect() {
+  window.location.href = 'https://ledra.co.za';
+  return null;
+}
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
-      <VenueProvider>
-        <POSAuthProvider>
-          <CartProvider>
-            <Toaster />
-            <Sonner />
-            <BrowserRouter>
-              <Routes>
-                <Route path="/" element={<Index />} />
-                <Route path="/pos" element={<POS />} />
-                <Route path="/admin/login" element={<AdminLogin />} />
-                <Route path="/admin" element={
+      <POSAuthProvider>
+        <CartProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <Routes>
+              <Route path="/" element={<RootRedirect />} />
+              <Route path="/booking/:code" element={<PublicBookingPage />} />
+              <Route path="/:slug" element={<VenueResolver />}>
+                <Route index element={<Index />} />
+                <Route path="pos" element={<POS />} />
+                <Route path="admin/login" element={<AdminLogin />} />
+                <Route path="admin" element={
                   <AdminAuthProvider>
                     <AdminProtectedRoute />
                   </AdminAuthProvider>
                 }>
-                  <Route index element={<Navigate to="/admin/products" replace />} />
+                  <Route index element={<Navigate to="products" replace />} />
                   <Route path="products" element={<Products />} />
                   <Route path="members" element={<Members />} />
                   <Route path="members/:id" element={<MemberDetail />} />
@@ -60,8 +67,8 @@ const App = () => (
                   <Route path="bookings" element={<AdminBookings />} />
                   <Route path="settings" element={<Settings />} />
                 </Route>
-                <Route path="/portal/login" element={<PortalLogin />} />
-                <Route path="/portal" element={<PortalProtectedRoute />}>
+                <Route path="portal/login" element={<PortalLogin />} />
+                <Route path="portal" element={<PortalProtectedRoute />}>
                   <Route element={
                     <PortalAuthProvider>
                       <PortalLayout />
@@ -75,13 +82,12 @@ const App = () => (
                     <Route path="payment-result" element={<PortalPaymentResult />} />
                   </Route>
                 </Route>
-                <Route path="/booking/:code" element={<PublicBookingPage />} />
-                <Route path="*" element={<NotFound />} />
-              </Routes>
-            </BrowserRouter>
-          </CartProvider>
-        </POSAuthProvider>
-      </VenueProvider>
+              </Route>
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </BrowserRouter>
+        </CartProvider>
+      </POSAuthProvider>
     </TooltipProvider>
   </QueryClientProvider>
 );
