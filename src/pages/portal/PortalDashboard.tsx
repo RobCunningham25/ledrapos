@@ -241,6 +241,7 @@ function UpcomingBookingsCard({ venueId, memberId }: { venueId: string; memberId
 
 // ─── Upcoming Events Card (real data) ──────────────────────────
 function UpcomingEventsCard({ venueId }: { venueId: string }) {
+  const { portalPath } = useVenueNav();
   const navigate = useNavigate();
   const today = new Date().toISOString().slice(0, 10);
 
