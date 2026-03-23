@@ -178,7 +178,7 @@ export default function Members() {
                       display: 'inline-block', padding: '2px 10px', borderRadius: 999,
                       fontSize: 12, fontWeight: 600, color: tc.text, background: tc.bg,
                     }}>
-                      {m.membership_type.charAt(0).toUpperCase() + m.membership_type.slice(1)}
+                      {getMembershipLabel(m.membership_type)}
                     </span>
                   </td>
                   <td className="px-4 py-3" style={{ fontSize: 13, color: '#718096', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
