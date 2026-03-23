@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useVenueNav } from '@/hooks/useVenueNav';
 import { useQuery } from '@tanstack/react-query';
 import { usePortalAuth } from '@/contexts/PortalAuthContext';
 import { usePortalCredit } from '@/hooks/usePortalCredit';
