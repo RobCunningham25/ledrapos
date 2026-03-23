@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { usePortalAuth } from '@/contexts/PortalAuthContext';
 import { usePortalCredit } from '@/hooks/usePortalCredit';
 import { usePortalOpenTab } from '@/hooks/usePortalOpenTab';
@@ -8,6 +9,7 @@ import { PORTAL_THEME as T } from '@/constants/portalTheme';
 import { Calendar, BedDouble } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import CreditLoadSheet from '@/components/portal/CreditLoadSheet';
+import { supabase } from '@/integrations/supabase/client';
 
 function getGreeting() {
   const h = new Date().getHours();
