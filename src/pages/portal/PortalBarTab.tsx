@@ -340,7 +340,7 @@ export default function PortalBarTab() {
   const [openTabOpenedAt, setOpenTabOpenedAt] = useState<string | null>(null);
   const [openTabPaid, setOpenTabPaid] = useState(0);
   const [openTabId, setOpenTabId] = useState<string | null>(null);
-  const [tabLoading, setTabLoading] = useState(true);
+  const [tabLoading, setTabLoading] = useState(false);
   const [tabError, setTabError] = useState<string | null>(null);
 
   // History
