@@ -25,6 +25,7 @@ function generateBookingCode(prefix: string): string {
 
 export default function PortalBookings() {
   const { member } = usePortalAuth();
+  const { venue, venueSlug } = useVenue();
   const queryClient = useQueryClient();
 
   const [step, setStep] = useState(1);
