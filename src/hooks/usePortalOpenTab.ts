@@ -33,11 +33,11 @@ export function usePortalOpenTab(memberId: string, venueId: string) {
       .limit(1)
       .maybeSingle();
 
-    if (tabErr) { setError(tabErr.message); setIsLoading(false); return; }
+    if (tabErr) { setError(tabErr.message); setIsLoading(false); setHasFetched(true); return; }
 
     if (!tabData) {
       setItems(null); setOpenedAt(null); setTotalPaidCents(0); setTabId(null);
-      setIsLoading(false); return;
+      setIsLoading(false); setHasFetched(true); return;
     }
 
     setOpenedAt(tabData.opened_at);
