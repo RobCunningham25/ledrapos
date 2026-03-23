@@ -29,6 +29,7 @@ import PortalCalendar from "./pages/portal/PortalCalendar.tsx";
 import PortalMyDetails from "./pages/portal/PortalMyDetails.tsx";
 import PortalBookings from "./pages/portal/PortalBookings.tsx";
 import PortalPaymentResult from "./pages/portal/PortalPaymentResult.tsx";
+import PublicBookingPage from "./pages/PublicBookingPage.tsx";
 
 const queryClient = new QueryClient();
 
@@ -74,6 +75,7 @@ const App = () => (
                     <Route path="payment-result" element={<PortalPaymentResult />} />
                   </Route>
                 </Route>
+                <Route path="/booking/:code" element={<PublicBookingPage />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </BrowserRouter>

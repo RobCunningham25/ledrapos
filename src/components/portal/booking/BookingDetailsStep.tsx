@@ -1,15 +1,18 @@
 import { useState } from 'react';
+import { User, UserPlus } from 'lucide-react';
 import { PORTAL_THEME as T } from '@/constants/portalTheme';
 
 interface Props {
   guestName: string; guestEmail: string; guestPhone: string; notes: string;
   memberName: string; membershipNumber: string;
+  bookingFor: 'self' | 'visitor';
+  onBookingForChange: (v: 'self' | 'visitor') => void;
   onChange: (field: 'guestName' | 'guestEmail' | 'guestPhone' | 'notes', value: string) => void;
   onNext: () => void;
   onBack: () => void;
 }
 
-export default function BookingDetailsStep({ guestName, guestEmail, guestPhone, notes, memberName, membershipNumber, onChange, onNext, onBack }: Props) {
+export default function BookingDetailsStep({ guestName, guestEmail, guestPhone, notes, memberName, membershipNumber, bookingFor, onBookingForChange, onChange, onNext, onBack }: Props) {
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const validate = () => {
@@ -23,28 +26,61 @@ export default function BookingDetailsStep({ guestName, guestEmail, guestPhone, 
   const inputStyle: React.CSSProperties = { border: `1px solid ${T.cardBorder}`, borderRadius: 8, padding: '10px 12px', fontSize: 14, background: T.cardBg, width: '100%', fontFamily: T.fontFamily };
   const labelStyle: React.CSSProperties = { fontSize: 14, fontWeight: 500, color: T.textPrimary, marginBottom: 4, display: 'block' };
 
+  const toggleCard = (selected: boolean): React.CSSProperties => ({
+    border: `2px solid ${selected ? T.teal : T.cardBorder}`,
+    background: selected ? '#F0FDFA' : T.cardBg,
+    borderRadius: 10, padding: 16, cursor: 'pointer', textAlign: 'center', flex: 1,
+    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+    transition: 'border-color 0.15s, background 0.15s',
+  });
+
   return (
     <div style={{ maxWidth: 480 }}>
+      {/* Booking purpose toggle */}
+      <div style={{ marginBottom: 20 }}>
+        <div style={{ fontSize: 14, fontWeight: 600, color: T.textPrimary, marginBottom: 12 }}>Who is this booking for?</div>
+        <div style={{ display: 'flex', gap: 12 }}>
+          <button type="button" onClick={() => onBookingForChange('self')} style={toggleCard(bookingFor === 'self')}>
+            <User size={24} color={T.navy} />
+            <span style={{ fontSize: 14, fontWeight: 500, color: T.textPrimary }}>For myself</span>
+          </button>
+          <button type="button" onClick={() => onBookingForChange('visitor')} style={toggleCard(bookingFor === 'visitor')}>
+            <UserPlus size={24} color={T.navy} />
+            <span style={{ fontSize: 14, fontWeight: 500, color: T.textPrimary }}>Send to a visitor</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Info text */}
       <div style={{ fontSize: 14, color: T.textSecondary, marginBottom: 16 }}>
-        Booking as <span style={{ fontWeight: 600 }}>{memberName}</span> (Membership <span style={{ fontWeight: 600 }}>#{membershipNumber}</span>)
+        {bookingFor === 'self' ? (
+          <>Booking as <span style={{ fontWeight: 600 }}>{memberName}</span> (Membership <span style={{ fontWeight: 600 }}>#{membershipNumber}</span>)</>
+        ) : (
+          <>Enter the visitor's details below. A payment link will be generated for them to complete the booking.</>
+        )}
       </div>
 
       <div style={{ marginBottom: 16 }}>
         <label style={labelStyle}>Guest Name</label>
-        <input value={guestName} onChange={e => onChange('guestName', e.target.value)} placeholder="Full name" style={inputStyle} />
-        <div style={{ fontSize: 13, color: T.textMuted, marginTop: 4 }}>You can change the guest name if you're booking on behalf of someone else.</div>
+        <input value={guestName} onChange={e => onChange('guestName', e.target.value)}
+          placeholder={bookingFor === 'visitor' ? "Visitor's full name" : "Full name"} style={inputStyle} />
+        {bookingFor === 'self' && (
+          <div style={{ fontSize: 13, color: T.textMuted, marginTop: 4 }}>You can change the guest name if you're booking on behalf of someone else.</div>
+        )}
         {errors.guestName && <div style={{ fontSize: 13, color: T.danger, marginTop: 4 }}>{errors.guestName}</div>}
       </div>
 
       <div style={{ marginBottom: 16 }}>
         <label style={labelStyle}>Email</label>
-        <input type="email" value={guestEmail} onChange={e => onChange('guestEmail', e.target.value)} placeholder="Email address" style={inputStyle} />
+        <input type="email" value={guestEmail} onChange={e => onChange('guestEmail', e.target.value)}
+          placeholder={bookingFor === 'visitor' ? "Visitor's email address" : "Email address"} style={inputStyle} />
         {errors.guestEmail && <div style={{ fontSize: 13, color: T.danger, marginTop: 4 }}>{errors.guestEmail}</div>}
       </div>
 
       <div style={{ marginBottom: 16 }}>
         <label style={labelStyle}>Phone</label>
-        <input type="tel" value={guestPhone} onChange={e => onChange('guestPhone', e.target.value)} placeholder="Phone number" style={inputStyle} />
+        <input type="tel" value={guestPhone} onChange={e => onChange('guestPhone', e.target.value)}
+          placeholder={bookingFor === 'visitor' ? "Visitor's phone number" : "Phone number"} style={inputStyle} />
       </div>
 
       <div style={{ marginBottom: 16 }}>

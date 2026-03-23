@@ -204,7 +204,7 @@ Deno.serve(async (req: Request) => {
 
         if (booking.status === "CANCELLED" || booking.status === "EXPIRED") {
           // Convert to member credit — money is never lost
-          if (session.member_id) {
+        if (session.member_id) {
             await supabase.from("member_credits").insert({
               venue_id: session.venue_id,
               member_id: session.member_id,
@@ -214,13 +214,16 @@ Deno.serve(async (req: Request) => {
               description: `Booking ${session.metadata?.booking_code || bookingId} was ${booking.status.toLowerCase()} — payment converted to credit`,
             });
           }
+          const creditNote = session.member_id
+            ? `Booking was ${booking.status} — converted to member credit`
+            : `Booking was ${booking.status} — visitor payment, no member to credit. Manual refund may be needed.`;
           await supabase
             .from("checkout_sessions")
             .update({
               status: "completed",
               yoco_payment_id: payload.id,
               completed_at: new Date().toISOString(),
-              metadata: { ...session.metadata, note: `Booking was ${booking.status} — converted to member credit` },
+              metadata: { ...session.metadata, note: creditNote },
             })
             .eq("id", session.id);
           return new Response("OK", { status: 200 });

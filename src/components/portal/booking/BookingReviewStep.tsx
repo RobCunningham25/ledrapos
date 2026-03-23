@@ -12,6 +12,8 @@ interface Props {
   perNightCents: number; totalCents: number;
   guestName: string; guestEmail: string; guestPhone: string;
   membershipNumber: string; notes: string;
+  bookingFor?: 'self' | 'visitor';
+  memberName?: string;
   onBack: () => void;
   onEditStep: (step: number) => void;
   onConfirm: () => Promise<void>;
@@ -40,11 +42,14 @@ function SectionHeader({ title, onEdit }: { title: string; onEdit?: () => void }
 
 export default function BookingReviewStep(props: Props) {
   const { siteType, siteName, checkIn, checkOut, nights, numGuests, perNightCents, totalCents,
-    guestName, guestEmail, guestPhone, membershipNumber, notes, onBack, onEditStep, onConfirm } = props;
+    guestName, guestEmail, guestPhone, membershipNumber, notes,
+    bookingFor = 'self', memberName,
+    onBack, onEditStep, onConfirm } = props;
   const [loading, setLoading] = useState(false);
   const Icon = TYPE_ICONS[siteType];
   const isDayVisitor = siteType === 'day_visitor';
   const isFree = totalCents === 0;
+  const isVisitor = bookingFor === 'visitor';
 
   const handleConfirm = async () => {
     setLoading(true);
@@ -67,12 +72,15 @@ export default function BookingReviewStep(props: Props) {
 
         <div style={{ borderBottom: `1px solid ${T.cardBorder}`, margin: '16px 0' }} />
 
-        {/* Guest details */}
-        <SectionHeader title="Guest Details" onEdit={() => onEditStep(3)} />
+        {/* Guest/Visitor details */}
+        <SectionHeader title={isVisitor ? 'Visitor Details' : 'Guest Details'} onEdit={() => onEditStep(3)} />
+        {isVisitor && memberName && (
+          <Row label="Booked by" value={memberName} />
+        )}
         <Row label="Name" value={guestName} />
         <Row label="Email" value={guestEmail} />
         {guestPhone && <Row label="Phone" value={guestPhone} />}
-        <Row label="Membership #" value={membershipNumber} />
+        {!isVisitor && <Row label="Membership #" value={membershipNumber} />}
         {notes && <><div style={{ fontSize: 14, color: T.textMuted, marginTop: 4 }}>Notes: {notes}</div></>}
 
         <div style={{ borderBottom: `1px solid ${T.cardBorder}`, margin: '16px 0' }} />

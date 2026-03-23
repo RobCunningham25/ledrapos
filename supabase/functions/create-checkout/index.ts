@@ -23,10 +23,18 @@ Deno.serve(async (req: Request) => {
     const body = await req.json();
     const { member_id, venue_id, purpose, amount_cents, tab_id, booking_id } = body;
 
-    // Validate required fields
-    if (!member_id || !venue_id || !purpose || !amount_cents) {
+    // Validate required fields — member_id is optional for booking_payment (visitor bookings)
+    if (!venue_id || !purpose || !amount_cents) {
       return new Response(
-        JSON.stringify({ error: "Missing required fields: member_id, venue_id, purpose, amount_cents" }),
+        JSON.stringify({ error: "Missing required fields: venue_id, purpose, amount_cents" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // member_id is required for non-booking_payment purposes
+    if (purpose !== "booking_payment" && !member_id) {
+      return new Response(
+        JSON.stringify({ error: "member_id is required" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -59,20 +67,24 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Validate member
-    const { data: member, error: memberErr } = await supabase
-      .from("members")
-      .select("id, first_name, last_name, membership_number, venue_id")
-      .eq("id", member_id)
-      .eq("venue_id", venue_id)
-      .eq("is_active", true)
-      .maybeSingle();
+    // Validate member (only if member_id is provided)
+    let member: any = null;
+    if (member_id) {
+      const { data: memberData, error: memberErr } = await supabase
+        .from("members")
+        .select("id, first_name, last_name, membership_number, venue_id")
+        .eq("id", member_id)
+        .eq("venue_id", venue_id)
+        .eq("is_active", true)
+        .maybeSingle();
 
-    if (memberErr || !member) {
-      return new Response(
-        JSON.stringify({ error: "Member not found" }),
-        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      if (memberErr || !memberData) {
+        return new Response(
+          JSON.stringify({ error: "Member not found" }),
+          { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      member = memberData;
     }
 
     // Validate venue
@@ -179,24 +191,34 @@ Deno.serve(async (req: Request) => {
       lineItemDescription = `${venue.name} — Booking ${bookingData.booking_code}`;
     }
 
+    // Build metadata
+    const metadata: any = {
+      venue_name: venue.name,
+      line_item_description: lineItemDescription,
+    };
+    if (member) {
+      metadata.member_name = `${member.first_name} ${member.last_name}`;
+      metadata.membership_number = member.membership_number;
+    }
+    if (purpose === "booking_payment") {
+      metadata.booking_code = bookingData.booking_code;
+      metadata.guest_name = bookingData.guest_name;
+      if (!member) {
+        metadata.member_name = bookingData.guest_name;
+        metadata.membership_number = null;
+      }
+    }
+
     // Create checkout session record
     const sessionInsert: any = {
       venue_id,
-      member_id,
+      member_id: member_id || null,
       purpose,
       tab_id: purpose === "tab_payment" ? tab_id : null,
       booking_id: purpose === "booking_payment" ? booking_id : null,
       amount_cents,
       status: "pending",
-      metadata: {
-        member_name: `${member.first_name} ${member.last_name}`,
-        membership_number: member.membership_number,
-        venue_name: venue.name,
-        line_item_description: lineItemDescription,
-        ...(purpose === "booking_payment"
-          ? { booking_code: bookingData.booking_code, guest_name: bookingData.guest_name }
-          : {}),
-      },
+      metadata,
     };
 
     const { data: session, error: sessionErr } = await supabase
@@ -230,6 +252,23 @@ Deno.serve(async (req: Request) => {
       );
     }
 
+    // Determine return URLs based on whether this is a visitor (no member_id) booking payment
+    let successUrl: string;
+    let cancelUrl: string;
+    let failureUrl: string;
+
+    if (purpose === "booking_payment" && !member_id) {
+      // Visitor payment — return to public booking page
+      successUrl = `${PORTAL_BASE_URL}/booking/${bookingData.booking_code}?payment=success`;
+      cancelUrl = `${PORTAL_BASE_URL}/booking/${bookingData.booking_code}?payment=cancelled`;
+      failureUrl = `${PORTAL_BASE_URL}/booking/${bookingData.booking_code}?payment=failed`;
+    } else {
+      // Member payment — return to portal payment result
+      successUrl = `${PORTAL_BASE_URL}/portal/payment-result?session_id=${session.id}&status=success`;
+      cancelUrl = `${PORTAL_BASE_URL}/portal/payment-result?session_id=${session.id}&status=cancelled`;
+      failureUrl = `${PORTAL_BASE_URL}/portal/payment-result?session_id=${session.id}&status=failed`;
+    }
+
     // Call Yoco Checkout API
     const yocoRes = await fetch("https://payments.yoco.com/api/checkouts", {
       method: "POST",
@@ -240,13 +279,13 @@ Deno.serve(async (req: Request) => {
       body: JSON.stringify({
         amount: amount_cents,
         currency: "ZAR",
-        successUrl: `${PORTAL_BASE_URL}/portal/payment-result?session_id=${session.id}&status=success`,
-        cancelUrl: `${PORTAL_BASE_URL}/portal/payment-result?session_id=${session.id}&status=cancelled`,
-        failureUrl: `${PORTAL_BASE_URL}/portal/payment-result?session_id=${session.id}&status=failed`,
+        successUrl,
+        cancelUrl,
+        failureUrl,
         metadata: {
           checkout_session_id: session.id,
           purpose,
-          member_id,
+          member_id: member_id || null,
           venue_id,
         },
         lineItems: [
