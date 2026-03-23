@@ -31,6 +31,13 @@ Deno.serve(async (req: Request) => {
       );
     }
 
+    if (!venue_slug || typeof venue_slug !== "string") {
+      return new Response(
+        JSON.stringify({ error: "Missing required field: venue_slug" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // member_id is required for non-booking_payment purposes
     if (purpose !== "booking_payment" && !member_id) {
       return new Response(
