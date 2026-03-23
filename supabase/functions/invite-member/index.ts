@@ -1,4 +1,3 @@
-// TODO: Phase 7 — JWT verification is now enabled. Admin check enforced below.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const corsHeaders = {
@@ -76,26 +75,69 @@ Deno.serve(async (req) => {
     }
 
     if (!member.email) {
-      return new Response(JSON.stringify({ error: 'Member has no email address' }), {
+      return new Response(JSON.stringify({ error: 'Member has no email address. Add an email before inviting.' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
 
     if (member.auth_user_id) {
-      return new Response(JSON.stringify({ error: 'Member has already been invited' }), {
+      return new Response(JSON.stringify({ error: 'This member has already been invited to the portal.' }), {
         status: 409,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
 
+    // Check if user already exists in auth.users
+    const { data: existingUsers, error: listError } = await supabase.auth.admin.listUsers({
+      page: 1,
+      perPage: 1,
+    })
+
+    // Search by email since listUsers doesn't support email filter directly
+    let existingAuthUser = null
+    if (!listError) {
+      // Use a targeted approach: try to get user by email
+      const { data: usersData } = await supabase.auth.admin.listUsers({ perPage: 1000 })
+      if (usersData?.users) {
+        existingAuthUser = usersData.users.find(
+          (u: any) => u.email?.toLowerCase() === member.email!.toLowerCase()
+        ) || null
+      }
+    }
+
+    if (existingAuthUser) {
+      // Link to existing auth user without sending invite
+      const { error: updateError } = await supabase
+        .from('members')
+        .update({ auth_user_id: existingAuthUser.id })
+        .eq('id', member_id)
+
+      if (updateError) {
+        return new Response(JSON.stringify({ error: 'Failed to link member to existing account' }), {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+
+      return new Response(JSON.stringify({
+        success: true,
+        auth_user_id: existingAuthUser.id,
+        message: 'Member linked to existing account. They can log in with their existing password.',
+      }), {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    // No existing auth user — send invite
     const { data: authData, error: inviteError } = await supabase.auth.admin.inviteUserByEmail(
       member.email,
       { data: { member_id: member.id, venue_id: member.venue_id } }
     )
 
     if (inviteError || !authData?.user) {
-      return new Response(JSON.stringify({ error: inviteError?.message || 'Failed to send invite' }), {
+      return new Response(JSON.stringify({ error: 'Failed to send invite. Please try again.' }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
@@ -118,7 +160,7 @@ Deno.serve(async (req) => {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
   } catch (err) {
-    return new Response(JSON.stringify({ error: 'Internal server error' }), {
+    return new Response(JSON.stringify({ error: 'Failed to send invite. Please try again.' }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
