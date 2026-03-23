@@ -6,12 +6,15 @@ import { Home, Calendar, User, BedDouble, LogOut } from 'lucide-react';
 import { PORTAL_THEME as T } from '@/constants/portalTheme';
 import { useVenueNav } from '@/hooks/useVenueNav';
 
-const allTabs = [
-  { label: 'Home', icon: Home, path: '/portal', key: null },
-  { label: 'Calendar', icon: Calendar, path: '/portal/calendar', key: 'portal_tab_calendar' },
-  { label: 'My Details', icon: User, path: '/portal/my-details', key: 'portal_tab_my_details' },
-  { label: 'Bookings', icon: BedDouble, path: '/portal/bookings', key: 'portal_tab_bookings' },
-];
+function usePortalTabs() {
+  const { portalPath } = useVenueNav();
+  return [
+    { label: 'Home', icon: Home, path: portalPath(), key: null },
+    { label: 'Calendar', icon: Calendar, path: portalPath('calendar'), key: 'portal_tab_calendar' },
+    { label: 'My Details', icon: User, path: portalPath('my-details'), key: 'portal_tab_my_details' },
+    { label: 'Bookings', icon: BedDouble, path: portalPath('bookings'), key: 'portal_tab_bookings' },
+  ];
+}
 
 export default function PortalLayout() {
   const { member, signOut } = usePortalAuth();
