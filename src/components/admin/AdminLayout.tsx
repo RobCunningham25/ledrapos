@@ -1,6 +1,6 @@
 import { ReactNode, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Package, Users, CalendarDays, BarChart3, Settings, Menu, X, LogOut } from 'lucide-react';
+import { Package, Users, CalendarDays, BedDouble, BarChart3, Settings, Menu, X, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useAdminAuth } from '@/contexts/AdminAuthContext';
@@ -15,6 +15,7 @@ const navItems = [
   { label: 'Products', path: '/admin/products', icon: Package },
   { label: 'Members', path: '/admin/members', icon: Users },
   { label: 'Events', path: '/admin/events', icon: CalendarDays },
+  { label: 'Bookings', path: '/admin/bookings', icon: BedDouble },
   { label: 'Reports', path: '/admin/reports', icon: BarChart3 },
   { label: 'Settings', path: '/admin/settings', icon: Settings },
 ];
