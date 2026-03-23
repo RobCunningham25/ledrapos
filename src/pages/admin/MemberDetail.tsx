@@ -377,7 +377,7 @@ export default function MemberDetail() {
   const totalLoaded = credits.filter(c => c.type === 'CREDIT').reduce((s, c) => s + c.amount_cents, 0);
   const totalSpent = credits.filter(c => c.type === 'DEBIT').reduce((s, c) => s + c.amount_cents, 0);
 
-  const tc = member ? TYPE_COLORS[member.membership_type] || TYPE_COLORS.member : TYPE_COLORS.member;
+  const tc = member ? MEMBERSHIP_TYPE_COLORS[member.membership_type] || MEMBERSHIP_TYPE_COLORS.ordinary : MEMBERSHIP_TYPE_COLORS.ordinary;
 
   if (loading) {
     return (
