@@ -223,7 +223,7 @@ Deno.serve(async (req: Request) => {
               status: "completed",
               yoco_payment_id: payload.id,
               completed_at: new Date().toISOString(),
-              metadata: { ...session.metadata, note: `Booking was ${booking.status} — converted to member credit` },
+              metadata: { ...session.metadata, note: creditNote },
             })
             .eq("id", session.id);
           return new Response("OK", { status: 200 });

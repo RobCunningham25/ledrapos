@@ -75,6 +75,7 @@ const App = () => (
                     <Route path="payment-result" element={<PortalPaymentResult />} />
                   </Route>
                 </Route>
+                <Route path="/booking/:code" element={<PublicBookingPage />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </BrowserRouter>

@@ -37,6 +37,7 @@ export default function PortalBookings() {
   const [guestEmail, setGuestEmail] = useState(member?.email || '');
   const [guestPhone, setGuestPhone] = useState(member?.phone || '');
   const [notes, setNotes] = useState('');
+  const [bookingFor, setBookingFor] = useState<'self' | 'visitor'>('self');
   const [confirmedCode, setConfirmedCode] = useState<string | null>(null);
   const [confirmedBookingId, setConfirmedBookingId] = useState<string | null>(null);
   const [paymentLoading, setPaymentLoading] = useState(false);
@@ -64,6 +65,19 @@ export default function PortalBookings() {
     setStep(2);
   }, []);
 
+  const handleBookingForChange = useCallback((val: 'self' | 'visitor') => {
+    setBookingFor(val);
+    if (val === 'self' && member) {
+      setGuestName(`${member.first_name} ${member.last_name}`);
+      setGuestEmail(member.email || '');
+      setGuestPhone(member.phone || '');
+    } else if (val === 'visitor') {
+      setGuestName('');
+      setGuestEmail('');
+      setGuestPhone('');
+    }
+  }, [member]);
+
   const handleDetailChange = useCallback((field: 'guestName' | 'guestEmail' | 'guestPhone' | 'notes', value: string) => {
     if (field === 'guestName') setGuestName(value);
     else if (field === 'guestEmail') setGuestEmail(value);
@@ -76,15 +90,16 @@ export default function PortalBookings() {
 
     const bookingCode = generateBookingCode();
     const isFree = totalCents === 0;
+    const isVisitor = bookingFor === 'visitor';
 
     const { data: booking, error } = await supabase.from('bookings').insert({
       venue_id: venueId,
       booking_code: bookingCode,
-      member_id: member.id,
+      member_id: isVisitor ? null : member.id,
       guest_name: guestName,
       guest_email: guestEmail,
       guest_phone: guestPhone || null,
-      membership_number: member.membership_number,
+      membership_number: isVisitor ? null : member.membership_number,
       check_in: checkIn,
       check_out: isDayVisitor ? checkIn : checkOut,
       num_guests: numGuests,
@@ -117,7 +132,7 @@ export default function PortalBookings() {
     queryClient.invalidateQueries({ queryKey: ['portal-my-bookings'] });
     setConfirmedCode(bookingCode);
     setConfirmedBookingId(booking.id);
-  }, [member, selectedSiteId, selectedSite, venueId, guestName, guestEmail, guestPhone, checkIn, checkOut, isDayVisitor, numGuests, totalCents, notes, nights, perNight, queryClient]);
+  }, [member, selectedSiteId, selectedSite, venueId, guestName, guestEmail, guestPhone, checkIn, checkOut, isDayVisitor, numGuests, totalCents, notes, nights, perNight, queryClient, bookingFor]);
 
   const handleSelectPayment = useCallback(async (method: 'card' | 'eft') => {
     if (!confirmedBookingId || !member) return;
@@ -145,7 +160,6 @@ export default function PortalBookings() {
         setPaymentLoading(false);
       }
     } else {
-      // EFT flow
       await supabase.from('bookings').update({
         payment_method: 'eft',
         expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
@@ -179,17 +193,17 @@ export default function PortalBookings() {
     <div style={{ maxWidth: 800, margin: '0 auto', padding: '24px 16px' }}>
       <h1 style={{ fontSize: 24, fontWeight: 700, color: T.navy, marginBottom: 8 }}>Book</h1>
 
-      {/* My Bookings list */}
       <MyBookingsList venueId={venueId} memberId={member.id} />
 
-      {/* Confirmation screen */}
       {confirmedCode ? (
         <BookingConfirmation
           bookingCode={confirmedCode}
           isFree={totalCents === 0}
           bookingId={confirmedBookingId}
           totalCents={totalCents}
-          onSelectPayment={totalCents > 0 ? handleSelectPayment : undefined}
+          bookingFor={bookingFor}
+          guestName={guestName}
+          onSelectPayment={totalCents > 0 && bookingFor === 'self' ? handleSelectPayment : undefined}
           paymentLoading={paymentLoading}
         />
       ) : (
@@ -214,6 +228,7 @@ export default function PortalBookings() {
             <BookingDetailsStep
               guestName={guestName} guestEmail={guestEmail} guestPhone={guestPhone} notes={notes}
               memberName={`${member.first_name} ${member.last_name}`} membershipNumber={member.membership_number}
+              bookingFor={bookingFor} onBookingForChange={handleBookingForChange}
               onChange={handleDetailChange} onNext={() => setStep(4)} onBack={() => setStep(2)}
             />
           )}
@@ -226,6 +241,7 @@ export default function PortalBookings() {
               perNightCents={perNight} totalCents={totalCents}
               guestName={guestName} guestEmail={guestEmail} guestPhone={guestPhone}
               membershipNumber={member.membership_number} notes={notes}
+              bookingFor={bookingFor} memberName={`${member.first_name} ${member.last_name}`}
               onBack={() => setStep(3)} onEditStep={setStep} onConfirm={handleConfirm}
             />
           )}
