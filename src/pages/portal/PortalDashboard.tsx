@@ -142,29 +142,92 @@ function CreditTabCard({ memberId, venueId }: { memberId: string; venueId: strin
   );
 }
 
-// ─── Placeholder Widget Card ───────────────────────────────────
-function WidgetCard({ title, linkLabel, linkTo, icon: Icon, emptyText }: {
-  title: string; linkLabel: string; linkTo: string; icon: React.ElementType; emptyText: string;
-}) {
+// ─── Upcoming Bookings Card (real data) ────────────────────────
+function UpcomingBookingsCard({ venueId, memberId }: { venueId: string; memberId: string }) {
   const navigate = useNavigate();
+  const today = new Date().toISOString().slice(0, 10);
+
+  const { data: bookings, isLoading } = useQuery({
+    queryKey: ['portal-upcoming-bookings', venueId, memberId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('bookings')
+        .select('id, booking_code, check_in, check_out, status, num_guests, booking_site_link(site_id, nights, booking_sites(name, site_type))')
+        .eq('venue_id', venueId)
+        .or(`member_id.eq.${memberId},created_by_member_id.eq.${memberId}`)
+        .gte('check_in', today)
+        .in('status', ['PENDING', 'PAID'])
+        .order('check_in', { ascending: true })
+        .limit(3);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!venueId && !!memberId,
+  });
+
+  const fmtShort = (d: string) => {
+    const dt = new Date(d + 'T12:00:00');
+    return dt.toLocaleDateString('en-ZA', { day: 'numeric', month: 'short' });
+  };
+
+  const STATUS_PILL: Record<string, React.CSSProperties> = {
+    PENDING: { background: '#FEF3C7', color: '#92400E' },
+    PAID: { background: '#D1FAE5', color: '#065F46' },
+  };
+
   return (
     <div style={{
       background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 12,
       padding: 20, boxShadow: T.cardShadow,
     }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <span style={{ fontSize: 16, fontWeight: 600, color: T.textPrimary }}>{title}</span>
+        <span style={{ fontSize: 16, fontWeight: 600, color: T.textPrimary }}>Your Bookings</span>
         <button
-          onClick={() => navigate(linkTo)}
+          onClick={() => navigate('/portal/bookings')}
           style={{ fontSize: 14, fontWeight: 500, color: T.teal, background: 'none', border: 'none', cursor: 'pointer' }}
         >
-          {linkLabel} →
+          Book now →
         </button>
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 120 }}>
-        <Icon size={40} color={T.cardBorder} />
-        <p style={{ fontSize: 14, color: T.textMuted, marginTop: 8 }}>{emptyText}</p>
-      </div>
+      {isLoading ? (
+        <div>
+          {[0, 1].map(i => (
+            <div key={i} style={{ padding: '10px 0', borderBottom: i === 0 ? `1px solid ${T.cardBorder}` : 'none' }}>
+              <div style={{ height: 14, width: '60%', background: T.cardBorder, borderRadius: 4, marginBottom: 6 }} className="animate-pulse" />
+              <div style={{ height: 14, width: '40%', background: T.cardBorder, borderRadius: 4 }} className="animate-pulse" />
+            </div>
+          ))}
+        </div>
+      ) : !bookings || bookings.length === 0 ? (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 120 }}>
+          <BedDouble size={40} color={T.cardBorder} />
+          <p style={{ fontSize: 14, color: T.textMuted, marginTop: 8 }}>No upcoming bookings</p>
+        </div>
+      ) : (
+        <div>
+          {bookings.map((b: any, i: number) => {
+            const link = b.booking_site_link?.[0];
+            const siteName = link?.booking_sites?.name || '—';
+            const siteType = link?.booking_sites?.site_type;
+            const isDayVisitor = siteType === 'day_visitor';
+            const pill = STATUS_PILL[b.status] || STATUS_PILL.PENDING;
+            return (
+              <div key={b.id} style={{
+                padding: '10px 0',
+                borderBottom: i < bookings.length - 1 ? `1px solid ${T.cardBorder}` : 'none',
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: 14, fontWeight: 500, color: T.textPrimary }}>{siteName}</span>
+                  <span style={{ fontSize: 13, color: T.textSecondary }}>
+                    {isDayVisitor ? `${fmtShort(b.check_in)} · Day visit` : `${fmtShort(b.check_in)}–${fmtShort(b.check_out)}`}
+                  </span>
+                </div>
+                <span style={{ ...pill, fontSize: 11, borderRadius: 9999, padding: '1px 8px', display: 'inline-block', marginTop: 4 }}>{b.status}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
