@@ -55,7 +55,7 @@ export default function AdminLogin() {
           .maybeSingle();
 
         if (admin) {
-          navigate('/admin/products', { replace: true });
+          navigate(`/${slug}/admin/products`, { replace: true });
           return;
         }
       }
