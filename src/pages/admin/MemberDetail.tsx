@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useVenueNav } from '@/hooks/useVenueNav';
 import AdminLayout from '@/components/admin/AdminLayout';
 import MemberDrawer from '@/components/admin/MemberDrawer';
 import MemberDetailsTab from '@/components/admin/MemberDetailsTab';
