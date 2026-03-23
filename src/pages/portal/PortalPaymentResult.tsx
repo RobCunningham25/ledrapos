@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { formatCents } from '@/utils/currency';
-import { PORTAL_THEME as T } from '@/constants/portalTheme';
 import { CheckCircle, XCircle, AlertTriangle, Loader2, CheckCircle2 } from 'lucide-react';
 import { useVenueNav } from '@/hooks/useVenueNav';
 
@@ -50,17 +49,17 @@ export default function PortalPaymentResult() {
   };
 
   const cardStyle: React.CSSProperties = {
-    background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 12,
-    padding: 40, maxWidth: 400, width: '100%', boxShadow: T.cardShadow,
+    background: 'var(--portal-card-bg)', border: `1px solid var(--portal-card-border)`, borderRadius: 'var(--portal-card-radius)',
+    padding: 40, maxWidth: 400, width: '100%', boxShadow: 'var(--portal-card-shadow)',
   };
 
   const btnStyle: React.CSSProperties = {
-    width: '100%', maxWidth: 320, height: 48, background: T.navy, color: '#FFFFFF',
-    fontWeight: 600, fontSize: 16, borderRadius: 10, border: 'none', cursor: 'pointer', marginTop: 24,
+    width: '100%', maxWidth: 320, height: 48, background: 'var(--portal-primary)', color: '#FFFFFF',
+    fontWeight: 600, fontSize: 16, borderRadius: 'var(--portal-button-radius)', border: 'none', cursor: 'pointer', marginTop: 24,
   };
 
   const ghostBtnStyle: React.CSSProperties = {
-    ...btnStyle, background: 'transparent', border: `1px solid ${T.cardBorder}`, color: T.textSecondary, marginTop: 12,
+    ...btnStyle, background: 'transparent', border: `1px solid var(--portal-card-border)`, color: 'var(--portal-text-secondary)', marginTop: 12,
   };
 
   const isBookingPayment = session?.purpose === 'booking_payment';
@@ -72,16 +71,16 @@ export default function PortalPaymentResult() {
         <div style={cardStyle}>
           {isBookingPayment ? (
             <>
-              <XCircle size={48} color={T.amber} />
-              <p style={{ fontSize: 20, fontWeight: 600, color: T.textPrimary, marginTop: 16 }}>Payment Cancelled</p>
-              <p style={{ fontSize: 15, color: T.textMuted, marginTop: 8 }}>Your booking has been created but is still awaiting payment. You can pay later from your bookings page.</p>
+              <XCircle size={48} color="var(--portal-warning)" />
+              <p style={{ fontSize: 20, fontWeight: 600, color: 'var(--portal-text-primary)', marginTop: 16 }}>Payment Cancelled</p>
+              <p style={{ fontSize: 15, color: 'var(--portal-text-muted)', marginTop: 8 }}>Your booking has been created but is still awaiting payment. You can pay later from your bookings page.</p>
               <button onClick={() => navigate(portalPath('bookings'))} style={btnStyle}>View My Bookings</button>
             </>
           ) : (
             <>
-              <AlertTriangle size={48} color={T.amber} />
-              <p style={{ fontSize: 20, fontWeight: 600, color: T.textPrimary, marginTop: 16 }}>Payment Cancelled</p>
-              <p style={{ fontSize: 15, color: T.textMuted, marginTop: 8 }}>No charge was made to your card.</p>
+              <AlertTriangle size={48} color="var(--portal-warning)" />
+              <p style={{ fontSize: 20, fontWeight: 600, color: 'var(--portal-text-primary)', marginTop: 16 }}>Payment Cancelled</p>
+              <p style={{ fontSize: 15, color: 'var(--portal-text-muted)', marginTop: 8 }}>No charge was made to your card.</p>
               <button onClick={() => navigate(portalPath())} style={btnStyle}>Back to Home</button>
             </>
           )}
@@ -96,16 +95,16 @@ export default function PortalPaymentResult() {
         <div style={cardStyle}>
           {isBookingPayment ? (
             <>
-              <XCircle size={48} color={T.danger} />
-              <p style={{ fontSize: 20, fontWeight: 600, color: T.textPrimary, marginTop: 16 }}>Payment Failed</p>
-              <p style={{ fontSize: 15, color: T.textMuted, marginTop: 8 }}>Something went wrong with the payment. Your booking is still pending — you can try again from your bookings page.</p>
+              <XCircle size={48} color="var(--portal-danger)" />
+              <p style={{ fontSize: 20, fontWeight: 600, color: 'var(--portal-text-primary)', marginTop: 16 }}>Payment Failed</p>
+              <p style={{ fontSize: 15, color: 'var(--portal-text-muted)', marginTop: 8 }}>Something went wrong with the payment. Your booking is still pending — you can try again from your bookings page.</p>
               <button onClick={() => navigate(portalPath('bookings'))} style={btnStyle}>View My Bookings</button>
             </>
           ) : (
             <>
-              <XCircle size={48} color={T.danger} />
-              <p style={{ fontSize: 20, fontWeight: 600, color: T.textPrimary, marginTop: 16 }}>Payment Failed</p>
-              <p style={{ fontSize: 15, color: T.textMuted, marginTop: 8 }}>Something went wrong. Please try again or settle at the bar.</p>
+              <XCircle size={48} color="var(--portal-danger)" />
+              <p style={{ fontSize: 20, fontWeight: 600, color: 'var(--portal-text-primary)', marginTop: 16 }}>Payment Failed</p>
+              <p style={{ fontSize: 15, color: 'var(--portal-text-muted)', marginTop: 8 }}>Something went wrong. Please try again or settle at the bar.</p>
               <button onClick={() => navigate(portalPath())} style={btnStyle}>Back to Home</button>
             </>
           )}
@@ -117,8 +116,8 @@ export default function PortalPaymentResult() {
   if (pollState === 'polling') {
     return (
       <div style={containerStyle}>
-        <Loader2 size={48} color={T.textMuted} className="animate-spin" />
-        <p style={{ fontSize: 16, color: T.textMuted, marginTop: 16 }}>Confirming your payment...</p>
+        <Loader2 size={48} color="var(--portal-text-muted)" className="animate-spin" />
+        <p style={{ fontSize: 16, color: 'var(--portal-text-muted)', marginTop: 16 }}>Confirming your payment...</p>
       </div>
     );
   }
@@ -128,13 +127,13 @@ export default function PortalPaymentResult() {
       return (
         <div style={containerStyle}>
           <div style={cardStyle}>
-            <CheckCircle2 size={64} color={T.teal} />
-            <p style={{ fontSize: 24, fontWeight: 700, color: T.navy, marginTop: 16 }}>Booking Confirmed!</p>
+            <CheckCircle2 size={64} color="var(--portal-success)" />
+            <p style={{ fontSize: 24, fontWeight: 700, color: 'var(--portal-primary)', marginTop: 16 }}>Booking Confirmed!</p>
             {bookingCode && (
-              <p style={{ fontSize: 20, fontWeight: 700, fontFamily: 'monospace', color: T.textPrimary, marginTop: 8 }}>{bookingCode}</p>
+              <p style={{ fontSize: 20, fontWeight: 700, fontFamily: 'monospace', color: 'var(--portal-text-primary)', marginTop: 8 }}>{bookingCode}</p>
             )}
-            <p style={{ fontSize: 14, color: T.textSecondary, marginTop: 8 }}>Your payment has been received and your booking is confirmed.</p>
-            <p style={{ fontSize: 18, fontWeight: 600, color: T.textPrimary, marginTop: 8 }}>{formatCents(session.amount_cents)}</p>
+            <p style={{ fontSize: 14, color: 'var(--portal-text-secondary)', marginTop: 8 }}>Your payment has been received and your booking is confirmed.</p>
+            <p style={{ fontSize: 18, fontWeight: 600, color: 'var(--portal-text-primary)', marginTop: 8 }}>{formatCents(session.amount_cents)}</p>
             <button onClick={() => navigate(portalPath('bookings'))} style={btnStyle}>View My Bookings</button>
             <button onClick={() => navigate(portalPath())} style={ghostBtnStyle}>Back to Home</button>
           </div>
@@ -150,9 +149,9 @@ export default function PortalPaymentResult() {
     return (
       <div style={containerStyle}>
         <div style={cardStyle}>
-          <CheckCircle size={48} color={T.teal} />
-          <p style={{ fontSize: 20, fontWeight: 600, color: T.textPrimary, marginTop: 16 }}>{heading}</p>
-          <p style={{ fontSize: 15, color: T.textMuted, marginTop: 8 }}>{subtext}</p>
+          <CheckCircle size={48} color="var(--portal-success)" />
+          <p style={{ fontSize: 20, fontWeight: 600, color: 'var(--portal-text-primary)', marginTop: 16 }}>{heading}</p>
+          <p style={{ fontSize: 15, color: 'var(--portal-text-muted)', marginTop: 8 }}>{subtext}</p>
           <button onClick={() => navigate(portalPath())} style={btnStyle}>Back to Home</button>
         </div>
       </div>
@@ -162,8 +161,8 @@ export default function PortalPaymentResult() {
   return (
     <div style={containerStyle}>
       <div style={cardStyle}>
-        <Loader2 size={48} color={T.textMuted} />
-        <p style={{ fontSize: 15, color: T.textMuted, marginTop: 16 }}>
+        <Loader2 size={48} color="var(--portal-text-muted)" />
+        <p style={{ fontSize: 15, color: 'var(--portal-text-muted)', marginTop: 16 }}>
           Your payment was received but is still being processed. Your balance will update shortly.
         </p>
         <button onClick={() => navigate(portalPath())} style={btnStyle}>Back to Home</button>
