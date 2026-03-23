@@ -190,7 +190,7 @@ function UpcomingBookingsCard({ venueId, memberId }: { venueId: string; memberId
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <span style={{ fontSize: 16, fontWeight: 600, color: T.textPrimary }}>Your Bookings</span>
         <button
-          onClick={() => navigate('/portal/bookings')}
+          onClick={() => navigate(portalPath('bookings'))}
           style={{ fontSize: 14, fontWeight: 500, color: T.teal, background: 'none', border: 'none', cursor: 'pointer' }}
         >
           Book now →
