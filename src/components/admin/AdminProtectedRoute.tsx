@@ -13,7 +13,7 @@ export default function AdminProtectedRoute() {
     );
   }
 
-  if (!adminUser) {
+  if (!adminUser || !adminUser.is_active) {
     return <Navigate to={`/${slug}/admin/login`} replace />;
   }
 
