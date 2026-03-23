@@ -18,6 +18,7 @@ interface Props {
 
 export default function BookingConfirmation({ bookingCode, isFree, bookingId, totalCents = 0, bookingFor = 'self', guestName, onSelectPayment, paymentLoading }: Props) {
   const navigate = useNavigate();
+  const { portalPath } = useVenueNav();
   const [copied, setCopied] = useState(false);
   const isVisitor = bookingFor === 'visitor';
   const showPayment = !isFree && totalCents > 0 && onSelectPayment && !isVisitor;
