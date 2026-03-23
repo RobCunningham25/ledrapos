@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { formatCents } from '@/utils/currency';
 import { supabase } from '@/integrations/supabase/client';
+import { useVenue } from '@/contexts/VenueContext';
 import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
 
@@ -15,6 +16,7 @@ interface CreditLoadSheetProps {
 }
 
 export default function CreditLoadSheet({ open, onClose, memberId, venueId }: CreditLoadSheetProps) {
+  const { venueSlug } = useVenue();
   const [selectedQuick, setSelectedQuick] = useState<number | null>(null);
   const [customValue, setCustomValue] = useState('');
   const [loading, setLoading] = useState(false);
@@ -42,7 +44,7 @@ export default function CreditLoadSheet({ open, onClose, memberId, venueId }: Cr
 
     try {
       const { data, error } = await supabase.functions.invoke('create-checkout', {
-        body: { member_id: memberId, venue_id: venueId, purpose: 'credit_load', amount_cents: amountCents },
+        body: { member_id: memberId, venue_id: venueId, venue_slug: venueSlug, purpose: 'credit_load', amount_cents: amountCents },
       });
 
       if (error) throw new Error(error.message);

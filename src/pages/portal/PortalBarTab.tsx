@@ -30,6 +30,7 @@ import { toast } from 'sonner';
 import { format, formatDistanceToNow } from 'date-fns';
 import { ChevronDown, ChevronUp, Loader2, ArrowLeft, Receipt } from 'lucide-react';
 import { useVenueNav } from '@/hooks/useVenueNav';
+import { useVenue } from '@/contexts/VenueContext';
 import { Skeleton } from '@/components/ui/skeleton';
 import CreditLoadSheet from '@/components/portal/CreditLoadSheet';
 import CreditBalanceBarCard from '@/components/portal/CreditBalanceBarCard';
@@ -94,10 +95,10 @@ function PayTabDialog({ amountCents, onConfirm, onCancel, loading }: {
 
 // ─── Open Tab Card ───────────────────────────────────────────────────
 function OpenTabCard({
-  items, openedAt, totalPaidCents, tabId, memberId, venueId, isLoading, error,
+  items, openedAt, totalPaidCents, tabId, memberId, venueId, venueSlug, isLoading, error,
 }: {
   items: TabItem[] | null; openedAt: string | null; totalPaidCents: number;
-  tabId: string | null; memberId: string; venueId: string; isLoading: boolean; error: string | null;
+  tabId: string | null; memberId: string; venueId: string; venueSlug: string; isLoading: boolean; error: string | null;
 }) {
   const [showPayDialog, setShowPayDialog] = useState(false);
   const [payLoading, setPayLoading] = useState(false);
@@ -139,7 +140,7 @@ function OpenTabCard({
     setPayLoading(true);
     try {
       const { data, error: fnErr } = await supabase.functions.invoke('create-checkout', {
-        body: { member_id: memberId, venue_id: venueId, purpose: 'tab_payment', amount_cents: amountDue, tab_id: tabId },
+        body: { member_id: memberId, venue_id: venueId, venue_slug: venueSlug, purpose: 'tab_payment', amount_cents: amountDue, tab_id: tabId },
       });
       if (fnErr) throw new Error(fnErr.message);
       if (!data?.success) throw new Error(data?.error || 'Failed to create checkout');
@@ -330,6 +331,7 @@ export default function PortalBarTab() {
   const { member } = usePortalAuth();
   const navigate = useNavigate();
   const { portalPath } = useVenueNav();
+  const { venueSlug } = useVenue();
   const memberId = member?.id ?? '';
   const venueId = member?.venue_id ?? '';
 
@@ -529,6 +531,7 @@ export default function PortalBarTab() {
       tabId={openTabId}
       memberId={memberId}
       venueId={venueId}
+      venueSlug={venueSlug}
       isLoading={tabLoading && isFirstLoad}
       error={tabError}
     />

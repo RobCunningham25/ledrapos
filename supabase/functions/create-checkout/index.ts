@@ -21,12 +21,19 @@ Deno.serve(async (req: Request) => {
     );
 
     const body = await req.json();
-    const { member_id, venue_id, purpose, amount_cents, tab_id, booking_id } = body;
+    const { member_id, venue_id, venue_slug, purpose, amount_cents, tab_id, booking_id } = body;
 
     // Validate required fields — member_id is optional for booking_payment (visitor bookings)
     if (!venue_id || !purpose || !amount_cents) {
       return new Response(
         JSON.stringify({ error: "Missing required fields: venue_id, purpose, amount_cents" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    if (!venue_slug || typeof venue_slug !== "string") {
+      return new Response(
+        JSON.stringify({ error: "Missing required field: venue_slug" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -258,15 +265,15 @@ Deno.serve(async (req: Request) => {
     let failureUrl: string;
 
     if (purpose === "booking_payment" && !member_id) {
-      // Visitor payment — return to public booking page
+      // Visitor payment — return to public booking page (not slug-scoped)
       successUrl = `${PORTAL_BASE_URL}/booking/${bookingData.booking_code}?payment=success`;
       cancelUrl = `${PORTAL_BASE_URL}/booking/${bookingData.booking_code}?payment=cancelled`;
       failureUrl = `${PORTAL_BASE_URL}/booking/${bookingData.booking_code}?payment=failed`;
     } else {
-      // Member payment — return to portal payment result
-      successUrl = `${PORTAL_BASE_URL}/portal/payment-result?session_id=${session.id}&status=success`;
-      cancelUrl = `${PORTAL_BASE_URL}/portal/payment-result?session_id=${session.id}&status=cancelled`;
-      failureUrl = `${PORTAL_BASE_URL}/portal/payment-result?session_id=${session.id}&status=failed`;
+      // Member payment — return to slug-aware portal payment result
+      successUrl = `${PORTAL_BASE_URL}/${venue_slug}/portal/payment-result?session_id=${session.id}&status=success`;
+      cancelUrl = `${PORTAL_BASE_URL}/${venue_slug}/portal/payment-result?session_id=${session.id}&status=cancelled`;
+      failureUrl = `${PORTAL_BASE_URL}/${venue_slug}/portal/payment-result?session_id=${session.id}&status=failed`;
     }
 
     // Call Yoco Checkout API

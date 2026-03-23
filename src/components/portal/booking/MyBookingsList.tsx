@@ -7,6 +7,7 @@ import { format } from 'date-fns';
 import { CreditCard, Building2, X, ChevronDown, ChevronUp, Link as LinkIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import { usePortalAuth } from '@/contexts/PortalAuthContext';
+import { useVenue } from '@/contexts/VenueContext';
 import EFTDetailsScreen from '@/components/portal/booking/EFTDetailsScreen';
 
 const STATUS_STYLES: Record<string, React.CSSProperties> = {
@@ -20,6 +21,7 @@ interface Props { venueId: string; memberId: string; }
 
 export default function MyBookingsList({ venueId, memberId }: Props) {
   const { member } = usePortalAuth();
+  const { venueSlug } = useVenue();
   const queryClient = useQueryClient();
   const [payModalBooking, setPayModalBooking] = useState<any>(null);
   const [payLoading, setPayLoading] = useState(false);
@@ -53,6 +55,7 @@ export default function MyBookingsList({ venueId, memberId }: Props) {
         body: {
           member_id: member.id,
           venue_id: member.venue_id,
+          venue_slug: venueSlug,
           purpose: 'booking_payment',
           amount_cents: b.total_price_cents,
           booking_id: b.id,

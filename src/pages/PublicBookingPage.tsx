@@ -71,7 +71,7 @@ export default function PublicBookingPage() {
   const { data: venue } = useQuery({
     queryKey: ['public-booking-venue', booking?.venue_id],
     queryFn: async () => {
-      const { data } = await supabase.from('venues').select('name').eq('id', booking!.venue_id).single();
+      const { data } = await supabase.from('venues').select('name, slug').eq('id', booking!.venue_id).single();
       return data;
     },
     enabled: !!booking?.venue_id,
@@ -123,6 +123,7 @@ export default function PublicBookingPage() {
         body: {
           member_id: booking.member_id || null,
           venue_id: booking.venue_id,
+          venue_slug: venue?.slug || '',
           purpose: 'booking_payment',
           amount_cents: booking.total_price_cents,
           booking_id: booking.id,
