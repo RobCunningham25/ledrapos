@@ -15,7 +15,8 @@ export function usePortalOpenTab(memberId: string, venueId: string) {
   const [openedAt, setOpenedAt] = useState<string | null>(null);
   const [totalPaidCents, setTotalPaidCents] = useState(0);
   const [tabId, setTabId] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
+  const [hasFetched, setHasFetched] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const fetch = useCallback(async (silent = false) => {
@@ -32,11 +33,11 @@ export function usePortalOpenTab(memberId: string, venueId: string) {
       .limit(1)
       .maybeSingle();
 
-    if (tabErr) { setError(tabErr.message); setIsLoading(false); return; }
+    if (tabErr) { setError(tabErr.message); setIsLoading(false); setHasFetched(true); return; }
 
     if (!tabData) {
       setItems(null); setOpenedAt(null); setTotalPaidCents(0); setTabId(null);
-      setIsLoading(false); return;
+      setIsLoading(false); setHasFetched(true); return;
     }
 
     setOpenedAt(tabData.opened_at);
@@ -63,6 +64,7 @@ export function usePortalOpenTab(memberId: string, venueId: string) {
 
     setTotalPaidCents((paymentsRes.data || []).reduce((s, p) => s + p.amount_cents, 0));
     setIsLoading(false);
+    setHasFetched(true);
   }, [memberId, venueId]);
 
   useEffect(() => { fetch(); }, [fetch]);
@@ -70,5 +72,7 @@ export function usePortalOpenTab(memberId: string, venueId: string) {
   const tabTotal = items ? items.reduce((s, i) => s + i.line_total_cents, 0) : 0;
   const amountDue = tabTotal - totalPaidCents;
 
-  return { items, openedAt, totalPaidCents, tabId, tabTotal, amountDue, isLoading, error, refetch: fetch };
+  const effectiveLoading = (!memberId || !venueId) ? false : (isLoading && !hasFetched);
+
+  return { items, openedAt, totalPaidCents, tabId, tabTotal, amountDue, isLoading: effectiveLoading, error, refetch: fetch };
 }

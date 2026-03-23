@@ -333,19 +333,19 @@ export default function PortalBarTab() {
 
   // Credit balance
   const [creditBalance, setCreditBalance] = useState(0);
-  const [creditLoading, setCreditLoading] = useState(true);
+  const [creditLoading, setCreditLoading] = useState(false);
 
   // Open tab
   const [openTabItems, setOpenTabItems] = useState<TabItem[] | null>(null);
   const [openTabOpenedAt, setOpenTabOpenedAt] = useState<string | null>(null);
   const [openTabPaid, setOpenTabPaid] = useState(0);
   const [openTabId, setOpenTabId] = useState<string | null>(null);
-  const [tabLoading, setTabLoading] = useState(true);
+  const [tabLoading, setTabLoading] = useState(false);
   const [tabError, setTabError] = useState<string | null>(null);
 
   // History
   const [closedTabs, setClosedTabs] = useState<ClosedTab[]>([]);
-  const [historyLoading, setHistoryLoading] = useState(true);
+  const [historyLoading, setHistoryLoading] = useState(false);
   const [historyOffset, setHistoryOffset] = useState(0);
   const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);

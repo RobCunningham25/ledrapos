@@ -26,7 +26,7 @@ export default function MyBookingsList({ venueId, memberId }: Props) {
   const [showEFT, setShowEFT] = useState<{ code: string; total: number } | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  const { data: bookings, isLoading } = useQuery({
+  const { data: bookings, isLoading, fetchStatus } = useQuery({
     queryKey: ['portal-my-bookings', venueId, memberId],
     queryFn: async () => {
       const { data } = await supabase
@@ -37,6 +37,8 @@ export default function MyBookingsList({ venueId, memberId }: Props) {
         .order('check_in', { ascending: false });
       return data || [];
     },
+    enabled: !!venueId && !!memberId,
+    staleTime: 30_000,
   });
 
   if (showEFT) {
@@ -95,7 +97,7 @@ export default function MyBookingsList({ venueId, memberId }: Props) {
   };
 
   // Loading skeleton
-  if (isLoading) {
+  if (isLoading && fetchStatus !== 'idle') {
     return (
       <div style={{ marginBottom: 32 }}>
         <h2 style={{ fontSize: 20, fontWeight: 600, color: T.navy, marginBottom: 16 }}>My Bookings</h2>

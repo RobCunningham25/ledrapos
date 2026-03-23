@@ -3,10 +3,11 @@ import { supabase } from '@/integrations/supabase/client';
 
 export function usePortalCredit(memberId: string, venueId: string) {
   const [balance, setBalance] = useState(0);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
+  const [hasFetched, setHasFetched] = useState(false);
 
   const fetch = useCallback(async (silent = false) => {
-    if (!memberId) return;
+    if (!memberId || !venueId) return;
     if (!silent) setIsLoading(true);
     const { data } = await supabase
       .from('member_credits')
@@ -18,9 +19,13 @@ export function usePortalCredit(memberId: string, venueId: string) {
       setBalance(Math.max(0, bal));
     }
     setIsLoading(false);
+    setHasFetched(true);
   }, [memberId, venueId]);
 
   useEffect(() => { fetch(); }, [fetch]);
 
-  return { balance, isLoading, refetch: fetch };
+  // isLoading is true only during active fetch, not when params are missing
+  const effectiveLoading = (!memberId || !venueId) ? false : (isLoading && !hasFetched);
+
+  return { balance, isLoading: effectiveLoading, refetch: fetch };
 }
