@@ -53,7 +53,8 @@ export default function PortalLayout() {
   const visibleTabs = allTabs.filter(t => t.key === null || enabledKeys[t.key]);
 
   const isActive = (path: string) => {
-    if (path === '/portal') return location.pathname === '/portal' || location.pathname === '/portal/bar-tab';
+    const portalHome = portalPath();
+    if (path === portalHome) return location.pathname === portalHome || location.pathname === portalPath('bar-tab');
     return location.pathname.startsWith(path);
   };
 
