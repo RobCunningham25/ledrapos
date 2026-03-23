@@ -193,7 +193,7 @@ function UpcomingBookingsCard({ venueId, memberId }: { venueId: string; memberId
           Book now →
         </button>
       </div>
-      {isLoading ? (
+      {showLoading ? (
         <div>
           {[0, 1].map(i => (
             <div key={i} style={{ padding: '10px 0', borderBottom: i === 0 ? `1px solid ${T.cardBorder}` : 'none' }}>
