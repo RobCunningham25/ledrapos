@@ -283,7 +283,7 @@ function UpcomingEventsCard({ venueId }: { venueId: string }) {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <span style={{ fontSize: 16, fontWeight: 600, color: T.textPrimary }}>Upcoming Events</span>
         <button
-          onClick={() => navigate('/portal/calendar')}
+          onClick={() => navigate(portalPath('calendar'))}
           style={{ fontSize: 14, fontWeight: 500, color: T.teal, background: 'none', border: 'none', cursor: 'pointer' }}
         >
           View all →
