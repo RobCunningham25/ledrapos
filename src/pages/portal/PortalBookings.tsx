@@ -2,6 +2,7 @@ import { useState, useCallback, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { usePortalAuth } from '@/contexts/PortalAuthContext';
+import { useVenue } from '@/contexts/VenueContext';
 import { PORTAL_THEME as T } from '@/constants/portalTheme';
 import { toast } from 'sonner';
 import { differenceInCalendarDays } from 'date-fns';
@@ -16,8 +17,8 @@ import EFTDetailsScreen from '@/components/portal/booking/EFTDetailsScreen';
 import MyBookingsList from '@/components/portal/booking/MyBookingsList';
 
 const CODE_CHARS = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
-function generateBookingCode(): string {
-  let code = 'VCA-';
+function generateBookingCode(prefix: string): string {
+  let code = `${prefix}-`;
   for (let i = 0; i < 6; i++) code += CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)];
   return code;
 }
