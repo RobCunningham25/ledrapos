@@ -43,7 +43,6 @@ const POS = () => {
       <TopBar
         userName={currentUser.name}
         userRole={currentUser.role}
-        onTestLock={() => setIsLocked(true)}
         onLogout={handleLogout}
       />
       <div className="flex flex-1 min-h-0">
