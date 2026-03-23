@@ -21,7 +21,7 @@ import { cn } from '@/lib/utils';
 
 
 const POS = () => {
-  const { currentUser, isAuthenticated, isLocked, refreshActivity, logout, setIsLocked } = usePOSAuth();
+  const { currentUser, isAuthenticated, isLocked, refreshActivity, logout } = usePOSAuth();
   const navigate = useNavigate();
   const { posPath } = useVenueNav();
 
