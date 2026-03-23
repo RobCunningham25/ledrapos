@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useVenueNav } from '@/hooks/useVenueNav';
 import AdminLayout from '@/components/admin/AdminLayout';
 import MemberDrawer from '@/components/admin/MemberDrawer';
 import MemberFavouritesDrawer from '@/components/admin/MemberFavouritesDrawer';
