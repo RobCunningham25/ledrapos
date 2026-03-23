@@ -123,6 +123,7 @@ export default function PublicBookingPage() {
         body: {
           member_id: booking.member_id || null,
           venue_id: booking.venue_id,
+          venue_slug: venue?.slug || '',
           purpose: 'booking_payment',
           amount_cents: booking.total_price_cents,
           booking_id: booking.id,
