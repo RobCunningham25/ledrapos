@@ -125,9 +125,9 @@ export default function Members() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Types</SelectItem>
-            <SelectItem value="member">Member</SelectItem>
-            <SelectItem value="associate">Associate</SelectItem>
-            <SelectItem value="honorary">Honorary</SelectItem>
+            {MEMBERSHIP_TYPES.map(t => (
+              <SelectItem key={t} value={t}>{getMembershipLabel(t)}</SelectItem>
+            ))}
           </SelectContent>
         </Select>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
