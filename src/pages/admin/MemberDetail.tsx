@@ -430,7 +430,7 @@ export default function MemberDetail() {
             fontSize: 12, fontWeight: 600, color: tc.text, background: tc.bg,
           }}
         >
-          {member.membership_type.charAt(0).toUpperCase() + member.membership_type.slice(1)}
+          {getMembershipLabel(member.membership_type)}
         </span>
         <span
           style={{
