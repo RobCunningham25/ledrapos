@@ -265,15 +265,15 @@ Deno.serve(async (req: Request) => {
     let failureUrl: string;
 
     if (purpose === "booking_payment" && !member_id) {
-      // Visitor payment — return to public booking page
+      // Visitor payment — return to public booking page (not slug-scoped)
       successUrl = `${PORTAL_BASE_URL}/booking/${bookingData.booking_code}?payment=success`;
       cancelUrl = `${PORTAL_BASE_URL}/booking/${bookingData.booking_code}?payment=cancelled`;
       failureUrl = `${PORTAL_BASE_URL}/booking/${bookingData.booking_code}?payment=failed`;
     } else {
-      // Member payment — return to portal payment result
-      successUrl = `${PORTAL_BASE_URL}/portal/payment-result?session_id=${session.id}&status=success`;
-      cancelUrl = `${PORTAL_BASE_URL}/portal/payment-result?session_id=${session.id}&status=cancelled`;
-      failureUrl = `${PORTAL_BASE_URL}/portal/payment-result?session_id=${session.id}&status=failed`;
+      // Member payment — return to slug-aware portal payment result
+      successUrl = `${PORTAL_BASE_URL}/${venue_slug}/portal/payment-result?session_id=${session.id}&status=success`;
+      cancelUrl = `${PORTAL_BASE_URL}/${venue_slug}/portal/payment-result?session_id=${session.id}&status=cancelled`;
+      failureUrl = `${PORTAL_BASE_URL}/${venue_slug}/portal/payment-result?session_id=${session.id}&status=failed`;
     }
 
     // Call Yoco Checkout API
