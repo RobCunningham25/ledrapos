@@ -32,6 +32,7 @@ type View = 'login' | 'signup' | 'forgot';
 
 export default function AdminLogin() {
   const navigate = useNavigate();
+  const { slug } = useParams<{ slug: string }>();
   const { toast } = useToast();
   const [view, setView] = useState<View>('login');
   const [email, setEmail] = useState('');
