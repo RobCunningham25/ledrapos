@@ -329,7 +329,7 @@ export default function PortalDashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-[1.2fr_1fr] gap-5">
         <CreditTabCard memberId={memberId} venueId={venueId} />
         <UpcomingEventsCard venueId={venueId} />
-        <WidgetCard title="Your Bookings" linkLabel="Book now" linkTo="/portal/bookings" icon={BedDouble} emptyText="No upcoming bookings" />
+        <UpcomingBookingsCard venueId={venueId} memberId={memberId} />
       </div>
     </div>
   );

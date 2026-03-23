@@ -184,8 +184,9 @@ export default function PublicBookingPage() {
   // Loading
   if (isLoading) {
     return (
-      <div style={{ minHeight: '100vh', background: T.pageBg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ minHeight: '100vh', background: T.pageBg, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12 }}>
         <Loader2 size={48} color={T.textMuted} className="animate-spin" />
+        <p style={{ fontSize: 14, color: T.textMuted }}>Loading booking details...</p>
       </div>
     );
   }
