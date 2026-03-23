@@ -122,6 +122,53 @@ export type Database = {
           },
         ]
       }
+      club_events: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          description: string | null
+          end_time: string | null
+          event_date: string
+          id: string
+          location: string | null
+          start_time: string | null
+          title: string
+          venue_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          end_time?: string | null
+          event_date: string
+          id?: string
+          location?: string | null
+          start_time?: string | null
+          title: string
+          venue_id: string
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          end_time?: string | null
+          event_date?: string
+          id?: string
+          location?: string | null
+          start_time?: string | null
+          title?: string
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "club_events_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       liquor_products: {
         Row: {
           abv: number | null
