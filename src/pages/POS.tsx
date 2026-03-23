@@ -5,6 +5,7 @@ import { useCart } from '@/contexts/CartContext';
 import { usePOSProducts } from '@/hooks/usePOSProducts';
 import { useMemberFavourites } from '@/hooks/useMemberFavourites';
 import { useVenue } from '@/contexts/VenueContext';
+import { useVenueNav } from '@/hooks/useVenueNav';
 import { formatCents } from '@/utils/currency';
 import { CATEGORIES, CATEGORY_COLORS } from '@/constants/productCategories';
 import PINLogin from '@/components/pos/PINLogin';
