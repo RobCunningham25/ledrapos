@@ -147,7 +147,7 @@ function UpcomingBookingsCard({ venueId, memberId }: { venueId: string; memberId
   const navigate = useNavigate();
   const today = new Date().toISOString().slice(0, 10);
 
-  const { data: bookings, isLoading } = useQuery({
+  const { data: bookings, isLoading, fetchStatus } = useQuery({
     queryKey: ['portal-upcoming-bookings', venueId, memberId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -163,7 +163,11 @@ function UpcomingBookingsCard({ venueId, memberId }: { venueId: string; memberId
       return data || [];
     },
     enabled: !!venueId && !!memberId,
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
   });
+
+  const showLoading = isLoading && fetchStatus !== 'idle';
 
   const fmtShort = (d: string) => {
     const dt = new Date(d + 'T12:00:00');
