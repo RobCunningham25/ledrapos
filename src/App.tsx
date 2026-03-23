@@ -56,6 +56,7 @@ const App = () => (
                   <Route path="members/:id" element={<MemberDetail />} />
                   <Route path="reports" element={<Reports />} />
                   <Route path="events" element={<Events />} />
+                  <Route path="bookings" element={<AdminBookings />} />
                   <Route path="settings" element={<Settings />} />
                 </Route>
                 <Route path="/portal/login" element={<PortalLogin />} />

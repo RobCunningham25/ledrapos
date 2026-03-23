@@ -15,6 +15,7 @@ const navItems = [
   { label: 'Products', path: '/admin/products', icon: Package },
   { label: 'Members', path: '/admin/members', icon: Users },
   { label: 'Events', path: '/admin/events', icon: CalendarDays },
+  { label: 'Bookings', path: '/admin/bookings', icon: BedDouble },
   { label: 'Reports', path: '/admin/reports', icon: BarChart3 },
   { label: 'Settings', path: '/admin/settings', icon: Settings },
 ];
