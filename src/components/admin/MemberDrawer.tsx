@@ -49,7 +49,7 @@ const emptyForm: FormState = {
   membership_number: '',
   email: '',
   phone: '',
-  membership_type: 'member',
+  membership_type: 'ordinary',
   partner_first_name: '',
   partner_last_name: '',
   is_active: true,
