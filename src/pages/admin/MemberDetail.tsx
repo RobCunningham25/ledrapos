@@ -415,7 +415,7 @@ export default function MemberDetail() {
     }>
       {/* Back link */}
       <button
-        onClick={() => navigate('/admin/members')}
+        onClick={() => navigate(adminPath('members'))}
         className="flex items-center gap-1 mb-4 transition-colors"
         style={{ fontSize: 14, color: '#718096' }}
         onMouseEnter={e => (e.currentTarget.style.color = '#2E5FA3')}

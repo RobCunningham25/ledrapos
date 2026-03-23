@@ -34,7 +34,7 @@ const PINLogin = () => {
     const result = await login(pin);
     setLoading(false);
     if (result.success) {
-      navigate('/pos');
+      navigate(posPath);
     } else {
       setPin('');
       setError(result.error || 'Invalid PIN, please try again');

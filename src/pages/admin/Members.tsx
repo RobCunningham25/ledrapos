@@ -36,6 +36,7 @@ const TYPE_COLORS: Record<string, { text: string; bg: string }> = {
 
 export default function Members() {
   const navigate = useNavigate();
+  const { adminPath } = useVenueNav();
   const { venueId } = useVenue();
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);

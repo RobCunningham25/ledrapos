@@ -29,6 +29,7 @@ import { PORTAL_THEME as T } from '@/constants/portalTheme';
 import { toast } from 'sonner';
 import { format, formatDistanceToNow } from 'date-fns';
 import { ChevronDown, ChevronUp, Loader2, ArrowLeft, Receipt } from 'lucide-react';
+import { useVenueNav } from '@/hooks/useVenueNav';
 import { Skeleton } from '@/components/ui/skeleton';
 import CreditLoadSheet from '@/components/portal/CreditLoadSheet';
 import CreditBalanceBarCard from '@/components/portal/CreditBalanceBarCard';
