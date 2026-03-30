@@ -4,6 +4,7 @@ import { usePOSAuth } from '@/contexts/POSAuthContext';
 import { useVenue } from '@/contexts/VenueContext';
 import { useVenueNav } from '@/hooks/useVenueNav';
 import { Loader2 } from 'lucide-react';
+import ledraLogo from '@/assets/ledra-logo.svg';
 
 const MAX_PIN_LENGTH = 6;
 
@@ -45,7 +46,10 @@ const PINLogin = () => {
     <div className="flex min-h-screen items-center justify-center bg-page px-4">
       <div className="w-full max-w-[400px] rounded-lg border border-border bg-card p-10 shadow-subtle">
         <div className="mb-8 text-center">
-          <h1 className="text-[28px] font-bold text-primary">LedraPOS</h1>
+          <h1 className="flex items-center justify-center gap-2 text-[28px] font-bold text-primary">
+            <img src={ledraLogo} alt="Ledra" className="h-8" />
+            <span>POS</span>
+          </h1>
           <p className="mt-1 text-sm text-muted-foreground">{venueName}</p>
         </div>
 
