@@ -101,7 +101,10 @@ function TopBar({
 
   return (
     <header className="h-14 shrink-0 flex items-center justify-between px-4 bg-card border-b border-border">
-      <span className="text-base font-bold text-primary">LedraPOS</span>
+      <span className="flex items-center gap-1.5 text-base font-bold text-primary">
+        <img src={ledraLogo} alt="Ledra" className="h-5" />
+        <span>POS</span>
+      </span>
       <span className="text-sm text-muted-foreground hidden sm:block">{formatted}</span>
       <div className="flex items-center gap-3">
         <span className="text-sm text-muted-foreground">
