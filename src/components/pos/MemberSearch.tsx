@@ -13,6 +13,7 @@ interface MemberResult {
   last_name: string;
   membership_number: string;
   partner_name: string | null;
+  partner_first_name: string | null;
 }
 
 export default function MemberSearch() {
