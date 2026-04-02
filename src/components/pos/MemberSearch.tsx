@@ -13,6 +13,7 @@ interface MemberResult {
   last_name: string;
   membership_number: string;
   partner_name: string | null;
+  partner_first_name: string | null;
 }
 
 export default function MemberSearch() {
@@ -36,10 +37,10 @@ export default function MemberSearch() {
     const pattern = `%${q.trim()}%`;
     const { data } = await supabase
       .from('members')
-      .select('id, first_name, last_name, membership_number, partner_name')
+      .select('id, first_name, last_name, membership_number, partner_name, partner_first_name')
       .eq('venue_id', venueId)
       .eq('is_active', true)
-      .or(`first_name.ilike.${pattern},last_name.ilike.${pattern},membership_number.ilike.${pattern},partner_name.ilike.${pattern}`)
+      .or(`first_name.ilike.${pattern},last_name.ilike.${pattern},membership_number.ilike.${pattern},partner_name.ilike.${pattern},partner_first_name.ilike.${pattern}`)
       .limit(8);
     setResults(data || []);
     setIsSearching(false);
@@ -65,12 +66,16 @@ export default function MemberSearch() {
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
+  const formatDisplayName = (first: string, partnerFirst: string | null) =>
+    partnerFirst ? `${first} & ${partnerFirst}` : first;
+
   const handleSelectMember = (m: MemberResult) => {
     selectMember({
       id: m.id,
       firstName: m.first_name,
       lastName: m.last_name,
       membershipNumber: m.membership_number,
+      partnerFirstName: m.partner_first_name,
     });
     setSearch('');
     setIsOpen(false);
@@ -130,7 +135,7 @@ export default function MemberSearch() {
           )}
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold text-foreground truncate">
-              {isCashCustomer ? `Cash Customer — ${cashCustomerName}` : `${activeMember?.firstName} ${activeMember?.lastName}`}
+              {isCashCustomer ? `Cash Customer — ${cashCustomerName}` : `${formatDisplayName(activeMember?.firstName || '', activeMember?.partnerFirstName)} ${activeMember?.lastName}`}
             </p>
             <p className="text-xs text-muted-foreground truncate">
               {isCashCustomer ? 'Walk-in' : activeMember?.membershipNumber}
@@ -198,12 +203,9 @@ export default function MemberSearch() {
                 </span>
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-foreground truncate">{m.first_name} {m.last_name}</p>
+                <p className="text-sm font-semibold text-foreground truncate">{formatDisplayName(m.first_name, m.partner_first_name)} {m.last_name}</p>
                 <p className="text-xs text-muted-foreground">{m.membership_number}</p>
               </div>
-              {m.partner_name && (
-                <span className="text-xs text-muted-foreground shrink-0">{m.partner_name}</span>
-              )}
             </button>
           ))}
           {search.trim() && results.length === 0 && !isSearching && (

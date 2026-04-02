@@ -17,6 +17,7 @@ interface OpenTab {
   member_first_name?: string;
   member_last_name?: string;
   membership_number?: string;
+  partner_first_name?: string | null;
   item_count: number;
   total_cents: number;
 }
@@ -31,7 +32,7 @@ export default function OpenTabsPanel() {
     setLoading(true);
     const { data } = await supabase
       .from('tabs')
-      .select('id, member_id, is_cash_customer, cash_customer_name, status, opened_at, members(first_name, last_name, membership_number)')
+      .select('id, member_id, is_cash_customer, cash_customer_name, status, opened_at, members(first_name, last_name, membership_number, partner_first_name)')
       .eq('venue_id', venueId)
       .eq('status', 'OPEN')
       .order('opened_at', { ascending: false });
@@ -63,6 +64,7 @@ export default function OpenTabsPanel() {
         member_first_name: t.members?.first_name,
         member_last_name: t.members?.last_name,
         membership_number: t.members?.membership_number,
+        partner_first_name: t.members?.partner_first_name,
         item_count: itemMap[t.id]?.count || 0,
         total_cents: itemMap[t.id]?.total || 0,
       })).filter((t: OpenTab) => !t.is_cash_customer || t.item_count > 0);
@@ -97,6 +99,7 @@ export default function OpenTabsPanel() {
         firstName: tab.member_first_name,
         lastName: tab.member_last_name,
         membershipNumber: tab.membership_number || '',
+        partnerFirstName: tab.partner_first_name,
       });
     }
   };
@@ -134,9 +137,12 @@ export default function OpenTabsPanel() {
             const openedTime = tab.opened_at
               ? new Date(tab.opened_at).toLocaleTimeString('en-ZA', { hour: '2-digit', minute: '2-digit', hour12: false })
               : '';
+            const displayFirst = tab.partner_first_name
+              ? `${tab.member_first_name} & ${tab.partner_first_name}`
+              : tab.member_first_name;
             const name = tab.is_cash_customer
               ? (tab.cash_customer_name || 'Cash Customer')
-              : `${tab.member_first_name} ${tab.member_last_name}`;
+              : `${displayFirst} ${tab.member_last_name}`;
             const isEmpty = tab.total_cents === 0;
 
             return (
