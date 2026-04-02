@@ -5,6 +5,7 @@ export const CATEGORY_COLORS: Record<string, string> = {
   soft_drinks: '#16A34A',
   water: '#0891B2',
   ciders: '#DC2626',
+  shooters: '#EC4899',
   mixers: '#9333EA',
   snacks: '#EA580C',
   other: '#6B7280',
@@ -17,6 +18,7 @@ export const CATEGORIES = [
   { value: 'soft_drinks', label: 'Soft Drinks' },
   { value: 'water', label: 'Water' },
   { value: 'ciders', label: 'Ciders' },
+  { value: 'shooters', label: 'Shooters' },
   { value: 'mixers', label: 'Mixers' },
   { value: 'snacks', label: 'Snacks' },
   { value: 'other', label: 'Other' },
@@ -29,6 +31,7 @@ export type ProductCategory =
   | 'soft_drinks'
   | 'water'
   | 'ciders'
+  | 'shooters'
   | 'mixers'
   | 'snacks'
   | 'other';
