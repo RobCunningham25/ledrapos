@@ -31,7 +31,7 @@ export default function OpenTabsPanel() {
     setLoading(true);
     const { data } = await supabase
       .from('tabs')
-      .select('id, member_id, is_cash_customer, cash_customer_name, status, opened_at, members(first_name, last_name, membership_number)')
+      .select('id, member_id, is_cash_customer, cash_customer_name, status, opened_at, members(first_name, last_name, membership_number, partner_first_name)')
       .eq('venue_id', venueId)
       .eq('status', 'OPEN')
       .order('opened_at', { ascending: false });
