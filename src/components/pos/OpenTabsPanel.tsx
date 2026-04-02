@@ -99,6 +99,7 @@ export default function OpenTabsPanel() {
         firstName: tab.member_first_name,
         lastName: tab.member_last_name,
         membershipNumber: tab.membership_number || '',
+        partnerFirstName: tab.partner_first_name,
       });
     }
   };
