@@ -66,12 +66,16 @@ export default function MemberSearch() {
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
+  const formatDisplayName = (first: string, partnerFirst: string | null) =>
+    partnerFirst ? `${first} & ${partnerFirst}` : first;
+
   const handleSelectMember = (m: MemberResult) => {
     selectMember({
       id: m.id,
       firstName: m.first_name,
       lastName: m.last_name,
       membershipNumber: m.membership_number,
+      partnerFirstName: m.partner_first_name,
     });
     setSearch('');
     setIsOpen(false);
