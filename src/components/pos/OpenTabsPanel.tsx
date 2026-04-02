@@ -17,6 +17,7 @@ interface OpenTab {
   member_first_name?: string;
   member_last_name?: string;
   membership_number?: string;
+  partner_first_name?: string | null;
   item_count: number;
   total_cents: number;
 }
