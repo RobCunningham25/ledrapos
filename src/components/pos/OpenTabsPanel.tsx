@@ -64,6 +64,7 @@ export default function OpenTabsPanel() {
         member_first_name: t.members?.first_name,
         member_last_name: t.members?.last_name,
         membership_number: t.members?.membership_number,
+        partner_first_name: t.members?.partner_first_name,
         item_count: itemMap[t.id]?.count || 0,
         total_cents: itemMap[t.id]?.total || 0,
       })).filter((t: OpenTab) => !t.is_cash_customer || t.item_count > 0);
