@@ -37,10 +37,10 @@ export default function MemberSearch() {
     const pattern = `%${q.trim()}%`;
     const { data } = await supabase
       .from('members')
-      .select('id, first_name, last_name, membership_number, partner_name')
+      .select('id, first_name, last_name, membership_number, partner_name, partner_first_name')
       .eq('venue_id', venueId)
       .eq('is_active', true)
-      .or(`first_name.ilike.${pattern},last_name.ilike.${pattern},membership_number.ilike.${pattern},partner_name.ilike.${pattern}`)
+      .or(`first_name.ilike.${pattern},last_name.ilike.${pattern},membership_number.ilike.${pattern},partner_name.ilike.${pattern},partner_first_name.ilike.${pattern}`)
       .limit(8);
     setResults(data || []);
     setIsSearching(false);
