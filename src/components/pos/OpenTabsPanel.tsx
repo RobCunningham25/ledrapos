@@ -135,9 +135,12 @@ export default function OpenTabsPanel() {
             const openedTime = tab.opened_at
               ? new Date(tab.opened_at).toLocaleTimeString('en-ZA', { hour: '2-digit', minute: '2-digit', hour12: false })
               : '';
+            const displayFirst = tab.partner_first_name
+              ? `${tab.member_first_name} & ${tab.partner_first_name}`
+              : tab.member_first_name;
             const name = tab.is_cash_customer
               ? (tab.cash_customer_name || 'Cash Customer')
-              : `${tab.member_first_name} ${tab.member_last_name}`;
+              : `${displayFirst} ${tab.member_last_name}`;
             const isEmpty = tab.total_cents === 0;
 
             return (

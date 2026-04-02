@@ -203,12 +203,9 @@ export default function MemberSearch() {
                 </span>
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-foreground truncate">{m.first_name} {m.last_name}</p>
+                <p className="text-sm font-semibold text-foreground truncate">{formatDisplayName(m.first_name, m.partner_first_name)} {m.last_name}</p>
                 <p className="text-xs text-muted-foreground">{m.membership_number}</p>
               </div>
-              {m.partner_name && (
-                <span className="text-xs text-muted-foreground shrink-0">{m.partner_name}</span>
-              )}
             </button>
           ))}
           {search.trim() && results.length === 0 && !isSearching && (

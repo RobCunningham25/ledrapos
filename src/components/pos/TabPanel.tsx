@@ -36,7 +36,7 @@ export default function TabPanel() {
   const grandTotal = tabTotal + cartTotal;
 
   const memberName = activeMember
-    ? `${activeMember.firstName} ${activeMember.lastName}`
+    ? `${activeMember.partnerFirstName ? `${activeMember.firstName} & ${activeMember.partnerFirstName}` : activeMember.firstName} ${activeMember.lastName}`
     : cashCustomerName || 'Cash Customer';
 
   const handleCommit = async () => {

@@ -29,6 +29,7 @@ export interface ActiveMember {
   firstName: string;
   lastName: string;
   membershipNumber: string;
+  partnerFirstName?: string | null;
 }
 
 export interface ActiveTab {
