@@ -135,7 +135,7 @@ export default function MemberSearch() {
           )}
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold text-foreground truncate">
-              {isCashCustomer ? `Cash Customer — ${cashCustomerName}` : `${activeMember?.firstName} ${activeMember?.lastName}`}
+              {isCashCustomer ? `Cash Customer — ${cashCustomerName}` : `${formatDisplayName(activeMember?.firstName || '', activeMember?.partnerFirstName)} ${activeMember?.lastName}`}
             </p>
             <p className="text-xs text-muted-foreground truncate">
               {isCashCustomer ? 'Walk-in' : activeMember?.membershipNumber}
