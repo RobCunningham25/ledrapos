@@ -110,6 +110,11 @@ const PINLogin = () => {
             {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : 'Login'}
           </button>
         </div>
+
+        {/* Version label */}
+        <div className="mt-4 text-right">
+          <span className="text-xs text-muted-foreground">LedraPOS V1.0</span>
+        </div>
       </div>
     </div>
   );
