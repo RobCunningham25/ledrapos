@@ -8,6 +8,8 @@ on:
 jobs:
   ping:
     runs-on: ubuntu-latest
+    env:
+      ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
     steps:
       - name: Ping Supabase
-        run: curl -s -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}" "https://fgquwzzyudgcmfbuvmch.supabase.co/rest/v1/venues?select=id&limit=1" && echo "Ping complete"
+        run: curl -s -H "apikey: $ANON_KEY" -H "Authorization: Bearer $ANON_KEY" "https://fgquwzzyudgcmfbuvmch.supabase.co/rest/v1/venues?select=id&limit=1" && echo "Ping complete"
