@@ -12,6 +12,6 @@ jobs:
       - name: Ping Supabase
         uses: fjogeleit/http-request-action@v1
         with:
-          url: 'https://fgquwzzyudgcmfbuvmch.supabase.co/rest/v1/venues?select=id&limit=1'
+          url: 'https://jeajrapzxzpgleggttvh.supabase.co/rest/v1/venues?select=id&limit=1'
           method: 'GET'
           customHeaders: '{"apikey": "${{ secrets.SUPABASE_ANON_KEY }}", "Authorization": "Bearer ${{ secrets.SUPABASE_ANON_KEY }}"}'
