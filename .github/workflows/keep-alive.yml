@@ -1,4 +1,16 @@
-run: |
+name: Supabase Keep Alive
+
+on:
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Supabase
+        env:
+          ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
           echo "Testing basic connectivity..."
           curl -v https://google.com
           echo "Testing Supabase host..."
