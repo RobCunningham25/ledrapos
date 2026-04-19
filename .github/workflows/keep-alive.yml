@@ -1,6 +1,8 @@
 name: Supabase Keep Alive
 
 on:
+  schedule:
+    - cron: '0 8 */5 * *'
   workflow_dispatch:
 
 jobs:
@@ -8,10 +10,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Ping Supabase
-        env:
-          ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
-        run: |
-          echo "Testing basic connectivity..."
-          curl -v https://google.com
-          echo "Testing Supabase host..."
-          curl -v https://fgquwzzyudgcmfbuvmch.supabase.co
+        uses: fjogeleit/http-request-action@v1
+        with:
+          url: 'https://fgquwzzyudgcmfbuvmch.supabase.co/rest/v1/venues?select=id&limit=1'
+          method: 'GET'
+          customHeaders: '{"apikey": "${{ secrets.SUPABASE_ANON_KEY }}", "Authorization": "Bearer ${{ secrets.SUPABASE_ANON_KEY }}"}'
