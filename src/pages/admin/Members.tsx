@@ -193,12 +193,18 @@ export default function Members() {
               return (
                 <tr key={m.id} className="border-b border-border hover:bg-accent/30 transition-colors">
                   <td className="px-4 py-3 font-medium text-foreground">
-                    <span className="inline-flex items-center gap-2">
+                    <div className="inline-flex items-center gap-2">
                       {m.first_name} {m.last_name}
                       {m.email && adminEmails.has(m.email.toLowerCase()) && (
                         <Shield size={14} style={{ color: '#2E5FA3' }} aria-label="Admin" />
                       )}
-                    </span>
+                    </div>
+                    {m.partner_first_name && (
+                      <div className="text-sm text-muted-foreground">
+                        & {m.partner_first_name}
+                        {m.partner_last_name ? ` ${m.partner_last_name}` : ''}
+                      </div>
+                    )}
                   </td>
                   <td className="px-4 py-3" style={{ fontSize: 13, color: '#718096', fontFamily: 'monospace' }}>{m.membership_number}</td>
                   <td className="px-4 py-3">
