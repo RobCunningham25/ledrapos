@@ -10,8 +10,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Check, Loader2, Plus, Eye, Pencil, Star, Search } from 'lucide-react';
+import { Check, Loader2, Plus, Eye, Pencil, Star, Search, RefreshCw, Shield } from 'lucide-react';
 import { toast } from 'sonner';
+import { formatRelativeTime } from '@/utils/time';
 
 interface Member {
   id: string;
@@ -26,6 +27,7 @@ interface Member {
   partner_name: string | null;
   partner_first_name: string | null;
   partner_last_name: string | null;
+  last_sign_in_at: string | null;
 }
 
 import { MEMBERSHIP_TYPE_COLORS, MEMBERSHIP_TYPES, getMembershipLabel } from '@/constants/membershipTypes';
@@ -35,6 +37,7 @@ export default function Members() {
   const { adminPath } = useVenueNav();
   const { venueId } = useVenue();
   const [members, setMembers] = useState<Member[]>([]);
+  const [adminEmails, setAdminEmails] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
   const [invitingId, setInvitingId] = useState<string | null>(null);
@@ -46,33 +49,50 @@ export default function Members() {
 
   const fetchMembers = async () => {
     setLoading(true);
-    const { data } = await supabase
-      .from('members')
-      .select('id, first_name, last_name, membership_number, membership_type, is_active, auth_user_id, email, phone, partner_name, partner_first_name, partner_last_name')
-      .eq('venue_id', venueId)
-      .order('last_name');
-    setMembers((data as Member[]) || []);
+    const [membersRes, adminsRes] = await Promise.all([
+      supabase.rpc('get_members_with_auth', { p_venue_id: venueId }).order('last_name', { ascending: true }),
+      supabase.from('admin_users').select('email').eq('venue_id', venueId).eq('is_active', true),
+    ]);
+    setMembers((membersRes.data as Member[]) || []);
+    setAdminEmails(new Set(((adminsRes.data as { email: string }[]) || []).map(a => a.email.toLowerCase())));
     setLoading(false);
   };
 
   useEffect(() => { fetchMembers(); }, [venueId]);
 
-  const handleInvite = async (member: Member) => {
+  const handleInvite = async (member: Member, resend = false) => {
     setInvitingId(member.id);
     try {
       const res = await supabase.functions.invoke('invite-member', {
-        body: { member_id: member.id, venue_id: venueId },
+        body: { member_id: member.id, venue_id: venueId, resend },
       });
+
+      // Supabase-js returns `error` on non-2xx. Try to surface the function's JSON body.
       if (res.error) {
-        toast.error(res.error.message || 'Failed to send invite');
+        let detail: string | null = null;
+        const ctx = (res.error as { context?: Response }).context;
+        if (ctx && typeof ctx.json === 'function') {
+          try {
+            const body = await ctx.json();
+            if (body?.error) detail = body.error;
+          } catch { /* body wasn't JSON */ }
+        }
+        toast.error(detail || res.error.message || 'Failed to send invite');
       } else if (res.data?.error) {
         toast.error(res.data.error);
       } else {
-        toast.success(`Invite sent to ${member.email}`);
+        const action = res.data?.action as string | undefined;
+        if (action === 'linked') {
+          toast.success(`${member.email} already had an account — linked.`);
+        } else if (action === 'resent') {
+          toast.success(`Invite resent to ${member.email}`);
+        } else {
+          toast.success(`Invite sent to ${member.email}`);
+        }
         await fetchMembers();
       }
-    } catch {
-      toast.error('Failed to send invite');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to send invite');
     }
     setInvitingId(null);
   };
@@ -153,25 +173,33 @@ export default function Members() {
               <th className="text-left px-4 py-3 font-medium text-muted-foreground">Email</th>
               <th className="text-left px-4 py-3 font-medium text-muted-foreground">Status</th>
               <th className="text-left px-4 py-3 font-medium text-muted-foreground">Portal</th>
+              <th className="text-left px-4 py-3 font-medium text-muted-foreground">Last Login</th>
               <th className="text-right px-4 py-3 font-medium text-muted-foreground">Actions</th>
             </tr>
           </thead>
           <tbody>
             {loading && [1, 2, 3].map(i => (
               <tr key={i} className="border-b border-border">
-                <td className="px-4 py-3" colSpan={7}><Skeleton className="h-5 w-full" /></td>
+                <td className="px-4 py-3" colSpan={8}><Skeleton className="h-5 w-full" /></td>
               </tr>
             ))}
             {!loading && filteredMembers.length === 0 && (
               <tr>
-                <td className="px-4 py-8 text-center text-muted-foreground" colSpan={7}>No members found</td>
+                <td className="px-4 py-8 text-center text-muted-foreground" colSpan={8}>No members found</td>
               </tr>
             )}
             {filteredMembers.map(m => {
               const tc = MEMBERSHIP_TYPE_COLORS[m.membership_type] || MEMBERSHIP_TYPE_COLORS.member;
               return (
                 <tr key={m.id} className="border-b border-border hover:bg-accent/30 transition-colors">
-                  <td className="px-4 py-3 font-medium text-foreground">{m.first_name} {m.last_name}</td>
+                  <td className="px-4 py-3 font-medium text-foreground">
+                    <span className="inline-flex items-center gap-2">
+                      {m.first_name} {m.last_name}
+                      {m.email && adminEmails.has(m.email.toLowerCase()) && (
+                        <Shield size={14} style={{ color: '#2E5FA3' }} aria-label="Admin" />
+                      )}
+                    </span>
+                  </td>
                   <td className="px-4 py-3" style={{ fontSize: 13, color: '#718096', fontFamily: 'monospace' }}>{m.membership_number}</td>
                   <td className="px-4 py-3">
                     <span style={{
@@ -192,9 +220,28 @@ export default function Members() {
                   </td>
                   <td className="px-4 py-3">
                     {m.auth_user_id ? (
-                      <span className="inline-flex items-center gap-1" style={{ fontSize: 13, fontWeight: 500, color: '#1E8449' }}>
-                        <Check size={14} /> Invited
-                      </span>
+                      <div className="inline-flex items-center gap-2">
+                        <span className="inline-flex items-center gap-1" style={{ fontSize: 13, fontWeight: 500, color: '#1E8449' }}>
+                          <Check size={14} /> Invited
+                        </span>
+                        {m.email && (
+                          <button
+                            disabled={invitingId === m.id}
+                            onClick={() => handleInvite(m, true)}
+                            title="Resend invite email"
+                            className="inline-flex items-center gap-1 text-xs font-medium transition-colors"
+                            style={{
+                              padding: '2px 8px', border: '1px solid #CBD5E0', color: '#4A5568',
+                              background: 'transparent', borderRadius: 6, cursor: invitingId === m.id ? 'not-allowed' : 'pointer',
+                            }}
+                            onMouseEnter={e => { if (invitingId !== m.id) { e.currentTarget.style.background = '#EDF2F7'; e.currentTarget.style.color = '#2E5FA3'; e.currentTarget.style.borderColor = '#2E5FA3'; } }}
+                            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#4A5568'; e.currentTarget.style.borderColor = '#CBD5E0'; }}
+                          >
+                            {invitingId === m.id ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+                            {invitingId === m.id ? 'Resending...' : 'Resend'}
+                          </button>
+                        )}
+                      </div>
                     ) : (
                       m.email ? (
                         <button
@@ -205,13 +252,25 @@ export default function Members() {
                             padding: '4px 10px', border: '1px solid #2E5FA3', color: '#2E5FA3',
                             background: 'transparent', borderRadius: 6, cursor: invitingId === m.id ? 'not-allowed' : 'pointer',
                           }}
-                          onMouseEnter={e => { if (invitingId !== m.id) { (e.target as HTMLElement).style.background = '#2E5FA3'; (e.target as HTMLElement).style.color = '#FFFFFF'; } }}
-                          onMouseLeave={e => { (e.target as HTMLElement).style.background = 'transparent'; (e.target as HTMLElement).style.color = '#2E5FA3'; }}
+                          onMouseEnter={e => { if (invitingId !== m.id) { e.currentTarget.style.background = '#2E5FA3'; e.currentTarget.style.color = '#FFFFFF'; } }}
+                          onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#2E5FA3'; }}
                         >
                           {invitingId === m.id ? <Loader2 size={14} className="animate-spin" /> : null}
                           {invitingId === m.id ? 'Sending...' : 'Invite'}
                         </button>
                       ) : null
+                    )}
+                  </td>
+                  <td className="px-4 py-3" style={{ fontSize: 13 }}>
+                    {m.last_sign_in_at ? (
+                      <span
+                        title={new Date(m.last_sign_in_at).toLocaleString('en-ZA')}
+                        style={{ color: '#2D2A26' }}
+                      >
+                        {formatRelativeTime(m.last_sign_in_at)}
+                      </span>
+                    ) : (
+                      <span style={{ color: '#718096' }}>—</span>
                     )}
                   </td>
                   <td className="px-4 py-3">

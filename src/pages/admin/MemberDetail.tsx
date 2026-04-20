@@ -9,8 +9,12 @@ import { useVenue } from '@/contexts/VenueContext';
 import { formatCents } from '@/utils/currency';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ArrowLeft, Pencil, ChevronDown, ChevronUp } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { ArrowLeft, Pencil, ChevronDown, ChevronUp, Shield, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
+import { toast } from 'sonner';
+import { formatRelativeTime } from '@/utils/time';
+import { useAdminAuth } from '@/contexts/AdminAuthContext';
 
 interface Member {
   id: string;
@@ -28,6 +32,7 @@ interface Member {
   is_active: boolean;
   auth_user_id: string | null;
   created_at: string | null;
+  last_sign_in_at: string | null;
 }
 
 interface CreditRow {
@@ -65,6 +70,12 @@ interface PaymentDetail {
   reference: string | null;
 }
 
+interface AdminAccessRow {
+  id: string;
+  role: 'admin' | 'superadmin';
+  is_active: boolean;
+}
+
 import { MEMBERSHIP_TYPE_COLORS, getMembershipLabel } from '@/constants/membershipTypes';
 
 function getMonthStart() {
@@ -80,11 +91,18 @@ export default function MemberDetail() {
   const navigate = useNavigate();
   const { adminPath } = useVenueNav();
   const { venueId } = useVenue();
+  const { adminUser } = useAdminAuth();
+  const isSuperadmin = adminUser?.role === 'superadmin';
 
   const [member, setMember] = useState<Member | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'tabs' | 'credit' | 'details'>('tabs');
   const [drawerOpen, setDrawerOpen] = useState(false);
+
+  // Admin access state
+  const [adminRow, setAdminRow] = useState<AdminAccessRow | null>(null);
+  const [roleChoice, setRoleChoice] = useState<'admin' | 'superadmin'>('admin');
+  const [adminBusy, setAdminBusy] = useState(false);
 
   // Credit state
   const [credits, setCredits] = useState<CreditRow[]>([]);
@@ -115,14 +133,62 @@ export default function MemberDetail() {
   const fetchMember = useCallback(async () => {
     if (!id) return;
     const { data } = await supabase
-      .from('members')
-      .select('id, first_name, last_name, membership_number, membership_type, email, phone, partner_name, partner_first_name, partner_last_name, emergency_contact_name, emergency_contact_phone, is_active, auth_user_id, created_at')
+      .rpc('get_members_with_auth', { p_venue_id: venueId })
       .eq('id', id)
-      .eq('venue_id', venueId)
-      .single();
+      .maybeSingle();
     setMember(data as Member | null);
     setLoading(false);
   }, [id, venueId]);
+
+  const fetchAdminAccess = useCallback(async (email: string | null) => {
+    if (!email || !venueId) {
+      setAdminRow(null);
+      return;
+    }
+    const { data } = await supabase
+      .from('admin_users')
+      .select('id, role, is_active')
+      .eq('venue_id', venueId)
+      .ilike('email', email)
+      .maybeSingle();
+    const row = (data as AdminAccessRow | null) ?? null;
+    setAdminRow(row);
+    if (row && row.is_active) setRoleChoice(row.role);
+  }, [venueId]);
+
+  const handleSetAdmin = async (grant: boolean) => {
+    if (!member?.id || !venueId) return;
+    setAdminBusy(true);
+    try {
+      const res = await supabase.functions.invoke('set-member-admin', {
+        body: { member_id: member.id, venue_id: venueId, grant, role: grant ? roleChoice : undefined },
+      });
+      if (res.error) {
+        let detail: string | null = null;
+        const ctx = (res.error as { context?: Response }).context;
+        if (ctx && typeof ctx.json === 'function') {
+          try {
+            const body = await ctx.json();
+            if (body?.error) detail = body.error;
+          } catch { /* body wasn't JSON */ }
+        }
+        toast.error(detail || res.error.message || 'Failed to update admin access');
+      } else if (res.data?.error) {
+        toast.error(res.data.error);
+      } else {
+        const action = res.data?.action as string | undefined;
+        const label = `${member.first_name} ${member.last_name}`.trim();
+        if (action === 'granted') toast.success(`${label} now has ${roleChoice} access`);
+        else if (action === 'updated') toast.success(`${label}'s role updated to ${roleChoice}`);
+        else if (action === 'revoked') toast.success(`Admin access revoked from ${label}`);
+        else toast.success('Admin access updated');
+        await fetchAdminAccess(member.email);
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to update admin access');
+    }
+    setAdminBusy(false);
+  };
 
   const fetchCreditBalance = useCallback(async () => {
     if (!id) return;
@@ -336,6 +402,7 @@ export default function MemberDetail() {
   };
 
   useEffect(() => { fetchMember(); fetchCreditBalance(); fetchBalanceDue(); }, [fetchMember, fetchCreditBalance, fetchBalanceDue]);
+  useEffect(() => { fetchAdminAccess(member?.email ?? null); }, [member?.email, fetchAdminAccess]);
   useEffect(() => { fetchCredits(); }, [fetchCredits]);
   useEffect(() => { fetchTabs(); fetchTabSummary(); }, [fetchTabs, fetchTabSummary]);
 
@@ -451,6 +518,15 @@ export default function MemberDetail() {
             Portal access
           </span>
         )}
+        {adminRow?.is_active && (
+          <span style={{
+            display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 10px', borderRadius: 999,
+            fontSize: 12, fontWeight: 600, color: '#2E5FA3', background: 'rgba(46,95,163,0.1)',
+          }}>
+            <Shield size={12} />
+            {adminRow.role === 'superadmin' ? 'Superadmin' : 'Admin'}
+          </span>
+        )}
       </div>
 
       {/* Info card */}
@@ -486,6 +562,15 @@ export default function MemberDetail() {
             </p>
           </div>
           <div>
+            <p style={{ fontSize: 13, color: '#718096', fontWeight: 500 }}>Last Login</p>
+            <p
+              style={{ fontSize: 15, fontWeight: 500, color: '#1A202C' }}
+              title={member.last_sign_in_at ? new Date(member.last_sign_in_at).toLocaleString('en-ZA') : undefined}
+            >
+              {member.last_sign_in_at ? formatRelativeTime(member.last_sign_in_at) : '—'}
+            </p>
+          </div>
+          <div>
             <p style={{ fontSize: 13, color: '#718096', fontWeight: 500 }}>Membership #</p>
             <p style={{ fontSize: 15, fontWeight: 500, color: '#1A202C' }}>{member.membership_number}</p>
           </div>
@@ -510,6 +595,66 @@ export default function MemberDetail() {
           </div>
         </div>
       </div>
+
+      {/* Admin access — superadmin only */}
+      {isSuperadmin && (
+        <div style={{
+          background: '#FFFFFF', borderRadius: 8, border: '1px solid #E2E8F0',
+          padding: 20, marginBottom: 24,
+        }}>
+          <div className="flex items-center gap-2 mb-3">
+            <Shield size={18} style={{ color: '#2E5FA3' }} />
+            <h3 style={{ fontSize: 15, fontWeight: 600, color: '#1A202C', margin: 0 }}>Admin access</h3>
+          </div>
+          <p style={{ fontSize: 13, color: '#718096', marginBottom: 16 }}>
+            {adminRow?.is_active
+              ? `This member has ${adminRow.role === 'superadmin' ? 'superadmin' : 'admin'} access to the admin area.`
+              : 'Grant this member access to the admin area. They will sign in with the same email they use for the portal.'}
+          </p>
+          {!member.email ? (
+            <p style={{ fontSize: 13, color: '#C0392B' }}>
+              Member has no email address. Add an email before granting admin access.
+            </p>
+          ) : (
+            <div className="flex flex-wrap items-end gap-3">
+              <div>
+                <label style={{ fontSize: 12, color: '#718096', display: 'block', marginBottom: 4 }}>Role</label>
+                <Select
+                  value={roleChoice}
+                  onValueChange={(v) => setRoleChoice(v as 'admin' | 'superadmin')}
+                  disabled={adminBusy}
+                >
+                  <SelectTrigger style={{ width: 160, height: 36 }}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="admin">Admin</SelectItem>
+                    <SelectItem value="superadmin">Superadmin</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button
+                onClick={() => handleSetAdmin(true)}
+                disabled={adminBusy || (adminRow?.is_active === true && adminRow.role === roleChoice)}
+                style={{ height: 36, background: '#2E5FA3', color: '#FFFFFF', fontWeight: 600 }}
+              >
+                {adminBusy ? <Loader2 size={14} className="animate-spin mr-2" /> : null}
+                {adminRow?.is_active ? 'Update role' : 'Grant admin access'}
+              </Button>
+              {adminRow?.is_active && (
+                <Button
+                  variant="outline"
+                  onClick={() => handleSetAdmin(false)}
+                  disabled={adminBusy}
+                  style={{ height: 36, borderColor: '#C0392B', color: '#C0392B' }}
+                >
+                  Revoke
+                </Button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Tab navigation — Tab History, Credit History, Details */}
       <div className="flex border-b mb-6" style={{ borderColor: '#E2E8F0' }}>

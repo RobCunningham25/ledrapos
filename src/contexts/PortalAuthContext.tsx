@@ -26,6 +26,13 @@ interface PortalAuthContextType {
 
 const PortalAuthContext = createContext<PortalAuthContextType | undefined>(undefined);
 
+const MAX_SESSION_MS = 24 * 60 * 60 * 1000; // 24 hours from last sign-in
+
+function isSessionExpired(s: Session | null): boolean {
+  if (!s?.user?.last_sign_in_at) return false;
+  return Date.now() - new Date(s.user.last_sign_in_at).getTime() > MAX_SESSION_MS;
+}
+
 export function PortalAuthProvider({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
   const { slug } = useParams<{ slug: string }>();
@@ -59,6 +66,12 @@ export function PortalAuthProvider({ children }: { children: ReactNode }) {
         return;
       }
 
+      if (isSessionExpired(newSession)) {
+        await handleSignOut();
+        setIsLoading(false);
+        return;
+      }
+
       setSession(newSession);
 
       if (newSession.user) {
@@ -74,6 +87,10 @@ export function PortalAuthProvider({ children }: { children: ReactNode }) {
 
     supabase.auth.getSession().then(async ({ data: { session: existing } }) => {
       if (existing?.user) {
+        if (isSessionExpired(existing)) {
+          await handleSignOut();
+          return;
+        }
         setSession(existing);
         const m = await fetchMember(existing.user.id);
         if (m) {
@@ -88,6 +105,16 @@ export function PortalAuthProvider({ children }: { children: ReactNode }) {
 
     return () => subscription.unsubscribe();
   }, [fetchMember, handleSignOut]);
+
+  useEffect(() => {
+    if (!session) return;
+    const interval = setInterval(() => {
+      if (isSessionExpired(session)) {
+        handleSignOut();
+      }
+    }, 60_000);
+    return () => clearInterval(interval);
+  }, [session, handleSignOut]);
 
   return (
     <PortalAuthContext.Provider value={{ member, session, isLoading, signOut: handleSignOut }}>

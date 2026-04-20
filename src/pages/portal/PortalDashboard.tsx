@@ -11,6 +11,7 @@ import { Calendar, BedDouble } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import CreditLoadSheet from '@/components/portal/CreditLoadSheet';
 import { supabase } from '@/integrations/supabase/client';
+import { expandAllOccurrences, type EventSeries, type MonthlyMode, type Recurrence } from '@/utils/eventOccurrences';
 
 function getGreeting() {
   const h = new Date().getHours();
@@ -80,6 +81,12 @@ function CreditTabCard({ memberId, venueId }: { memberId: string; venueId: strin
   const hasTab = items !== null && items.length > 0;
   const netOutstanding = amountDue;
 
+  const owedColor = !hasTab
+    ? 'rgba(255,255,255,0.9)'
+    : netOutstanding > 0
+      ? '#FBBF24'
+      : '#86EFAC';
+
   return (
     <>
       <div style={{
@@ -87,31 +94,62 @@ function CreditTabCard({ memberId, venueId }: { memberId: string; venueId: strin
         borderRadius: 16, padding: 24,
         boxShadow: '0 4px 16px rgba(27,58,75,0.2)',
       }}>
-        <p style={{ fontSize: 13, fontWeight: 500, color: 'rgba(255,255,255,0.7)' }}>Your Balance</p>
-        {creditLoading ? (
-          <Skeleton className="h-10 w-[140px] mt-1" style={{ background: 'rgba(255,255,255,0.15)' }} />
-        ) : (
-          <p style={{ fontSize: 36, fontWeight: 700, color: '#FFFFFF', margin: '4px 0 0' }}>{formatCents(balance)}</p>
-        )}
-
-        <div style={{ marginTop: 16 }}>
-          {tabLoading ? (
-            <Skeleton className="h-5 w-[180px]" style={{ background: 'rgba(255,255,255,0.15)' }} />
-          ) : hasTab ? (
-            <>
-              <p style={{ fontSize: 15, fontWeight: 500, color: '#FFFFFF', margin: 0 }}>
-                Open tab: {formatCents(tabTotal)}
-              </p>
+        <div style={{
+          display: 'flex', flexWrap: 'wrap',
+          justifyContent: 'space-between', alignItems: 'flex-start',
+          gap: 16,
+        }}>
+          <div style={{ minWidth: 0, flex: '1 1 220px' }}>
+            <p style={{
+              fontSize: 11, fontWeight: 600, letterSpacing: '0.08em',
+              textTransform: 'uppercase', color: 'rgba(255,255,255,0.7)', margin: 0,
+            }}>
+              You owe on your tab
+            </p>
+            {tabLoading ? (
+              <Skeleton className="h-10 w-[160px] mt-1" style={{ background: 'rgba(255,255,255,0.15)' }} />
+            ) : (
               <p style={{
-                fontSize: 14, margin: '4px 0 0',
-                color: netOutstanding > 0 ? '#FBBF24' : '#86EFAC',
+                fontSize: 'clamp(32px, 8vw, 36px)', fontWeight: 700,
+                color: owedColor, margin: '4px 0 0', lineHeight: 1.1,
               }}>
-                Outstanding: {formatCents(netOutstanding)}
+                {formatCents(hasTab ? netOutstanding : 0)}
               </p>
-            </>
-          ) : (
-            <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.5)', margin: 0 }}>No open tab</p>
-          )}
+            )}
+            {!tabLoading && (
+              hasTab ? (
+                <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.75)', margin: '4px 0 0' }}>
+                  Tab total {formatCents(tabTotal)}
+                </p>
+              ) : (
+                <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.5)', margin: '4px 0 0' }}>
+                  No open tab
+                </p>
+              )
+            )}
+          </div>
+
+          <div style={{
+            display: 'inline-flex', alignItems: 'center', gap: 10,
+            padding: '10px 14px', borderRadius: 999,
+            background: 'rgba(255,255,255,0.15)',
+            border: '1px solid rgba(255,255,255,0.2)',
+            alignSelf: 'flex-start',
+          }}>
+            <span style={{
+              fontSize: 11, fontWeight: 600, letterSpacing: '0.08em',
+              textTransform: 'uppercase', color: 'rgba(255,255,255,0.7)',
+            }}>
+              Credit
+            </span>
+            {creditLoading ? (
+              <Skeleton className="h-4 w-[60px]" style={{ background: 'rgba(255,255,255,0.15)' }} />
+            ) : (
+              <span style={{ fontSize: 16, fontWeight: 700, color: '#FFFFFF' }}>
+                {formatCents(balance)}
+              </span>
+            )}
+          </div>
         </div>
 
         <div style={{ display: 'flex', gap: 12, marginTop: 20 }}>
@@ -245,19 +283,39 @@ function UpcomingEventsCard({ venueId }: { venueId: string }) {
   const navigate = useNavigate();
   const today = new Date().toISOString().slice(0, 10);
 
+  const horizon = new Date(Date.now() + 366 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+
   const { data: events = [] } = useQuery({
     queryKey: ['portal-upcoming-events', venueId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('club_events')
-        .select('id, title, event_date, start_time, end_time')
-        .eq('venue_id', venueId)
-        .gte('event_date', today)
-        .order('event_date', { ascending: true })
-        .order('start_time', { ascending: true, nullsFirst: false })
-        .limit(3);
-      if (error) throw error;
-      return data;
+      const [seriesRes, exceptionsRes] = await Promise.all([
+        supabase
+          .from('club_events')
+          .select('id, title, description, event_date, start_time, end_time, location, recurrence, recurrence_end_date, monthly_mode')
+          .eq('venue_id', venueId)
+          .lte('event_date', horizon),
+        supabase
+          .from('event_exceptions')
+          .select('event_id, occurrence_date')
+          .eq('venue_id', venueId)
+          .gte('occurrence_date', today),
+      ]);
+      if (seriesRes.error) throw seriesRes.error;
+      if (exceptionsRes.error) throw exceptionsRes.error;
+
+      const series: EventSeries[] = (seriesRes.data ?? []).map((e) => ({
+        id: e.id,
+        title: e.title,
+        description: e.description,
+        event_date: e.event_date,
+        start_time: e.start_time,
+        end_time: e.end_time,
+        location: e.location,
+        recurrence: (e.recurrence ?? 'none') as Recurrence,
+        recurrence_end_date: e.recurrence_end_date,
+        monthly_mode: (e.monthly_mode ?? 'day_of_month') as MonthlyMode,
+      }));
+      return expandAllOccurrences(series, today, horizon, exceptionsRes.data ?? []).slice(0, 3);
     },
     enabled: !!venueId,
     staleTime: 30_000,
@@ -297,12 +355,12 @@ function UpcomingEventsCard({ venueId }: { venueId: string }) {
       ) : (
         <div>
           {events.map((ev, i) => (
-            <div key={ev.id} style={{
+            <div key={`${ev.event_id}:${ev.occurrence_date}`} style={{
               padding: '10px 0',
               borderBottom: i < events.length - 1 ? `1px solid var(--portal-card-border)` : 'none',
             }}>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--portal-primary)' }}>{formatShort(ev.event_date)}</span>
+                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--portal-primary)' }}>{formatShort(ev.occurrence_date)}</span>
                 <span style={{ fontSize: 14, color: 'var(--portal-text-primary)' }}>{ev.title}</span>
               </div>
               {formatTime(ev.start_time, ev.end_time) && (

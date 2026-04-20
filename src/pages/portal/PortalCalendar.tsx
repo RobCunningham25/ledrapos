@@ -1,10 +1,11 @@
 import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { ChevronLeft, ChevronRight, MapPin } from 'lucide-react';
+import { ChevronLeft, ChevronRight, MapPin, Repeat } from 'lucide-react';
 import { usePortalAuth } from '@/contexts/PortalAuthContext';
 import { supabase } from '@/integrations/supabase/client';
+import { expandAllOccurrences, type EventSeries, type EventOccurrence, type MonthlyMode, type Recurrence } from '@/utils/eventOccurrences';
 
-interface ClubEvent {
+interface ClubEventRow {
   id: string;
   title: string;
   description: string | null;
@@ -12,6 +13,9 @@ interface ClubEvent {
   start_time: string | null;
   end_time: string | null;
   location: string | null;
+  recurrence: Recurrence;
+  recurrence_end_date: string | null;
+  monthly_mode: MonthlyMode;
 }
 
 function formatTime(start: string | null, end: string | null) {
@@ -64,35 +68,67 @@ export default function PortalCalendar() {
 
   const isCurrentMonth = year === now.getFullYear() && month === now.getMonth();
 
-  const { data: events = [] } = useQuery({
-    queryKey: ['portal-club-events', venueId, year, month],
+  const firstDayStr = `${year}-${String(month + 1).padStart(2, '0')}-01`;
+  const lastDay = new Date(year, month + 1, 0);
+  const lastDayStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(lastDay.getDate()).padStart(2, '0')}`;
+
+  const { data: series = [] } = useQuery({
+    queryKey: ['portal-club-events-series', venueId, firstDayStr, lastDayStr],
     queryFn: async () => {
-      const firstDay = `${year}-${String(month + 1).padStart(2, '0')}-01`;
-      const lastDay = new Date(year, month + 1, 0);
-      const lastDayStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(lastDay.getDate()).padStart(2, '0')}`;
       const { data, error } = await supabase
         .from('club_events')
-        .select('*')
+        .select('id, title, description, event_date, start_time, end_time, location, recurrence, recurrence_end_date, monthly_mode')
         .eq('venue_id', venueId)
-        .gte('event_date', firstDay)
         .lte('event_date', lastDayStr)
-        .order('event_date', { ascending: true })
-        .order('start_time', { ascending: true, nullsFirst: false });
+        .or(`recurrence.neq.none,event_date.gte.${firstDayStr}`);
       if (error) throw error;
-      return data as ClubEvent[];
+      return (data ?? []) as ClubEventRow[];
     },
     enabled: !!venueId,
     staleTime: 30_000,
     refetchOnWindowFocus: false,
   });
 
+  const { data: exceptions = [] } = useQuery({
+    queryKey: ['portal-event-exceptions', venueId, firstDayStr, lastDayStr],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('event_exceptions')
+        .select('event_id, occurrence_date')
+        .eq('venue_id', venueId)
+        .gte('occurrence_date', firstDayStr)
+        .lte('occurrence_date', lastDayStr);
+      if (error) throw error;
+      return (data ?? []) as { event_id: string; occurrence_date: string }[];
+    },
+    enabled: !!venueId,
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
+  });
+
+  const occurrences = useMemo<EventOccurrence[]>(() => {
+    const s: EventSeries[] = series.map((e) => ({
+      id: e.id,
+      title: e.title,
+      description: e.description,
+      event_date: e.event_date,
+      start_time: e.start_time,
+      end_time: e.end_time,
+      location: e.location,
+      recurrence: e.recurrence ?? 'none',
+      recurrence_end_date: e.recurrence_end_date,
+      monthly_mode: (e.monthly_mode ?? 'day_of_month') as MonthlyMode,
+    }));
+    return expandAllOccurrences(s, firstDayStr, lastDayStr, exceptions);
+  }, [series, exceptions, firstDayStr, lastDayStr]);
+
   const eventsByDate = useMemo(() => {
-    const m: Record<string, ClubEvent[]> = {};
-    events.forEach((ev) => {
-      (m[ev.event_date] ??= []).push(ev);
+    const m: Record<string, EventOccurrence[]> = {};
+    occurrences.forEach((ev) => {
+      (m[ev.occurrence_date] ??= []).push(ev);
     });
     return m;
-  }, [events]);
+  }, [occurrences]);
 
   const days = useMemo(() => getMonthDays(year, month), [year, month]);
 
@@ -117,8 +153,8 @@ export default function PortalCalendar() {
   const todayStr = dateKey(now);
 
   const upcomingEvents = useMemo(() => {
-    return events.filter((ev) => ev.event_date >= todayStr).sort((a, b) => a.event_date.localeCompare(b.event_date) || (a.start_time ?? '').localeCompare(b.start_time ?? ''));
-  }, [events, todayStr]);
+    return occurrences.filter((ev) => ev.occurrence_date >= todayStr);
+  }, [occurrences, todayStr]);
 
   const selectedEvents = selectedDate ? (eventsByDate[selectedDate] ?? []) : [];
 
@@ -192,7 +228,7 @@ export default function PortalCalendar() {
               {hasEvents && (
                 <div className="hidden md:block">
                   {dayEvents.slice(0, 2).map((ev) => (
-                    <div key={ev.id} style={{
+                    <div key={`${ev.event_id}:${ev.occurrence_date}`} style={{
                       background: 'var(--portal-accent)', borderRadius: 4, padding: '2px 6px',
                       fontSize: 11, color: '#FFFFFF', marginTop: 2,
                       whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
@@ -225,7 +261,7 @@ export default function PortalCalendar() {
             {selectedEvents.length === 0 ? (
               <p style={{ color: 'var(--portal-text-muted)', fontSize: 14 }}>No events on this day</p>
             ) : (
-              selectedEvents.map((ev) => <EventCard key={ev.id} event={ev} />)
+              selectedEvents.map((ev) => <EventCard key={`${ev.event_id}:${ev.occurrence_date}`} event={ev} />)
             )}
           </>
         ) : (
@@ -234,7 +270,7 @@ export default function PortalCalendar() {
             {upcomingEvents.length === 0 ? (
               <p style={{ color: 'var(--portal-text-muted)', fontSize: 14 }}>No upcoming events this month</p>
             ) : (
-              upcomingEvents.map((ev) => <EventCard key={ev.id} event={ev} showDate />)
+              upcomingEvents.map((ev) => <EventCard key={`${ev.event_id}:${ev.occurrence_date}`} event={ev} showDate />)
             )}
           </>
         )}
@@ -243,15 +279,22 @@ export default function PortalCalendar() {
   );
 }
 
-function EventCard({ event, showDate }: { event: ClubEvent; showDate?: boolean }) {
+function EventCard({ event, showDate }: { event: EventOccurrence; showDate?: boolean }) {
   return (
     <div style={{
       background: 'var(--portal-card-bg)', border: `1px solid var(--portal-card-border)`, borderRadius: 'var(--portal-card-radius)',
       boxShadow: 'var(--portal-card-shadow)', padding: 16, marginBottom: 12,
     }}>
-      <p style={{ fontSize: 16, fontWeight: 600, color: 'var(--portal-text-primary)', margin: 0 }}>{event.title}</p>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <p style={{ fontSize: 16, fontWeight: 600, color: 'var(--portal-text-primary)', margin: 0 }}>{event.title}</p>
+        {event.is_recurring && (
+          <span title={event.recurrence === 'weekly' ? 'Repeats weekly' : 'Repeats monthly'} style={{ color: 'var(--portal-text-muted)' }}>
+            <Repeat size={13} />
+          </span>
+        )}
+      </div>
       {showDate && (
-        <p style={{ fontSize: 14, color: 'var(--portal-text-secondary)', margin: '4px 0 0' }}>{formatFullDate(event.event_date)}</p>
+        <p style={{ fontSize: 14, color: 'var(--portal-text-secondary)', margin: '4px 0 0' }}>{formatFullDate(event.occurrence_date)}</p>
       )}
       {formatTime(event.start_time, event.end_time) && (
         <p style={{ fontSize: 14, color: 'var(--portal-text-secondary)', margin: '4px 0 0' }}>{formatTime(event.start_time, event.end_time)}</p>

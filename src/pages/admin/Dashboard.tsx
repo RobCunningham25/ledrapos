@@ -2,10 +2,12 @@ import { useEffect, useState } from 'react';
 import { format, startOfWeek, endOfWeek } from 'date-fns';
 import AdminLayout from '@/components/admin/AdminLayout';
 import BarTabRemindersCard from '@/components/admin/BarTabRemindersCard';
+import OpenTabsDrawer from '@/components/admin/OpenTabsDrawer';
 import { useVenue } from '@/contexts/VenueContext';
 import { supabase } from '@/integrations/supabase/client';
 import { formatCents } from '@/utils/currency';
 import { Skeleton } from '@/components/ui/skeleton';
+import { expandAllOccurrences, type EventSeries, type MonthlyMode, type Recurrence } from '@/utils/eventOccurrences';
 
 const cardStyle: React.CSSProperties = {
   background: '#FFFFFF',
@@ -90,6 +92,7 @@ function OpenTabsCard() {
   const [state, setState] = useState<
     { status: 'loading' } | { status: 'error' } | { status: 'ok'; count: number; outstandingCents: number }
   >({ status: 'loading' });
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -99,7 +102,7 @@ function OpenTabsCard() {
         .from('tabs')
         .select('id')
         .eq('venue_id', venueId)
-        .eq('status', 'open');
+        .eq('status', 'OPEN');
 
       if (cancelled) return;
       if (error) {
@@ -151,8 +154,35 @@ function OpenTabsCard() {
           <div style={bigNumber}>{state.count}</div>
           <p style={subText}>{formatCents(state.outstandingCents)} outstanding</p>
           <p style={labelText}>Open Bar Tabs</p>
+          <button
+            type="button"
+            onClick={() => setDrawerOpen(true)}
+            style={{
+              marginTop: 12,
+              background: 'transparent',
+              color: '#2E5FA3',
+              fontSize: 14,
+              fontWeight: 600,
+              border: '1px solid #2E5FA3',
+              borderRadius: 6,
+              padding: '8px 14px',
+              cursor: 'pointer',
+              transition: 'background 0.15s, color 0.15s',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = '#2E5FA3';
+              e.currentTarget.style.color = '#FFFFFF';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'transparent';
+              e.currentTarget.style.color = '#2E5FA3';
+            }}
+          >
+            View Open Tabs
+          </button>
         </>
       )}
+      <OpenTabsDrawer isOpen={drawerOpen} onClose={() => setDrawerOpen(false)} venueId={venueId} />
     </div>
   );
 }
@@ -222,20 +252,45 @@ function NextEventCard() {
     (async () => {
       setState({ status: 'loading' });
       const todayISO = format(new Date(), 'yyyy-MM-dd');
-      const { data, error } = await supabase
-        .from('club_events')
-        .select('title, event_date')
-        .eq('venue_id', venueId)
-        .gte('event_date', todayISO)
-        .order('event_date', { ascending: true })
-        .limit(1);
+      const horizon = format(new Date(Date.now() + 366 * 24 * 60 * 60 * 1000), 'yyyy-MM-dd');
+
+      const [seriesRes, exceptionsRes] = await Promise.all([
+        supabase
+          .from('club_events')
+          .select('id, title, description, event_date, start_time, end_time, location, recurrence, recurrence_end_date, monthly_mode')
+          .eq('venue_id', venueId)
+          .lte('event_date', horizon),
+        supabase
+          .from('event_exceptions')
+          .select('event_id, occurrence_date')
+          .eq('venue_id', venueId)
+          .gte('occurrence_date', todayISO),
+      ]);
 
       if (cancelled) return;
-      if (error) {
+      if (seriesRes.error || exceptionsRes.error) {
         setState({ status: 'error' });
         return;
       }
-      setState({ status: 'ok', event: data && data.length > 0 ? data[0] : null });
+
+      const series: EventSeries[] = (seriesRes.data ?? []).map((e) => ({
+        id: e.id,
+        title: e.title,
+        description: e.description,
+        event_date: e.event_date,
+        start_time: e.start_time,
+        end_time: e.end_time,
+        location: e.location,
+        recurrence: (e.recurrence ?? 'none') as Recurrence,
+        recurrence_end_date: e.recurrence_end_date,
+        monthly_mode: (e.monthly_mode ?? 'day_of_month') as MonthlyMode,
+      }));
+      const occs = expandAllOccurrences(series, todayISO, horizon, exceptionsRes.data ?? []);
+      const next = occs[0];
+      setState({
+        status: 'ok',
+        event: next ? { title: next.title, event_date: next.occurrence_date } : null,
+      });
     })();
     return () => {
       cancelled = true;

@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Eye, EyeOff } from 'lucide-react';
 
+const REMEMBER_EMAIL_KEY = 'ledrapos_portal_email';
+
 export default function PortalLogin() {
   const navigate = useNavigate();
   const { slug } = useParams<{ slug: string }>();
@@ -23,6 +25,9 @@ export default function PortalLogin() {
   const [checkingSession, setCheckingSession] = useState(true);
 
   useEffect(() => {
+    const savedEmail = localStorage.getItem(REMEMBER_EMAIL_KEY);
+    if (savedEmail) setEmail(savedEmail);
+
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
         navigate(`/${slug}/portal`, { replace: true });
@@ -59,6 +64,7 @@ export default function PortalLogin() {
         return;
       }
 
+      localStorage.setItem(REMEMBER_EMAIL_KEY, email);
       navigate(`/${slug}/portal`, { replace: true });
     }
 

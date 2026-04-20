@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, MapPin } from 'lucide-react';
+import { Plus, MapPin, Repeat } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { useVenue } from '@/contexts/VenueContext';
@@ -17,6 +17,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { expandAllOccurrences, type EventSeries, type MonthlyMode, type Recurrence } from '@/utils/eventOccurrences';
 
 export interface ClubEvent {
   id: string;
@@ -27,6 +28,9 @@ export interface ClubEvent {
   start_time: string | null;
   end_time: string | null;
   location: string | null;
+  recurrence: Recurrence;
+  recurrence_end_date: string | null;
+  monthly_mode: MonthlyMode;
   created_by: string | null;
   created_at: string | null;
 }
@@ -49,12 +53,31 @@ function isPast(dateStr: string) {
   return new Date(dateStr + 'T00:00:00') < today;
 }
 
+function todayISO() {
+  const t = new Date();
+  return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
+}
+
+function addMonthsISO(iso: string, n: number): string {
+  const d = new Date(iso + 'T00:00:00');
+  d.setMonth(d.getMonth() + n);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+interface DeleteTarget {
+  event: ClubEvent;
+  occurrence_date: string;
+}
+
 export default function Events() {
   const { venueId } = useVenue();
   const queryClient = useQueryClient();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<ClubEvent | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<ClubEvent | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
+
+  const rangeStart = useMemo(() => addMonthsISO(todayISO(), -6), []);
+  const rangeEnd = useMemo(() => addMonthsISO(todayISO(), 12), []);
 
   const { data: events = [], isLoading } = useQuery({
     queryKey: ['club-events', venueId],
@@ -71,17 +94,68 @@ export default function Events() {
     enabled: !!venueId,
   });
 
-  const deleteMutation = useMutation({
+  const { data: exceptions = [] } = useQuery({
+    queryKey: ['event-exceptions', venueId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('event_exceptions')
+        .select('event_id, occurrence_date')
+        .eq('venue_id', venueId);
+      if (error) throw error;
+      return data as { event_id: string; occurrence_date: string }[];
+    },
+    enabled: !!venueId,
+  });
+
+  const occurrences = useMemo(() => {
+    const eventsById = new Map(events.map((e) => [e.id, e]));
+    const series: EventSeries[] = events.map((e) => ({
+      id: e.id,
+      title: e.title,
+      description: e.description,
+      event_date: e.event_date,
+      start_time: e.start_time,
+      end_time: e.end_time,
+      location: e.location,
+      recurrence: e.recurrence ?? 'none',
+      recurrence_end_date: e.recurrence_end_date,
+      monthly_mode: (e.monthly_mode ?? 'day_of_month') as MonthlyMode,
+    }));
+    return expandAllOccurrences(series, rangeStart, rangeEnd, exceptions).map((o) => ({
+      occ: o,
+      event: eventsById.get(o.event_id)!,
+    }));
+  }, [events, exceptions, rangeStart, rangeEnd]);
+
+  const deleteSeriesMutation = useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase.from('club_events').delete().eq('id', id);
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['club-events', venueId] });
+      queryClient.invalidateQueries({ queryKey: ['event-exceptions', venueId] });
       toast.success('Event deleted');
       setDeleteTarget(null);
     },
     onError: () => toast.error('Failed to delete event'),
+  });
+
+  const cancelOccurrenceMutation = useMutation({
+    mutationFn: async (params: { event_id: string; occurrence_date: string }) => {
+      const { error } = await supabase.from('event_exceptions').insert({
+        event_id: params.event_id,
+        occurrence_date: params.occurrence_date,
+        venue_id: venueId,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['event-exceptions', venueId] });
+      toast.success('Occurrence cancelled');
+      setDeleteTarget(null);
+    },
+    onError: () => toast.error('Failed to cancel occurrence'),
   });
 
   const handleAdd = () => {
@@ -93,6 +167,8 @@ export default function Events() {
     setEditingEvent(ev);
     setDrawerOpen(true);
   };
+
+  const isRecurringTarget = deleteTarget?.event.recurrence && deleteTarget.event.recurrence !== 'none';
 
   return (
     <AdminLayout
@@ -108,7 +184,7 @@ export default function Events() {
     >
       {isLoading ? (
         <p style={{ color: '#718096' }}>Loading events…</p>
-      ) : events.length === 0 ? (
+      ) : occurrences.length === 0 ? (
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 300 }}>
           <p style={{ fontSize: 16, color: '#718096', marginBottom: 16 }}>No events yet</p>
           <Button
@@ -120,9 +196,9 @@ export default function Events() {
         </div>
       ) : (
         <div>
-          {events.map((ev) => (
+          {occurrences.map(({ occ, event }) => (
             <div
-              key={ev.id}
+              key={`${occ.event_id}:${occ.occurrence_date}`}
               style={{
                 background: '#FFFFFF',
                 border: '1px solid #E2E8F0',
@@ -134,33 +210,44 @@ export default function Events() {
                 justifyContent: 'space-between',
                 alignItems: 'flex-start',
                 gap: 16,
-                opacity: isPast(ev.event_date) ? 0.5 : 1,
+                opacity: isPast(occ.occurrence_date) ? 0.5 : 1,
               }}
             >
               <div style={{ flex: 1, minWidth: 0 }}>
-                <p style={{ fontSize: 16, fontWeight: 600, color: '#1A202C', margin: 0 }}>{ev.title}</p>
-                <p style={{ fontSize: 14, color: '#718096', margin: '4px 0 0' }}>{formatEventDate(ev.event_date)}</p>
-                {formatTime(ev.start_time, ev.end_time) && (
-                  <p style={{ fontSize: 14, color: '#718096', margin: '2px 0 0' }}>{formatTime(ev.start_time, ev.end_time)}</p>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <p style={{ fontSize: 16, fontWeight: 600, color: '#1A202C', margin: 0 }}>{occ.title}</p>
+                  {occ.is_recurring && (
+                    <span style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 4,
+                      background: '#E6F2FA', color: '#2E5FA3', fontSize: 11, fontWeight: 600,
+                      borderRadius: 999, padding: '2px 8px',
+                    }}>
+                      <Repeat size={11} /> {occ.recurrence === 'weekly' ? 'Weekly' : 'Monthly'}
+                    </span>
+                  )}
+                </div>
+                <p style={{ fontSize: 14, color: '#718096', margin: '4px 0 0' }}>{formatEventDate(occ.occurrence_date)}</p>
+                {formatTime(occ.start_time, occ.end_time) && (
+                  <p style={{ fontSize: 14, color: '#718096', margin: '2px 0 0' }}>{formatTime(occ.start_time, occ.end_time)}</p>
                 )}
-                {ev.location && (
+                {occ.location && (
                   <p style={{ fontSize: 14, color: '#718096', margin: '2px 0 0', display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <MapPin size={14} /> {ev.location}
+                    <MapPin size={14} /> {occ.location}
                   </p>
                 )}
-                {ev.description && (
+                {occ.description && (
                   <p style={{
                     fontSize: 14, color: '#718096', marginTop: 8, margin: '8px 0 0',
                     overflow: 'hidden', textOverflow: 'ellipsis',
                     display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const,
                   }}>
-                    {ev.description}
+                    {occ.description}
                   </p>
                 )}
               </div>
               <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
                 <button
-                  onClick={() => handleEdit(ev)}
+                  onClick={() => handleEdit(event)}
                   style={{
                     border: '1px solid #E2E8F0', borderRadius: 6, height: 36, padding: '0 12px',
                     background: 'transparent', color: '#1A202C', fontSize: 14, cursor: 'pointer',
@@ -169,7 +256,7 @@ export default function Events() {
                   Edit
                 </button>
                 <button
-                  onClick={() => setDeleteTarget(ev)}
+                  onClick={() => setDeleteTarget({ event, occurrence_date: occ.occurrence_date })}
                   style={{
                     border: '1px solid #E2E8F0', borderRadius: 6, height: 36, padding: '0 12px',
                     background: 'transparent', color: '#C0392B', fontSize: 14, cursor: 'pointer',
@@ -189,21 +276,38 @@ export default function Events() {
         event={editingEvent}
       />
 
-      <AlertDialog open={!!deleteTarget} onOpenChange={() => setDeleteTarget(null)}>
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Event</AlertDialogTitle>
+            <AlertDialogTitle>
+              {isRecurringTarget ? 'Remove recurring event' : 'Delete Event'}
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete "{deleteTarget?.title}"? This cannot be undone.
+              {isRecurringTarget
+                ? `"${deleteTarget?.event.title}" repeats ${deleteTarget?.event.recurrence}. Cancel only the ${deleteTarget && formatEventDate(deleteTarget.occurrence_date)} occurrence, or delete the entire series?`
+                : `Are you sure you want to delete "${deleteTarget?.event.title}"? This cannot be undone.`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
+            {isRecurringTarget && deleteTarget && (
+              <AlertDialogAction
+                onClick={() =>
+                  cancelOccurrenceMutation.mutate({
+                    event_id: deleteTarget.event.id,
+                    occurrence_date: deleteTarget.occurrence_date,
+                  })
+                }
+                style={{ background: '#2E5FA3', color: '#FFFFFF' }}
+              >
+                Cancel this occurrence
+              </AlertDialogAction>
+            )}
             <AlertDialogAction
-              onClick={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
+              onClick={() => deleteTarget && deleteSeriesMutation.mutate(deleteTarget.event.id)}
               style={{ background: '#C0392B', color: '#FFFFFF' }}
             >
-              Delete
+              {isRecurringTarget ? 'Delete entire series' : 'Delete'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

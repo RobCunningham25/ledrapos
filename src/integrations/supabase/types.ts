@@ -445,6 +445,9 @@ export type Database = {
           event_date: string
           id: string
           location: string | null
+          monthly_mode: string
+          recurrence: string
+          recurrence_end_date: string | null
           start_time: string | null
           title: string
           venue_id: string
@@ -457,6 +460,9 @@ export type Database = {
           event_date: string
           id?: string
           location?: string | null
+          monthly_mode?: string
+          recurrence?: string
+          recurrence_end_date?: string | null
           start_time?: string | null
           title: string
           venue_id: string
@@ -469,6 +475,9 @@ export type Database = {
           event_date?: string
           id?: string
           location?: string | null
+          monthly_mode?: string
+          recurrence?: string
+          recurrence_end_date?: string | null
           start_time?: string | null
           title?: string
           venue_id?: string
@@ -476,6 +485,45 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "club_events_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_exceptions: {
+        Row: {
+          created_at: string | null
+          event_id: string
+          id: string
+          occurrence_date: string
+          venue_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          event_id: string
+          id?: string
+          occurrence_date: string
+          venue_id: string
+        }
+        Update: {
+          created_at?: string | null
+          event_id?: string
+          id?: string
+          occurrence_date?: string
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_exceptions_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "club_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_exceptions_venue_id_fkey"
             columns: ["venue_id"]
             isOneToOne: false
             referencedRelation: "venues"

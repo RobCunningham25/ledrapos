@@ -4,6 +4,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { nthWeekdayOrdinal } from '@/utils/eventOccurrences';
 import { supabase } from '@/integrations/supabase/client';
 import { useVenue } from '@/contexts/VenueContext';
 import { useAdminAuth } from '@/contexts/AdminAuthContext';
@@ -17,6 +21,9 @@ interface EventDrawerProps {
   event?: ClubEvent | null;
 }
 
+type RecurrenceKind = 'none' | 'weekly' | 'monthly';
+type MonthlyModeKind = 'day_of_month' | 'nth_weekday';
+
 interface FormData {
   title: string;
   event_date: string;
@@ -24,6 +31,9 @@ interface FormData {
   end_time: string;
   location: string;
   description: string;
+  recurrence: RecurrenceKind;
+  recurrence_end_date: string;
+  monthly_mode: MonthlyModeKind;
 }
 
 const emptyForm: FormData = {
@@ -33,7 +43,27 @@ const emptyForm: FormData = {
   end_time: '',
   location: '',
   description: '',
+  recurrence: 'none',
+  recurrence_end_date: '',
+  monthly_mode: 'day_of_month',
 };
+
+const ORDINAL_WORDS = ['first', 'second', 'third', 'fourth', 'fifth'];
+const WEEKDAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+function describeMonthlyByDate(dateStr: string): { dayOfMonth: string; nthWeekday: string } | null {
+  if (!dateStr) return null;
+  const d = new Date(dateStr + 'T00:00:00');
+  if (isNaN(d.getTime())) return null;
+  const day = d.getDate();
+  const ordinalIndex = nthWeekdayOrdinal(day) - 1;
+  const ordinalWord = ORDINAL_WORDS[ordinalIndex] ?? `${ordinalIndex + 1}th`;
+  const weekday = WEEKDAY_NAMES[d.getDay()];
+  return {
+    dayOfMonth: `On day ${day} of each month`,
+    nthWeekday: `On the ${ordinalWord} ${weekday} of each month`,
+  };
+}
 
 export default function EventDrawer({ open, onClose, event }: EventDrawerProps) {
   const { venueId } = useVenue();
@@ -47,6 +77,8 @@ export default function EventDrawer({ open, onClose, event }: EventDrawerProps) 
   useEffect(() => {
     if (open) {
       if (event) {
+        const r = (event.recurrence ?? 'none') as RecurrenceKind;
+        const mm = (event.monthly_mode ?? 'day_of_month') as MonthlyModeKind;
         setForm({
           title: event.title,
           event_date: event.event_date,
@@ -54,6 +86,9 @@ export default function EventDrawer({ open, onClose, event }: EventDrawerProps) 
           end_time: event.end_time?.slice(0, 5) ?? '',
           location: event.location ?? '',
           description: event.description ?? '',
+          recurrence: r === 'weekly' || r === 'monthly' ? r : 'none',
+          recurrence_end_date: event.recurrence_end_date ?? '',
+          monthly_mode: mm === 'nth_weekday' ? 'nth_weekday' : 'day_of_month',
         });
       } else {
         setForm(emptyForm);
@@ -68,6 +103,8 @@ export default function EventDrawer({ open, onClose, event }: EventDrawerProps) 
     if (!form.event_date) e.event_date = 'Date is required';
     if (form.start_time && form.end_time && form.end_time <= form.start_time)
       e.end_time = 'End time must be after start time';
+    if (form.recurrence !== 'none' && form.recurrence_end_date && form.event_date && form.recurrence_end_date < form.event_date)
+      e.recurrence_end_date = 'End date must be on or after the event date';
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -84,6 +121,9 @@ export default function EventDrawer({ open, onClose, event }: EventDrawerProps) 
       end_time: form.end_time || null,
       location: form.location.trim() || null,
       description: form.description.trim() || null,
+      recurrence: form.recurrence,
+      recurrence_end_date: form.recurrence === 'none' ? null : (form.recurrence_end_date || null),
+      monthly_mode: form.recurrence === 'monthly' ? form.monthly_mode : 'day_of_month',
     };
 
     let error;
@@ -106,7 +146,7 @@ export default function EventDrawer({ open, onClose, event }: EventDrawerProps) 
     onClose();
   };
 
-  const set = (field: keyof FormData, value: string) =>
+  const set = <K extends keyof FormData>(field: K, value: FormData[K]) =>
     setForm((prev) => ({ ...prev, [field]: value }));
 
   if (!open) return null;
@@ -193,6 +233,86 @@ export default function EventDrawer({ open, onClose, event }: EventDrawerProps) 
               placeholder="Event details, what to bring, etc."
               style={{ borderColor: '#E2E8F0', borderRadius: 6, marginTop: 4 }}
             />
+          </div>
+
+          <div style={{ borderTop: '1px solid #E2E8F0', paddingTop: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div>
+                <Label style={{ fontSize: 14, fontWeight: 500, color: '#1A202C' }}>Recurring event</Label>
+                <p style={{ fontSize: 12, color: '#718096', margin: '2px 0 0' }}>
+                  Repeat on the same day each week or month
+                </p>
+              </div>
+              <Switch
+                checked={form.recurrence !== 'none'}
+                onCheckedChange={(on) => {
+                  set('recurrence', on ? 'monthly' : 'none');
+                  if (!on) set('recurrence_end_date', '');
+                }}
+              />
+            </div>
+
+            {form.recurrence !== 'none' && (
+              <>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 12 }}>
+                  <div>
+                    <Label style={{ fontSize: 14, fontWeight: 500, color: '#1A202C' }}>Repeats</Label>
+                    <Select
+                      value={form.recurrence}
+                      onValueChange={(v) => set('recurrence', v as RecurrenceKind)}
+                    >
+                      <SelectTrigger style={{ borderColor: '#E2E8F0', borderRadius: 6, marginTop: 4 }}>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="weekly">Weekly</SelectItem>
+                        <SelectItem value="monthly">Monthly</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label style={{ fontSize: 14, fontWeight: 500, color: '#1A202C' }}>Ends on</Label>
+                    <Input
+                      type="date"
+                      value={form.recurrence_end_date}
+                      onChange={(e) => set('recurrence_end_date', e.target.value)}
+                      style={{ borderColor: errors.recurrence_end_date ? '#C0392B' : '#E2E8F0', borderRadius: 6, marginTop: 4 }}
+                    />
+                    {errors.recurrence_end_date && <p style={{ fontSize: 12, color: '#C0392B', marginTop: 2 }}>{errors.recurrence_end_date}</p>}
+                  </div>
+                </div>
+
+                {form.recurrence === 'monthly' && (() => {
+                  const labels = describeMonthlyByDate(form.event_date);
+                  if (!labels) {
+                    return (
+                      <p style={{ fontSize: 12, color: '#718096', marginTop: 8 }}>
+                        Set an event date above to choose a monthly pattern.
+                      </p>
+                    );
+                  }
+                  return (
+                    <div style={{ marginTop: 12 }}>
+                      <Label style={{ fontSize: 14, fontWeight: 500, color: '#1A202C' }}>Monthly pattern</Label>
+                      <RadioGroup
+                        value={form.monthly_mode}
+                        onValueChange={(v) => set('monthly_mode', v as MonthlyModeKind)}
+                        style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 8 }}
+                      >
+                        <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                          <RadioGroupItem value="day_of_month" id="monthly-mode-dom" />
+                          <span style={{ fontSize: 14, color: '#1A202C' }}>{labels.dayOfMonth}</span>
+                        </label>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                          <RadioGroupItem value="nth_weekday" id="monthly-mode-nth" />
+                          <span style={{ fontSize: 14, color: '#1A202C' }}>{labels.nthWeekday}</span>
+                        </label>
+                      </RadioGroup>
+                    </div>
+                  );
+                })()}
+              </>
+            )}
           </div>
         </div>
 
