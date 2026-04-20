@@ -23,6 +23,7 @@ import Settings from "./pages/admin/Settings.tsx";
 import Events from "./pages/admin/Events.tsx";
 import AdminBookings from "./pages/admin/Bookings.tsx";
 import PortalLogin from "./pages/portal/PortalLogin.tsx";
+import AcceptInvite from "./pages/portal/AcceptInvite.tsx";
 import PortalProtectedRoute from "./components/portal/PortalProtectedRoute.tsx";
 import PortalLayout from "./components/portal/PortalLayout.tsx";
 import PortalBarTab from "./pages/portal/PortalBarTab.tsx";
@@ -81,6 +82,7 @@ const App = () => (
                 <Route path="settings" element={<Settings />} />
               </Route>
               <Route path="portal/login" element={<PortalThemeProvider><PortalLogin /></PortalThemeProvider>} />
+              <Route path="portal/accept-invite" element={<PortalThemeProvider><AcceptInvite /></PortalThemeProvider>} />
               <Route path="portal" element={<PortalProtectedRoute />}>
                 <Route element={
                   <PortalAuthProvider>
