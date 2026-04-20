@@ -15,6 +15,7 @@ import NotFound from "./pages/NotFound.tsx";
 import AdminLogin from "./pages/admin/AdminLogin.tsx";
 import AdminProtectedRoute from "./components/admin/AdminProtectedRoute.tsx";
 import Products from "./pages/admin/Products.tsx";
+import AdminDashboard from "./pages/admin/Dashboard.tsx";
 import Members from "./pages/admin/Members.tsx";
 import MemberDetail from "./pages/admin/MemberDetail.tsx";
 import Reports from "./pages/admin/Reports.tsx";
@@ -70,7 +71,7 @@ const App = () => (
                   <AdminProtectedRoute />
                 </AdminAuthProvider>
               }>
-                <Route index element={<Navigate to="products" replace />} />
+                <Route index element={<AdminDashboard />} />
                 <Route path="products" element={<Products />} />
                 <Route path="members" element={<Members />} />
                 <Route path="members/:id" element={<MemberDetail />} />
