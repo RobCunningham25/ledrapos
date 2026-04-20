@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { Plus, Pencil, ToggleLeft, ToggleRight, Search } from 'lucide-react';
 import AdminLayout from '@/components/admin/AdminLayout';
 import ProductDrawer from '@/components/admin/ProductDrawer';
+import BarTabRemindersCard from '@/components/admin/BarTabRemindersCard';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -65,6 +66,10 @@ export default function Products() {
         </Button>
       }
     >
+      <div className="mb-6">
+        <BarTabRemindersCard />
+      </div>
+
       {/* Filter bar */}
       <div className="flex flex-wrap items-center gap-3 mb-4">
         <Select value={categoryFilter} onValueChange={setCategoryFilter}>
