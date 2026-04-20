@@ -1,6 +1,6 @@
 import { ReactNode, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Package, Users, CalendarDays, BedDouble, BarChart3, Settings, Menu, X, LogOut } from 'lucide-react';
+import { LayoutDashboard, Package, Users, CalendarDays, BedDouble, BarChart3, Settings, Menu, X, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useAdminAuth } from '@/contexts/AdminAuthContext';
@@ -13,6 +13,7 @@ interface AdminLayoutProps {
 }
 
 const navKeys = [
+  { label: 'Dashboard', sub: '', icon: LayoutDashboard },
   { label: 'Products', sub: 'products', icon: Package },
   { label: 'Members', sub: 'members', icon: Users },
   { label: 'Events', sub: 'events', icon: CalendarDays },
@@ -30,8 +31,7 @@ export default function AdminLayout({ children, title, action }: AdminLayoutProp
 
   const navItems = navKeys.map(item => ({ ...item, path: adminPath(item.sub) }));
 
-  const isActive = (path: string) =>
-    location.pathname === path || (path === adminPath('products') && location.pathname === adminPath());
+  const isActive = (path: string) => location.pathname === path;
 
   const sidebar = (
     <div className="flex h-full flex-col">
