@@ -1,4 +1,4 @@
-export type Json =
+﻿export type Json =
   | string
   | number
   | boolean
@@ -359,6 +359,60 @@ export type Database = {
           },
         ]
       }
+      broadcast_recipients: {
+        Row: {
+          attempts: number
+          broadcast_id: string
+          email: string
+          error: string | null
+          id: string
+          member_id: string
+          resend_message_id: string | null
+          sent_at: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          broadcast_id: string
+          email: string
+          error?: string | null
+          id?: string
+          member_id: string
+          resend_message_id?: string | null
+          sent_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          broadcast_id?: string
+          email?: string
+          error?: string | null
+          id?: string
+          member_id?: string
+          resend_message_id?: string | null
+          sent_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "broadcast_recipients_broadcast_id_fkey"
+            columns: ["broadcast_id"]
+            isOneToOne: false
+            referencedRelation: "email_broadcasts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "broadcast_recipients_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       checkout_sessions: {
         Row: {
           amount_cents: number
@@ -485,6 +539,125 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "club_events_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      email_broadcasts: {
+        Row: {
+          attachment_paths: Json
+          body_html: string
+          body_text: string | null
+          created_at: string
+          created_by: string | null
+          failed_count: number
+          id: string
+          recipient_filter: Json
+          scheduled_for: string | null
+          sent_at: string | null
+          sent_count: number
+          skipped_count: number
+          started_at: string | null
+          status: string
+          subject: string
+          total_recipients: number
+          updated_at: string
+          venue_id: string
+        }
+        Insert: {
+          attachment_paths?: Json
+          body_html: string
+          body_text?: string | null
+          created_at?: string
+          created_by?: string | null
+          failed_count?: number
+          id?: string
+          recipient_filter?: Json
+          scheduled_for?: string | null
+          sent_at?: string | null
+          sent_count?: number
+          skipped_count?: number
+          started_at?: string | null
+          status?: string
+          subject: string
+          total_recipients?: number
+          updated_at?: string
+          venue_id: string
+        }
+        Update: {
+          attachment_paths?: Json
+          body_html?: string
+          body_text?: string | null
+          created_at?: string
+          created_by?: string | null
+          failed_count?: number
+          id?: string
+          recipient_filter?: Json
+          scheduled_for?: string | null
+          sent_at?: string | null
+          sent_count?: number
+          skipped_count?: number
+          started_at?: string | null
+          status?: string
+          subject?: string
+          total_recipients?: number
+          updated_at?: string
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_broadcasts_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "admin_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_broadcasts_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      email_templates: {
+        Row: {
+          body_html: string
+          created_at: string
+          description: string | null
+          display_order: number
+          id: string
+          name: string
+          subject_template: string
+          venue_id: string | null
+        }
+        Insert: {
+          body_html: string
+          created_at?: string
+          description?: string | null
+          display_order?: number
+          id?: string
+          name: string
+          subject_template: string
+          venue_id?: string | null
+        }
+        Update: {
+          body_html?: string
+          created_at?: string
+          description?: string | null
+          display_order?: number
+          id?: string
+          name?: string
+          subject_template?: string
+          venue_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_templates_venue_id_fkey"
             columns: ["venue_id"]
             isOneToOne: false
             referencedRelation: "venues"
@@ -821,6 +994,8 @@ export type Database = {
           auth_user_id: string | null
           created_at: string | null
           email: string | null
+          email_opt_out: boolean
+          email_opt_out_at: string | null
           emergency_contact_name: string | null
           emergency_contact_phone: string | null
           first_name: string
@@ -835,12 +1010,15 @@ export type Database = {
           partner_name: string | null
           partner_phone: string | null
           phone: string | null
+          unsubscribe_token: string
           venue_id: string
         }
         Insert: {
           auth_user_id?: string | null
           created_at?: string | null
           email?: string | null
+          email_opt_out?: boolean
+          email_opt_out_at?: string | null
           emergency_contact_name?: string | null
           emergency_contact_phone?: string | null
           first_name: string
@@ -855,12 +1033,15 @@ export type Database = {
           partner_name?: string | null
           partner_phone?: string | null
           phone?: string | null
+          unsubscribe_token?: string
           venue_id: string
         }
         Update: {
           auth_user_id?: string | null
           created_at?: string | null
           email?: string | null
+          email_opt_out?: boolean
+          email_opt_out_at?: string | null
           emergency_contact_name?: string | null
           emergency_contact_phone?: string | null
           first_name?: string
@@ -875,6 +1056,7 @@ export type Database = {
           partner_name?: string | null
           partner_phone?: string | null
           phone?: string | null
+          unsubscribe_token?: string
           venue_id?: string
         }
         Relationships: [
@@ -1161,6 +1343,7 @@ export type Database = {
           accent_color: string
           address: string | null
           booking_code_prefix: string
+          broadcast_from_email: string | null
           button_radius: string
           card_background: string
           card_border: string
@@ -1192,6 +1375,7 @@ export type Database = {
           accent_color?: string
           address?: string | null
           booking_code_prefix?: string
+          broadcast_from_email?: string | null
           button_radius?: string
           card_background?: string
           card_border?: string
@@ -1223,6 +1407,7 @@ export type Database = {
           accent_color?: string
           address?: string | null
           booking_code_prefix?: string
+          broadcast_from_email?: string | null
           button_radius?: string
           card_background?: string
           card_border?: string
@@ -1257,6 +1442,15 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      claim_broadcast_batch: {
+        Args: { p_broadcast_id: string; p_limit?: number }
+        Returns: {
+          email: string
+          member_id: string
+          recipient_id: string
+          unsubscribe_token: string
+        }[]
+      }
       commit_cart_items: {
         Args: {
           p_cash_customer_name?: string
@@ -1266,6 +1460,26 @@ export type Database = {
           p_venue_id: string
         }
         Returns: Json
+      }
+      get_members_with_auth: {
+        Args: { p_venue_id: string }
+        Returns: {
+          auth_user_id: string
+          created_at: string
+          email: string
+          first_name: string
+          id: string
+          is_active: boolean
+          last_name: string
+          last_sign_in_at: string
+          membership_number: string
+          membership_type: string
+          partner_first_name: string
+          partner_last_name: string
+          partner_name: string
+          phone: string
+          venue_id: string
+        }[]
       }
       process_payment: {
         Args: {
@@ -1278,6 +1492,14 @@ export type Database = {
           p_venue_id: string
         }
         Returns: Json
+      }
+      select_broadcast_recipients: {
+        Args: { p_filter?: Json; p_venue_id: string }
+        Returns: {
+          email: string
+          id: string
+          status: string
+        }[]
       }
     }
     Enums: {

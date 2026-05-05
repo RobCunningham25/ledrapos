@@ -1,6 +1,6 @@
 import { ReactNode, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Package, Users, CalendarDays, BedDouble, BarChart3, Settings, Menu, X, LogOut } from 'lucide-react';
+import { LayoutDashboard, Package, Users, CalendarDays, BedDouble, BarChart3, Settings, Menu, X, LogOut, Mail } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useAdminAuth } from '@/contexts/AdminAuthContext';
@@ -19,6 +19,7 @@ const navKeys = [
   { label: 'Events', sub: 'events', icon: CalendarDays },
   { label: 'Bookings', sub: 'bookings', icon: BedDouble },
   { label: 'Reports', sub: 'reports', icon: BarChart3 },
+  { label: 'Broadcasts', sub: 'broadcasts', icon: Mail },
   { label: 'Settings', sub: 'settings', icon: Settings },
 ];
 

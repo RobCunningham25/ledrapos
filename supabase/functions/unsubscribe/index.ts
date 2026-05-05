@@ -74,8 +74,8 @@ Deno.serve(async (req) => {
         .maybeSingle();
 
       if (member) {
-        // deno-lint-ignore no-explicit-any
-        venueName = (member as any).venues?.name ?? null;
+        const joined = member as { venues?: { name?: string | null } | null };
+        venueName = joined.venues?.name ?? null;
         alreadyOptedOut = member.email_opt_out === true;
 
         if (!alreadyOptedOut) {
