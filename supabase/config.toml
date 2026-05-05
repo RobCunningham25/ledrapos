@@ -29,3 +29,18 @@ verify_jwt = false
 
 [functions.process-broadcast-batch]
 verify_jwt = false
+
+[functions.send-tab-reminders]
+verify_jwt = false
+
+[functions.send-whatsapp]
+verify_jwt = false
+
+[functions.whatsapp-webhook]
+verify_jwt = false
+
+[functions.whatsapp-status]
+verify_jwt = false
+
+[functions.send-whatsapp-optin-invite]
+verify_jwt = false

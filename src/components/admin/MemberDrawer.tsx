@@ -21,6 +21,11 @@ interface MemberRow {
   partner_last_name: string | null;
   is_active: boolean;
   auth_user_id: string | null;
+  whatsapp_number?: string | null;
+  whatsapp_opt_in?: boolean;
+  whatsapp_opt_in_at?: string | null;
+  whatsapp_opt_in_method?: string | null;
+  whatsapp_opt_out_at?: string | null;
 }
 
 interface MemberDrawerProps {
@@ -41,6 +46,8 @@ interface FormState {
   partner_first_name: string;
   partner_last_name: string;
   is_active: boolean;
+  whatsapp_number: string;
+  whatsapp_manual_opt_out: boolean;
 }
 
 const emptyForm: FormState = {
@@ -53,6 +60,8 @@ const emptyForm: FormState = {
   partner_first_name: '',
   partner_last_name: '',
   is_active: true,
+  whatsapp_number: '',
+  whatsapp_manual_opt_out: false,
 };
 
 export default function MemberDrawer({ isOpen, onClose, venueId, member, onSuccess }: MemberDrawerProps) {
@@ -74,6 +83,8 @@ export default function MemberDrawer({ isOpen, onClose, venueId, member, onSucce
           partner_first_name: member.partner_first_name || '',
           partner_last_name: member.partner_last_name || '',
           is_active: member.is_active,
+          whatsapp_number: member.whatsapp_number || member.phone || '',
+          whatsapp_manual_opt_out: !!member.whatsapp_opt_out_at && !member.whatsapp_opt_in,
         });
       } else {
         setForm(emptyForm);
@@ -101,7 +112,14 @@ export default function MemberDrawer({ isOpen, onClose, venueId, member, onSucce
     if (!validate()) return;
     setSaving(true);
 
-    const record = {
+    // Compose WhatsApp opt-out fields. Admin can flip an opted-in member to opted-out
+    // here (e.g. someone phoned in to unsubscribe); we don't allow manually opting
+    // someone in — that has to come from the member themselves via the webhook.
+    const wasOptedIn = !!member?.whatsapp_opt_in;
+    const flipToOptOut = form.whatsapp_manual_opt_out && wasOptedIn;
+    const clearOptOut = !form.whatsapp_manual_opt_out && !!member?.whatsapp_opt_out_at && !member?.whatsapp_opt_in;
+
+    const record: Record<string, unknown> = {
       venue_id: venueId,
       first_name: form.first_name.trim(),
       last_name: form.last_name.trim(),
@@ -112,7 +130,14 @@ export default function MemberDrawer({ isOpen, onClose, venueId, member, onSucce
       partner_first_name: form.partner_first_name.trim() || null,
       partner_last_name: form.partner_last_name.trim() || null,
       is_active: form.is_active,
+      whatsapp_number: form.whatsapp_number.trim() || null,
     };
+    if (flipToOptOut) {
+      record.whatsapp_opt_in = false;
+      record.whatsapp_opt_out_at = new Date().toISOString();
+    } else if (clearOptOut) {
+      record.whatsapp_opt_out_at = null;
+    }
 
     let error;
     if (isEdit && member) {
@@ -203,6 +228,67 @@ export default function MemberDrawer({ isOpen, onClose, venueId, member, onSucce
           {field('Partner Last Name', 'partner_last_name', {
             placeholder: 'Partner last name',
           })}
+
+          {/* ===== WhatsApp section ===== */}
+          <div style={{ borderTop: '1px solid #E2E8F0', paddingTop: 16, marginTop: 8 }}>
+            <Label style={{ fontSize: 14, fontWeight: 600, color: '#1A202C' }}>WhatsApp</Label>
+            {field('WhatsApp number', 'whatsapp_number', {
+              placeholder: '+27 82 123 4567',
+              helper: 'Used for tab reminders and opt-in messages. Defaults to phone.',
+            })}
+
+            {isEdit && member && (
+              <div style={{ marginTop: 10 }}>
+                {member.whatsapp_opt_in ? (
+                  <div style={{
+                    background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 6,
+                    padding: '10px 12px', fontSize: 13, color: '#166534'
+                  }}>
+                    <strong>✓ Opted in</strong>
+                    {member.whatsapp_opt_in_at && (
+                      <span> on {new Date(member.whatsapp_opt_in_at).toLocaleString('en-ZA')}</span>
+                    )}
+                    {member.whatsapp_opt_in_method && <span> ({member.whatsapp_opt_in_method})</span>}
+                    <div className="flex items-center justify-between" style={{ marginTop: 8 }}>
+                      <span style={{ fontSize: 13 }}>Manually opt this member out</span>
+                      <Switch
+                        checked={form.whatsapp_manual_opt_out}
+                        onCheckedChange={v => set('whatsapp_manual_opt_out', v)}
+                      />
+                    </div>
+                    {form.whatsapp_manual_opt_out && (
+                      <p style={{ fontSize: 12, color: '#92400E', marginTop: 6 }}>
+                        Saving will mark this member as opted out. They won't receive any further WhatsApp messages.
+                      </p>
+                    )}
+                  </div>
+                ) : member.whatsapp_opt_out_at ? (
+                  <div style={{
+                    background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 6,
+                    padding: '10px 12px', fontSize: 13, color: '#991B1B'
+                  }}>
+                    <strong>Opted out</strong> on {new Date(member.whatsapp_opt_out_at).toLocaleString('en-ZA')}
+                    <div className="flex items-center justify-between" style={{ marginTop: 8 }}>
+                      <span style={{ fontSize: 13 }}>Keep opt-out</span>
+                      <Switch
+                        checked={form.whatsapp_manual_opt_out}
+                        onCheckedChange={v => set('whatsapp_manual_opt_out', v)}
+                      />
+                    </div>
+                    {!form.whatsapp_manual_opt_out && (
+                      <p style={{ fontSize: 12, color: '#92400E', marginTop: 6 }}>
+                        Clearing the opt-out lets you re-send an opt-in invite. The member must still tap Yes.
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <p style={{ fontSize: 13, color: '#718096', marginTop: 6 }}>
+                    Not opted in yet. Use the "Send opt-in" button on the Members page.
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
 
           {isEdit && (
             <div>

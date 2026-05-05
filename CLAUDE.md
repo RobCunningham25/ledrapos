@@ -29,7 +29,7 @@ for database, RLS, Edge Functions, Auth, and Storage.
 | Table | Purpose |
 |---|---|
 | `venues` | One row per tenant; includes 21 branding/config columns, `slug`, `logo_url`, `broadcast_from_email` (per-tenant verified Resend sender) |
-| `members` | Club members; `venue_id`, `membership_number`, `email_opt_out`, `unsubscribe_token` (per-member, used in broadcast unsubscribe links) |
+| `members` | Club members; `venue_id`, `membership_number`, `email_opt_out`, `unsubscribe_token` (per-member, used in broadcast unsubscribe links), plus WhatsApp opt-in fields: `whatsapp_number`, `whatsapp_opt_in`, `whatsapp_opt_in_at`, `whatsapp_opt_in_method`, `whatsapp_opt_out_at`, `whatsapp_last_inbound_at` (drives the 24h session-window check) |
 | `products` | Product catalogue; `venue_id`, `category`, `price`, `purchase_price` (cost-per-shot) |
 | `tabs` | Open/closed bar tabs; written on first cart commit, not on tab open |
 | `tab_items` | Line items on a tab |
@@ -46,6 +46,7 @@ for database, RLS, Edge Functions, Auth, and Storage.
 | `email_broadcasts` | One row per admin-sent broadcast email campaign; `venue_id`, `subject`, `body_html`, `attachment_paths`, status lifecycle |
 | `broadcast_recipients` | One row per (broadcast, member); snapshots `email`, tracks `status` (sent/failed/bounced/skipped), `resend_message_id` |
 | `email_templates` | Per-venue starter templates for the broadcast compose page (subject + body); seeded via migration |
+| `whatsapp_messages` | Audit log of every outbound + inbound WhatsApp message; `direction`, `template_sid`, `twilio_sid`, `status`, `related_kind`/`related_id`. Backs the daily-cap check, recent-reminder lookups, and the inbound webhook router |
 
 **`bookings` is for accommodation only** — it has no `event_id` FK to `club_events`. There is no
 event RSVP system. Do not conflate bookings with event attendance. If RSVP tracking is ever needed,
@@ -140,7 +141,11 @@ Dashboard cards use: white background, `1px solid #E2E8F0` border, `8px` radius,
   Currently MVP is immediate-send only.
 - **Broadcast bounce/complaint handling:** No `resend-webhook` Edge Function yet. Hard bounces
   and spam complaints aren't auto-flipping `members.email_opt_out`.
-- **WhatsApp WA-1:** Manual tab reminder button per member (Twilio); pending Meta App Review
+- **WhatsApp WA-1 through WA-5:** Phased build in progress (see `.claude/plans/`). Phase 0
+  (foundation: schema, `send-whatsapp` function, audit table) and Phase 1 (opt-in flow with
+  quick-reply buttons) land first. Phases 2–4 cover individual + bulk tab reminders with
+  interactive Yoco link, plus an inbound keyword router. WhatsApp number `+27 16 004 0192`.
+  Twilio is configured as a Tech Provider sub-account; templates submitted to Meta separately.
 - **Phase 11D:** Sundowner Bay Yacht Club demo tenant (deferred to sales phase)
 - **Phase 11F-2:** Bar inventory import
 - **EFT expiry cron:** Server-side enforcement deferred (currently visual-only)
@@ -154,7 +159,7 @@ Dashboard cards use: white background, `1px solid #E2E8F0` border, `8px` radius,
 |---|---|---|
 | Resend | Transactional email + member broadcasts | `vaalcruising.co.za` verified; **free tier (100/day, 10/sec)** — broadcasts must respect this |
 | Yoco | Online payments | Checkout API only; webhook registered via API not portal |
-| Twilio | WhatsApp tab reminders | Meta App Review pending; two separate numbers recommended |
+| Twilio | WhatsApp tab reminders + inbound router | Tech Provider sub-account on `+27 16 004 0192`; **billed per message** (no free tier) — every venue has a `whatsapp_daily_cap` (default 200) |
 | OpenWeather | Vaal Dam weather widget | Integrated in member portal |
 
 **PowerShell note:** `curl` is aliased to `Invoke-WebRequest` in PowerShell — always provide
@@ -183,6 +188,15 @@ native PS syntax or use `curl.exe` explicitly when giving CLI instructions.
     is the only place to render outgoing broadcast HTML.
 14. **Never expose the `BROADCAST_WORKER_TOKEN`** — it gates `process-broadcast-batch` so the worker
     can't be invoked from the browser. Lives in Supabase function secrets only.
+15. **Never bypass the WhatsApp daily cap** — `venues.whatsapp_daily_cap` (default 200) is enforced by
+    `send-whatsapp`. Twilio bills per message; we have no free tier. Raising the cap requires an
+    explicit decision per venue, not an inline override.
+16. **All outbound WhatsApp outside a 24h session window must reference an approved `template_sid`** —
+    free-form `body` sends are rejected by `send-whatsapp` unless `whatsapp_last_inbound_at` is within
+    24 hours. Meta returns 63016 if you try to bypass this; Twilio surfaces it as a hard error.
+17. **Never expose `TWILIO_AUTH_TOKEN` or `WHATSAPP_WORKER_TOKEN`** — `whatsapp-webhook` validates
+    `X-Twilio-Signature` (HMAC-SHA1 of URL + sorted form params using the auth token) and
+    `send-whatsapp` requires the worker token. Both live in Supabase function secrets only.
 
 ---
 
@@ -227,3 +241,10 @@ the `supabase/`, `src/`, and `package.json` all live at this level).
 - `INVITE_FROM_EMAIL` — fallback sender if a venue's `broadcast_from_email` is null
 - `SITE_URL` — base URL for unsubscribe links and portal redirects (`https://pos.ledra.co.za`)
 - `BROADCAST_WORKER_TOKEN` — shared secret guarding `process-broadcast-batch` from browser access
+- `TWILIO_ACCOUNT_SID` / `TWILIO_AUTH_TOKEN` — sub-account credentials for the WhatsApp sender
+- `TWILIO_WHATSAPP_FROM` — sender address in `whatsapp:+E164` form (e.g. `whatsapp:+27160040192`)
+- `TWILIO_WEBHOOK_SECRET` — auth token used to validate `X-Twilio-Signature` on inbound webhooks
+  (typically the same value as `TWILIO_AUTH_TOKEN`, but kept separate so it can be rotated)
+- `WHATSAPP_WORKER_TOKEN` — shared secret guarding `send-whatsapp` from browser access
+- `TWILIO_TEMPLATE_OPTIN_SID` / `TWILIO_TEMPLATE_TAB_REMINDER_SID` /
+  `TWILIO_TEMPLATE_GENERIC_SID` — Meta-approved Content Template SIDs (HX...)
