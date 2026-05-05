@@ -33,6 +33,7 @@ import PortalMyDetails from "./pages/portal/PortalMyDetails.tsx";
 import PortalBookings from "./pages/portal/PortalBookings.tsx";
 import PortalPaymentResult from "./pages/portal/PortalPaymentResult.tsx";
 import PublicBookingPage from "./pages/PublicBookingPage.tsx";
+import Unsubscribed from "./pages/Unsubscribed.tsx";
 
 const queryClient = new QueryClient();
 
@@ -62,6 +63,7 @@ const App = () => (
           <Route path="booking">
             <Route path=":code" element={<PublicBookingPage />} />
           </Route>
+          <Route path="unsubscribed" element={<Unsubscribed />} />
           <Route path="/:slug" element={<VenueResolver />}>
             <Route element={<VenueLayout />}>
               <Route index element={<Index />} />
