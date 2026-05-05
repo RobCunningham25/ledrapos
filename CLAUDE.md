@@ -28,8 +28,8 @@ for database, RLS, Edge Functions, Auth, and Storage.
 
 | Table | Purpose |
 |---|---|
-| `venues` | One row per tenant; includes 21 branding/config columns, `slug`, `logo_url` |
-| `members` | Club members; `venue_id`, `member_number`, `is_cash_customer` flag |
+| `venues` | One row per tenant; includes 21 branding/config columns, `slug`, `logo_url`, `broadcast_from_email` (per-tenant verified Resend sender) |
+| `members` | Club members; `venue_id`, `membership_number`, `email_opt_out`, `unsubscribe_token` (per-member, used in broadcast unsubscribe links) |
 | `products` | Product catalogue; `venue_id`, `category`, `price`, `purchase_price` (cost-per-shot) |
 | `tabs` | Open/closed bar tabs; written on first cart commit, not on tab open |
 | `tab_items` | Line items on a tab |
@@ -43,6 +43,9 @@ for database, RLS, Edge Functions, Auth, and Storage.
 | `pos_sessions` | Bartender shift sessions |
 | `checkout_sessions` | Yoco Checkout API sessions for online payments |
 | `member_favorites` | Manual pre-population only — never auto-learn from purchase history |
+| `email_broadcasts` | One row per admin-sent broadcast email campaign; `venue_id`, `subject`, `body_html`, `attachment_paths`, status lifecycle |
+| `broadcast_recipients` | One row per (broadcast, member); snapshots `email`, tracks `status` (sent/failed/bounced/skipped), `resend_message_id` |
+| `email_templates` | Per-venue starter templates for the broadcast compose page (subject + body); seeded via migration |
 
 **`bookings` is for accommodation only** — it has no `event_id` FK to `club_events`. There is no
 event RSVP system. Do not conflate bookings with event attendance. If RSVP tracking is ever needed,
@@ -116,14 +119,27 @@ Dashboard cards use: white background, `1px solid #E2E8F0` border, `8px` radius,
 - **Branding:** 21-column venue schema; dynamic CSS variable theming per slug
 - **Email (Phase 12 partial):** Resend integration scoped — Edge Functions `send-monthly-report`,
   `send-booking-eft-created`, `send-booking-confirmed`; `useEmailService` hook; admin email settings UI
+- **Member broadcast email:** Admin "Broadcasts" page with TipTap rich editor, drag-drop attachment
+  upload (5 MB/file, 25 MB combined) to `broadcast-attachments` Storage bucket, recipient picker
+  (all active members or pick-specific with search), live recipient count, daily quota indicator,
+  email preview modal, send-confirmation dialog. Backend: `send-broadcast` (admin-auth) +
+  `process-broadcast-batch` (worker-token, throttled to ~8/sec) Edge Functions. Per-member
+  unsubscribe via `unsubscribe` Edge Function → 302 redirect to public Vite route `/unsubscribed`.
+  4 starter templates seeded for VCA (Letter from Commodore / Newsletter / Formal Letter / Casual
+  notice). Footer auto-injected with venue address + unsubscribe link (POPIA + RFC 8058 compliant).
 - **Data:** 74 VCA members + boats/sites imported; product catalogue with ZAR pricing
 
 ---
 
 ## What Is NOT Yet Built (Pending)
 
-- **Phase 12 complete:** Resend account setup, domain verification (`ledra.co.za`), API key in
-  Supabase secrets, Edge Function deployment
+- **`ledra.co.za` Resend domain verification:** still aspirational (platform-brand sender).
+  `vaalcruising.co.za` is verified and used for VCA invites + broadcasts.
+- **Broadcast scheduled-send worker:** `email_broadcasts.scheduled_for` column exists and
+  `send-broadcast` accepts it, but no pg_cron job picks up due-but-not-sent broadcasts yet.
+  Currently MVP is immediate-send only.
+- **Broadcast bounce/complaint handling:** No `resend-webhook` Edge Function yet. Hard bounces
+  and spam complaints aren't auto-flipping `members.email_opt_out`.
 - **WhatsApp WA-1:** Manual tab reminder button per member (Twilio); pending Meta App Review
 - **Phase 11D:** Sundowner Bay Yacht Club demo tenant (deferred to sales phase)
 - **Phase 11F-2:** Bar inventory import
@@ -136,7 +152,7 @@ Dashboard cards use: white background, `1px solid #E2E8F0` border, `8px` radius,
 
 | Service | Purpose | Notes |
 |---|---|---|
-| Resend | Transactional email | `ledra.co.za` domain needs verification |
+| Resend | Transactional email + member broadcasts | `vaalcruising.co.za` verified; **free tier (100/day, 10/sec)** — broadcasts must respect this |
 | Yoco | Online payments | Checkout API only; webhook registered via API not portal |
 | Twilio | WhatsApp tab reminders | Meta App Review pending; two separate numbers recommended |
 | OpenWeather | Vaal Dam weather widget | Integrated in member portal |
@@ -159,6 +175,14 @@ native PS syntax or use `curl.exe` explicitly when giving CLI instructions.
 9. **Tab records are only written to DB on first cart commit**, not when a tab is opened in the UI.
 10. **`purchase_price` on products = cost per shot** (not per bottle). Correct prices before reporting.
 11. **Never add `event_id` to `bookings`** — bookings are accommodation records, not event RSVPs.
+12. **Never bypass the broadcast daily quota check** — Resend free tier caps at 100/day. `send-broadcast`
+    refuses sends that would push past 95/day to leave headroom for invites and other transactional mail.
+13. **Never send broadcasts without the auto-injected footer** — venue address + unsubscribe link are
+    required for POPIA + Gmail/Yahoo bulk-sender compliance. The `wrapWithFooter` helper in
+    [supabase/functions/_shared/broadcastTemplate.ts](supabase/functions/_shared/broadcastTemplate.ts)
+    is the only place to render outgoing broadcast HTML.
+14. **Never expose the `BROADCAST_WORKER_TOKEN`** — it gates `process-broadcast-batch` so the worker
+    can't be invoked from the browser. Lives in Supabase function secrets only.
 
 ---
 
@@ -167,8 +191,11 @@ native PS syntax or use `curl.exe` explicitly when giving CLI instructions.
 - TypeScript strict mode; no `any` unless absolutely necessary
 - Supabase client via shared `lib/supabase.ts` — never instantiate a second client
 - Edge Functions in `/supabase/functions/` — Deno runtime, TypeScript
-- RLS policies follow pattern: `auth.uid() IN (SELECT user_id FROM venue_users WHERE venue_id = ...)`
-  or service-role bypass for Edge Functions
+- RLS pattern in this codebase is **permissive**: `USING (true)` for SELECT and
+  `WITH CHECK (auth.uid() IS NOT NULL)` for INSERT/UPDATE/DELETE on most tables.
+  Cross-venue isolation is enforced **explicitly in code** (Edge Functions cross-check `venue_id`
+  against the caller's `admin_users` row; client queries always `.eq('venue_id', venueId)`).
+  Edge Functions use the service-role key and bypass RLS entirely.
 - React components: functional + hooks only; no class components
 - Styling: Tailwind CSS utility classes + shadcn/ui components; CSS variables for brand tokens
 - File naming: `PascalCase` for components, `camelCase` for hooks/utils
@@ -182,7 +209,8 @@ native PS syntax or use `curl.exe` explicitly when giving CLI instructions.
 - **Project ref:** `fgquwzzyudgcmfbuvmch`
 - **URL:** `https://fgquwzzyudgcmfbuvmch.supabase.co`
 - **Deploy Edge Function:** `supabase functions deploy <n> --project-ref fgquwzzyudgcmfbuvmch`
-- **Push migrations:** `supabase db push` (run from `C:\Users\MSI\ledrapos\ledrapos\`)
+- **Push migrations:** `supabase db push` (run from `C:\Users\MSI\ledrapos\`)
+- **Regenerate types:** `supabase gen types typescript --project-id fgquwzzyudgcmfbuvmch | Out-File -FilePath "src/integrations/supabase/types.ts" -Encoding utf8` (after every schema change)
 
 **Migration history:** Previously drifted because early migrations were applied outside the CLI.
 Resolved on 2026-04-20 via `supabase migration repair`. Local and remote are now in sync —
@@ -191,5 +219,11 @@ Resolved on 2026-04-20 via `supabase migration repair`. Local and remote are now
 **Docker Desktop is NOT installed** — `supabase db pull` requires Docker and will fail. Do not
 attempt it. Use Supabase Studio for schema inspection if needed.
 
-**Project directory:** The real project root is `C:\Users\MSI\ledrapos\ledrapos\` (nested).
-Always run CLI commands from the inner folder.
+**Project directory:** The real project root is `C:\Users\MSI\ledrapos\` (NOT a nested folder —
+the `supabase/`, `src/`, and `package.json` all live at this level).
+
+**Required Supabase function secrets:**
+- `RESEND_API_KEY` — Resend account API key (used by all email-sending functions)
+- `INVITE_FROM_EMAIL` — fallback sender if a venue's `broadcast_from_email` is null
+- `SITE_URL` — base URL for unsubscribe links and portal redirects (`https://pos.ledra.co.za`)
+- `BROADCAST_WORKER_TOKEN` — shared secret guarding `process-broadcast-batch` from browser access
