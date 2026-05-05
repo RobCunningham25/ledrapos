@@ -7,7 +7,7 @@ for venue bars (yacht clubs, sports clubs). The first production tenant is the *
 Association (VCA)**, a yacht club near Vereeniging, South Africa. The platform is sold under the
 **Ledra** brand by **Dear Ziva Pty Ltd** (Rob Cunningham).
 
-Stack: **React / Vite / TypeScript** (Lovable), **Supabase** (`fgquwzzyudgcmfbuvmch.supabase.co`)
+Stack: **React / Vite / TypeScript**, **Supabase** (`fgquwzzyudgcmfbuvmch.supabase.co`)
 for database, RLS, Edge Functions, Auth, and Storage.
 
 ---
@@ -36,12 +36,21 @@ for database, RLS, Edge Functions, Auth, and Storage.
 | `payments` | Payment records linked to a tab (cash / credit / card) |
 | `member_credits` | Credit ledger; auto-populated in PaymentModal as `MIN(credit_balance, tab_total)` |
 | `admin_users` | Admin accounts; first login matched by email to seeded records |
-| `bookings` | Facility/event bookings with Yoco and EFT payment support |
+| `bookings` | Accommodation bookings with Yoco and EFT payment support; `total_price_cents` (not `amount_cents`) |
 | `booking_payments` | Payments against bookings |
-| `club_events` | Admin-created events shown on member portal calendar |
+| `club_events` | Admin-created events; columns are `event_date` (date) and `title`; supports recurrence |
+| `event_exceptions` | Per-occurrence overrides/cancellations for recurring events |
 | `pos_sessions` | Bartender shift sessions |
 | `checkout_sessions` | Yoco Checkout API sessions for online payments |
 | `member_favorites` | Manual pre-population only — never auto-learn from purchase history |
+
+**`bookings` is for accommodation only** — it has no `event_id` FK to `club_events`. There is no
+event RSVP system. Do not conflate bookings with event attendance. If RSVP tracking is ever needed,
+it belongs in a separate `event_rsvps` table in its own phase.
+
+**`club_events` recurrence columns:** `recurrence` (TEXT), `recurrence_end_date` (DATE),
+`monthly_mode` TEXT — `'day_of_month'` or `'nth_weekday'`. Expansion logic lives in
+`src/utils/eventOccurrences.ts`. Ordinal derived via `ceil(day / 7)`.
 
 **SQL deletion order** (when clearing transaction history):
 `tab_items` → `payments` → `checkout_sessions` → `tabs` → `member_credits` →
@@ -70,6 +79,8 @@ for database, RLS, Edge Functions, Auth, and Storage.
 - **Yoco webhook ID:** `sub_PgrMwkkpnPmUPlDiRmnHaoNE` — do not replace.
 - **Payments are atomic** — the `process_payment` RPC handles split payments in a single
   transaction. Never write payment records outside this RPC.
+- **Open tab outstanding balance** = `SUM(tab_items.line_total_cents) - SUM(payments.amount_cents)`
+  across open tabs — there is no `total_cents` column on `tabs`. Floor at 0.
 
 ---
 
@@ -82,19 +93,25 @@ for database, RLS, Edge Functions, Auth, and Storage.
 | Gold | `#D4A574` |
 | Off-white | `#FAF8F5` |
 
-These are defined in the venue branding schema and applied dynamically via CSS variables. Never
-hardcode colours in components — always reference CSS variables so theming works across tenants.
+Never hardcode colours in components — always reference CSS variables so theming works across
+tenants.
+
+Dashboard cards use: white background, `1px solid #E2E8F0` border, `8px` radius, `24px` padding,
+`0 1px 3px` shadow. Grid uses `auto-fit` with `260px` min (2-col desktop, 1-col mobile).
 
 ---
 
-## What Is Built (Phases 1–12 partial)
+## What Is Built
 
 - **POS:** Product catalogue, member/cash tab selection, cart, split payments (cash/credit/card)
-- **Admin:** Monthly sales report, KPI cards, top products, inventory; admin CRUD for members
-  (MemberDrawer with Tab History / Credit History / Details / Sites+Boats tabs); user management
+- **Admin dashboard:** 4 KPI cards (Open Tabs, Pending EFT Bookings, Next Event, Bookings This
+  Week) + BarTabRemindersCard; all queries scoped by `venueId`; cents throughout; `formatCents()`
+  for display; week starts Monday
+- **Admin:** Monthly sales report, top products, inventory; member CRUD (MemberDrawer with Tab
+  History / Credit History / Details / Sites+Boats tabs); user management
 - **Member portal:** Responsive nautical design; OpenWeather Vaal Dam widget; Bar Tab view;
-  My Details; Club Events calendar; Bookings (Yoco + EFT payment flows); visitor booking at
-  `/booking/:code`
+  My Details; Club Events calendar with recurring event support; Bookings (Yoco + EFT); visitor
+  booking at `/booking/:code`
 - **Auth:** PIN auth (bartenders), email auth (admins), RLS across 20+ tables
 - **Branding:** 21-column venue schema; dynamic CSS variable theming per slug
 - **Email (Phase 12 partial):** Resend integration scoped — Edge Functions `send-monthly-report`,
@@ -106,10 +123,10 @@ hardcode colours in components — always reference CSS variables so theming wor
 ## What Is NOT Yet Built (Pending)
 
 - **Phase 12 complete:** Resend account setup, domain verification (`ledra.co.za`), API key in
-  Supabase secrets, Edge Function deployment via Supabase CLI
+  Supabase secrets, Edge Function deployment
 - **WhatsApp WA-1:** Manual tab reminder button per member (Twilio); pending Meta App Review
 - **Phase 11D:** Sundowner Bay Yacht Club demo tenant (deferred to sales phase)
-- **Phase 11F-2:** Bar inventory import (Rob to provide document)
+- **Phase 11F-2:** Bar inventory import
 - **EFT expiry cron:** Server-side enforcement deferred (currently visual-only)
 - **PWA:** Parked for later
 
@@ -125,7 +142,7 @@ hardcode colours in components — always reference CSS variables so theming wor
 | OpenWeather | Vaal Dam weather widget | Integrated in member portal |
 
 **PowerShell note:** `curl` is aliased to `Invoke-WebRequest` in PowerShell — always provide
-native PS syntax or use `curl.exe` explicitly when giving CLI instructions to Rob.
+native PS syntax or use `curl.exe` explicitly when giving CLI instructions.
 
 ---
 
@@ -141,6 +158,7 @@ native PS syntax or use `curl.exe` explicitly when giving CLI instructions to Ro
 8. **Never register the WhatsApp API number on a phone** — it removes the number from any active app.
 9. **Tab records are only written to DB on first cart commit**, not when a tab is opened in the UI.
 10. **`purchase_price` on products = cost per shot** (not per bottle). Correct prices before reporting.
+11. **Never add `event_id` to `bookings`** — bookings are accommodation records, not event RSVPs.
 
 ---
 
@@ -154,20 +172,8 @@ native PS syntax or use `curl.exe` explicitly when giving CLI instructions to Ro
 - React components: functional + hooks only; no class components
 - Styling: Tailwind CSS utility classes + shadcn/ui components; CSS variables for brand tokens
 - File naming: `PascalCase` for components, `camelCase` for hooks/utils
-
----
-
-## Session Workflow
-
-Rob applies changes in **Lovable** (a stateless AI builder) and reports results. When writing
-Lovable prompts:
-- Every prompt must be **fully self-contained** — include exact file paths, hex colours, column
-  names, and a **"What Must Not Change"** section to prevent regressions
-- Break large phases into sub-phases (A/B/C) and validate each before proceeding
-- Schema migrations always precede UI work in separate sub-phases
-
-Handoff documents (`ledrapos-handoff_N.md`) are generated at the end of each session and uploaded
-at the start of the next to maintain context continuity.
+- `event_date` fields must be parsed as local time — always append `'T00:00:00'` before passing
+  to `new Date()` to avoid UTC midnight off-by-one errors (SA is UTC+2)
 
 ---
 
@@ -175,4 +181,15 @@ at the start of the next to maintain context continuity.
 
 - **Project ref:** `fgquwzzyudgcmfbuvmch`
 - **URL:** `https://fgquwzzyudgcmfbuvmch.supabase.co`
-- **CLI:** `supabase functions deploy <name> --project-ref fgquwzzyudgcmfbuvmch`
+- **Deploy Edge Function:** `supabase functions deploy <n> --project-ref fgquwzzyudgcmfbuvmch`
+- **Push migrations:** `supabase db push` (run from `C:\Users\MSI\ledrapos\ledrapos\`)
+
+**Migration history:** Previously drifted because early migrations were applied outside the CLI.
+Resolved on 2026-04-20 via `supabase migration repair`. Local and remote are now in sync —
+`supabase db push` is the correct path for all future migrations.
+
+**Docker Desktop is NOT installed** — `supabase db pull` requires Docker and will fail. Do not
+attempt it. Use Supabase Studio for schema inspection if needed.
+
+**Project directory:** The real project root is `C:\Users\MSI\ledrapos\ledrapos\` (nested).
+Always run CLI commands from the inner folder.
