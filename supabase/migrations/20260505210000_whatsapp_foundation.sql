@@ -96,8 +96,14 @@ CREATE POLICY whatsapp_messages_modify ON whatsapp_messages
 -- ===== get_members_with_auth: project the new columns =====
 -- Same arg + return shape as before, plus the WhatsApp fields. Frontend Member
 -- interfaces will be widened in Members.tsx + MemberDrawer.tsx in Phase 1.
+--
+-- Note: CREATE OR REPLACE can't change a function's RETURNS TABLE signature,
+-- so we drop and recreate. Nothing in the database depends on this function;
+-- it's only invoked at runtime via supabase.rpc() from the admin UI.
 
-CREATE OR REPLACE FUNCTION get_members_with_auth(p_venue_id UUID)
+DROP FUNCTION IF EXISTS get_members_with_auth(UUID);
+
+CREATE FUNCTION get_members_with_auth(p_venue_id UUID)
 RETURNS TABLE (
   id                      UUID,
   venue_id                UUID,
