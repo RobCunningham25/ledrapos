@@ -79,9 +79,11 @@ export function normaliseE164(raw: string | null | undefined): string | null {
 
   // Already explicit international — but defend against the legacy bad shape
   // "+0XXXXXXXXX" that an earlier version of this function persisted to
-  // members.whatsapp_number. Treat it as SA local with a stray + prefix.
+  // members.whatsapp_number. After stripping non-digits, an SA local number
+  // like "082 265 4357" yields 10 digits with a leading 0; we treat that as
+  // SA local with a stray + prefix.
   if (hadPlus) {
-    if (digits.length === 11 && digits.startsWith("0")) {
+    if (digits.length === 10 && digits.startsWith("0")) {
       return "+27" + digits.slice(1);
     }
     return "+" + digits;
