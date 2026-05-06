@@ -77,14 +77,17 @@ async function sendInviteFor(
   workerToken: string,
   supabaseUrl: string,
 ): Promise<SendOutcome> {
-  // Resolve a usable WhatsApp number.
-  let toE164 = member.whatsapp_number || normaliseE164(member.phone);
+  // Always re-normalise — historical data stored from a buggy earlier version
+  // of normaliseE164 may still be in members.whatsapp_number, and we want each
+  // send to auto-heal it.
+  const toE164 = normaliseE164(member.whatsapp_number) || normaliseE164(member.phone);
   if (!toE164) {
     return { member_id: member.id, status: "skipped", error: "No usable phone number" };
   }
 
-  // Backfill whatsapp_number if missing.
-  if (!member.whatsapp_number) {
+  // Persist the canonical form back to members.whatsapp_number whenever it
+  // differs (handles both first-time backfill and one-shot data cleanup).
+  if (member.whatsapp_number !== toE164) {
     await supabase.from("members")
       .update({ whatsapp_number: toE164 })
       .eq("id", member.id);

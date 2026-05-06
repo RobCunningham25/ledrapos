@@ -77,8 +77,15 @@ export function normaliseE164(raw: string | null | undefined): string | null {
   const digits = trimmed.replace(/[^\d]/g, "");
   if (digits.length < 9) return null;
 
-  // Already explicit international.
-  if (hadPlus) return "+" + digits;
+  // Already explicit international — but defend against the legacy bad shape
+  // "+0XXXXXXXXX" that an earlier version of this function persisted to
+  // members.whatsapp_number. Treat it as SA local with a stray + prefix.
+  if (hadPlus) {
+    if (digits.length === 11 && digits.startsWith("0")) {
+      return "+27" + digits.slice(1);
+    }
+    return "+" + digits;
+  }
 
   // SA local: 10 digits starting with 0 → strip the 0, prefix 27.
   if (digits.length === 10 && digits.startsWith("0")) {
