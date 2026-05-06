@@ -119,9 +119,14 @@ Deno.serve(async (req) => {
   const signature = req.headers.get("X-Twilio-Signature");
   const formParams = await parseFormBody(req);
 
-  // Twilio validates against the URL it called. Honour an override env if set
-  // (useful when Supabase's internal req.url differs from the public webhook URL).
-  const publicUrl = Deno.env.get("TWILIO_WEBHOOK_URL") || req.url;
+  // Twilio computes its signature over the URL it actually called. Supabase's
+  // edge runtime hands us req.url with the wrong protocol ("http://") and
+  // without the "/functions/v1/" prefix, which never matches Twilio's view.
+  // Reconstruct the public URL from SUPABASE_URL. TWILIO_WEBHOOK_URL is an
+  // override for non-default deployments (e.g. local tunnel during testing).
+  const supabaseBase = (Deno.env.get("SUPABASE_URL") ?? "").replace(/\/+$/, "");
+  const publicUrl = Deno.env.get("TWILIO_WEBHOOK_URL")
+    || `${supabaseBase}/functions/v1/whatsapp-webhook`;
 
   const ok = await validateTwilioSignature(publicUrl, authToken, signature, formParams);
   if (!ok) {

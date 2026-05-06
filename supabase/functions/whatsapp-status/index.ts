@@ -53,7 +53,11 @@ Deno.serve(async (req) => {
   const signature = req.headers.get("X-Twilio-Signature");
   const formParams = await parseFormBody(req);
 
-  const publicUrl = Deno.env.get("TWILIO_STATUS_URL") || req.url;
+  // Reconstruct the public URL — Supabase's req.url uses http:// and strips
+  // /functions/v1/, which never matches Twilio's signature.
+  const supabaseBase = (Deno.env.get("SUPABASE_URL") ?? "").replace(/\/+$/, "");
+  const publicUrl = Deno.env.get("TWILIO_STATUS_URL")
+    || `${supabaseBase}/functions/v1/whatsapp-status`;
   const ok = await validateTwilioSignature(publicUrl, authToken, signature, formParams);
   if (!ok) {
     return blank(403);
