@@ -10,7 +10,7 @@ import { formatCents } from '@/utils/currency';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowLeft, Pencil, ChevronDown, ChevronUp, Shield, Loader2 } from 'lucide-react';
+import { ArrowLeft, Pencil, ChevronDown, ChevronUp, Shield, Loader2, MessageCircle } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { formatRelativeTime } from '@/utils/time';
@@ -33,6 +33,10 @@ interface Member {
   auth_user_id: string | null;
   created_at: string | null;
   last_sign_in_at: string | null;
+  whatsapp_number?: string | null;
+  whatsapp_opt_in?: boolean;
+  whatsapp_opt_in_at?: string | null;
+  whatsapp_opt_out_at?: string | null;
 }
 
 interface CreditRow {
@@ -121,6 +125,7 @@ export default function MemberDetail() {
   const [hasMoreTabs, setHasMoreTabs] = useState(false);
   const [expandedTab, setExpandedTab] = useState<string | null>(null);
   const [tabDetails, setTabDetails] = useState<Record<string, { items: TabItemDetail[]; payments: PaymentDetail[] }>>({});
+  const [waReminderTabId, setWaReminderTabId] = useState<string | null>(null);
 
   // Tab history date filter
   const [tabDateFrom, setTabDateFrom] = useState(getMonthStart);
@@ -413,6 +418,33 @@ export default function MemberDetail() {
       setExpandedTab(tabId);
       fetchTabDetail(tabId);
     }
+  };
+
+  const handleSendWhatsAppReminder = async (tabId: string) => {
+    if (!member) return;
+    setWaReminderTabId(tabId);
+    try {
+      const res = await supabase.functions.invoke('send-tab-reminder-whatsapp', {
+        body: { venue_id: venueId, tab_id: tabId },
+      });
+      if (res.error) {
+        let detail: string | null = null;
+        const ctx = (res.error as { context?: Response }).context;
+        if (ctx && typeof ctx.json === 'function') {
+          try { const body = await ctx.json(); if (body?.error) detail = body.error; } catch { /* not json */ }
+        }
+        toast.error(detail || res.error.message || 'Failed to send WhatsApp reminder');
+      } else if (res.data?.error) {
+        toast.error(res.data.error);
+      } else if (res.data?.success) {
+        toast.success(`Reminder sent to ${member.first_name} on WhatsApp`);
+      } else {
+        toast.error('Send did not complete');
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to send WhatsApp reminder');
+    }
+    setWaReminderTabId(null);
   };
 
   const setCreditQuickDate = (which: 'this' | 'last') => {
@@ -844,6 +876,7 @@ export default function MemberDetail() {
                     <th className="text-center px-4 py-3 font-medium" style={{ color: '#718096' }}>Items</th>
                     <th className="text-right px-4 py-3 font-medium" style={{ color: '#718096' }}>Total</th>
                     <th className="text-right px-4 py-3 font-medium" style={{ color: '#718096' }}>Payments</th>
+                    <th className="text-center px-4 py-3 font-medium" style={{ color: '#718096' }}>Remind</th>
                     <th className="w-8"></th>
                   </tr>
                 </thead>
@@ -874,6 +907,31 @@ export default function MemberDetail() {
                         <td className="px-4 py-3 text-center" style={{ color: '#1A202C' }}>{t.item_count}</td>
                         <td className="px-4 py-3 text-right" style={{ fontWeight: 600, color: '#1A202C' }}>{formatCents(t.total_cents)}</td>
                         <td className="px-4 py-3 text-right" style={{ fontWeight: 600, color: '#1A202C' }}>{formatCents(t.paid_cents)}</td>
+                        <td className="px-4 py-3 text-center" onClick={e => e.stopPropagation()}>
+                          {t.status === 'OPEN' && (t.total_cents - t.paid_cents) > 0 ? (
+                            member?.whatsapp_opt_in ? (
+                              <button
+                                disabled={waReminderTabId === t.id}
+                                onClick={() => handleSendWhatsAppReminder(t.id)}
+                                title="Send WhatsApp reminder for this tab"
+                                style={{
+                                  width: 32, height: 32, borderRadius: 6,
+                                  border: '1px solid #25D366', background: 'transparent',
+                                  color: '#25D366', cursor: waReminderTabId === t.id ? 'not-allowed' : 'pointer',
+                                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                                }}
+                                onMouseEnter={e => { if (waReminderTabId !== t.id) { e.currentTarget.style.background = '#25D366'; e.currentTarget.style.color = '#FFFFFF'; } }}
+                                onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#25D366'; }}
+                              >
+                                {waReminderTabId === t.id
+                                  ? <Loader2 size={14} className="animate-spin" />
+                                  : <MessageCircle size={14} />}
+                              </button>
+                            ) : (
+                              <span title="Member has not opted in to WhatsApp" style={{ color: '#A0AEC0', fontSize: 12 }}>—</span>
+                            )
+                          ) : null}
+                        </td>
                         <td className="px-4 py-3 text-center">
                           {expandedTab === t.id
                             ? <ChevronUp className="h-4 w-4" style={{ color: '#718096' }} />
@@ -883,7 +941,7 @@ export default function MemberDetail() {
                       </tr>
                       {expandedTab === t.id && (
                         <tr key={`${t.id}-detail`}>
-                          <td colSpan={7} style={{ background: '#F9FAFB', padding: '12px 24px' }}>
+                          <td colSpan={8} style={{ background: '#F9FAFB', padding: '12px 24px' }}>
                             {!tabDetails[t.id] ? (
                               <Skeleton className="h-8 w-full" />
                             ) : (
