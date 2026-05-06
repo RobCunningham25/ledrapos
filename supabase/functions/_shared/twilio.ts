@@ -57,16 +57,45 @@ export async function validateTwilioSignature(
 }
 
 /**
- * Strip "whatsapp:" prefix and normalise to "+<digits>".
- * Returns null if there's no usable digit sequence.
+ * Normalise a phone number to E.164 (`+<countrycode><digits>`).
+ *
+ * Returns null if the input has too few digits to be a real number.
+ *
+ * South-African defaulting: the platform is currently SA-only (VCA), and most
+ * member.phone values are stored in local format (e.g. "082 123 4567"). Without
+ * a country-code hint, naively prepending "+" gives "+0821234567" which Twilio
+ * rejects with error 21211. The rules below try common SA layouts before
+ * falling back to a "trust the digits" pass.
+ *
+ * If we ever onboard non-SA tenants, this should look up the venue's country
+ * and use that as the default.
  */
 export function normaliseE164(raw: string | null | undefined): string | null {
   if (!raw) return null;
   const trimmed = raw.trim().replace(WHATSAPP_PREFIX, "");
-  // Strip everything that isn't a digit, then prefix +.
+  const hadPlus = trimmed.startsWith("+");
   const digits = trimmed.replace(/[^\d]/g, "");
-  if (digits.length < 9) return null; // too short to be a real number
-  // Preserve a leading + if it was there explicitly; otherwise trust digits.
+  if (digits.length < 9) return null;
+
+  // Already explicit international.
+  if (hadPlus) return "+" + digits;
+
+  // SA local: 10 digits starting with 0 → strip the 0, prefix 27.
+  if (digits.length === 10 && digits.startsWith("0")) {
+    return "+27" + digits.slice(1);
+  }
+
+  // SA international without the leading +: 11 digits starting with 27.
+  if (digits.length === 11 && digits.startsWith("27")) {
+    return "+" + digits;
+  }
+
+  // SA mobile without the leading 0 (e.g. "821234567"): 9 digits, mobile prefix.
+  if (digits.length === 9 && /^[6-8]/.test(digits)) {
+    return "+27" + digits;
+  }
+
+  // Fallback — assume the digits already include a country code.
   return "+" + digits;
 }
 
