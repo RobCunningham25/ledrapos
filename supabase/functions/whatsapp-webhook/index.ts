@@ -73,6 +73,7 @@ async function sendSessionReply(
   toE164: string,
   body: string,
   relatedKind: string,
+  relatedId?: string | null,
 ): Promise<void> {
   // Fire and forget — failures are recorded in whatsapp_messages by send-whatsapp.
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -94,6 +95,7 @@ async function sendSessionReply(
         to_e164: toE164,
         body,
         related_kind: relatedKind,
+        related_id: relatedId ?? null,
       }),
     });
   } catch (err) {
@@ -242,6 +244,138 @@ Deno.serve(async (req) => {
       fromE164,
       "You've been opted out of WhatsApp messages. We won't send any more. Reply YES if you change your mind.",
       "optout_reply",
+    );
+    return twiml(200);
+  }
+
+  // ===== Tab-reminder button replies =====
+  // The tab-reminder template carries two quick-reply buttons:
+  //   tab_send_link  → mint a Yoco checkout URL and send it
+  //   tab_use_portal → reply with the portal URL
+  if (member && (buttonPayload === "tab_send_link" || buttonPayload === "tab_use_portal")) {
+    const { data: lastReminder } = await supabase
+      .from("whatsapp_messages")
+      .select("related_id")
+      .eq("member_id", member.id)
+      .eq("related_kind", "tab_reminder")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const tabId = lastReminder?.related_id as string | null | undefined;
+
+    if (buttonPayload === "tab_use_portal") {
+      const { data: venue } = await supabase
+        .from("venues")
+        .select("slug")
+        .eq("id", venueId)
+        .maybeSingle();
+      const siteUrl = (Deno.env.get("SITE_URL") || "https://pos.ledra.co.za").replace(/\/+$/, "");
+      const portalUrl = venue?.slug ? `${siteUrl}/${venue.slug}/portal` : siteUrl;
+      await sendSessionReply(
+        venueId,
+        member.id,
+        fromE164,
+        `Great — see you in the portal: ${portalUrl}`,
+        "portal_reply",
+        tabId ?? null,
+      );
+      return twiml(200);
+    }
+
+    // tab_send_link
+    if (!tabId) {
+      await sendSessionReply(
+        venueId,
+        member.id,
+        fromE164,
+        "Sorry, I couldn't find a recent tab reminder to bill against. Please ask the bar to send a fresh reminder.",
+        "link_request_failed",
+      );
+      return twiml(200);
+    }
+
+    // Recompute the outstanding balance live — the tab may have been part-paid
+    // since the reminder was sent.
+    const [{ data: items }, { data: payments }] = await Promise.all([
+      supabase.from("tab_items").select("line_total_cents").eq("tab_id", tabId),
+      supabase.from("payments").select("amount_cents").eq("tab_id", tabId),
+    ]);
+    const itemsTotal = ((items || []) as Array<{ line_total_cents: number }>)
+      .reduce((s, r) => s + (r.line_total_cents ?? 0), 0);
+    const paymentsTotal = ((payments || []) as Array<{ amount_cents: number }>)
+      .reduce((s, r) => s + (r.amount_cents ?? 0), 0);
+    const outstanding = Math.max(0, itemsTotal - paymentsTotal);
+
+    if (outstanding <= 0) {
+      await sendSessionReply(
+        venueId,
+        member.id,
+        fromE164,
+        "Looks like this tab has already been settled — no payment needed. Thanks!",
+        "link_request_settled",
+        tabId,
+      );
+      return twiml(200);
+    }
+
+    // Mint a Yoco checkout via create-checkout. We call it with the
+    // service-role anon key so it accepts the call (create-checkout is
+    // verify_jwt = false but expects either a JWT or the anon key for browser
+    // calls). The function attributes the checkout to the tab via tab_id +
+    // metadata so the existing yoco-webhook flow closes the tab on payment.
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY")
+      || Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const venueSlugRow = await supabase
+      .from("venues").select("slug").eq("id", venueId).maybeSingle();
+
+    let checkoutUrl: string | null = null;
+    try {
+      const checkoutResp = await fetch(`${supabaseUrl}/functions/v1/create-checkout`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${anonKey}`,
+        },
+        body: JSON.stringify({
+          member_id: member.id,
+          venue_id: venueId,
+          venue_slug: venueSlugRow.data?.slug,
+          purpose: "tab_payment",
+          amount_cents: outstanding,
+          tab_id: tabId,
+        }),
+      });
+      const checkoutBody = await checkoutResp.json().catch(() => ({}));
+      if (checkoutResp.ok && checkoutBody?.success && checkoutBody?.redirect_url) {
+        checkoutUrl = checkoutBody.redirect_url as string;
+      } else {
+        console.error("create-checkout failed:", checkoutResp.status, checkoutBody);
+      }
+    } catch (err) {
+      console.error("create-checkout fetch failed:", err instanceof Error ? err.message : String(err));
+    }
+
+    if (!checkoutUrl) {
+      await sendSessionReply(
+        venueId,
+        member.id,
+        fromE164,
+        "Sorry, I couldn't generate a payment link right now. Please try again in a few minutes or pay through the member portal.",
+        "link_request_failed",
+        tabId,
+      );
+      return twiml(200);
+    }
+
+    await sendSessionReply(
+      venueId,
+      member.id,
+      fromE164,
+      `Here's your payment link:\n${checkoutUrl}\n\nThanks!`,
+      "link_request",
+      tabId,
     );
     return twiml(200);
   }
