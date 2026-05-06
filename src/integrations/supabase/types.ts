@@ -1012,6 +1012,12 @@ export type Database = {
           phone: string | null
           unsubscribe_token: string
           venue_id: string
+          whatsapp_last_inbound_at: string | null
+          whatsapp_number: string | null
+          whatsapp_opt_in: boolean
+          whatsapp_opt_in_at: string | null
+          whatsapp_opt_in_method: string | null
+          whatsapp_opt_out_at: string | null
         }
         Insert: {
           auth_user_id?: string | null
@@ -1035,6 +1041,12 @@ export type Database = {
           phone?: string | null
           unsubscribe_token?: string
           venue_id: string
+          whatsapp_last_inbound_at?: string | null
+          whatsapp_number?: string | null
+          whatsapp_opt_in?: boolean
+          whatsapp_opt_in_at?: string | null
+          whatsapp_opt_in_method?: string | null
+          whatsapp_opt_out_at?: string | null
         }
         Update: {
           auth_user_id?: string | null
@@ -1058,6 +1070,12 @@ export type Database = {
           phone?: string | null
           unsubscribe_token?: string
           venue_id?: string
+          whatsapp_last_inbound_at?: string | null
+          whatsapp_number?: string | null
+          whatsapp_opt_in?: boolean
+          whatsapp_opt_in_at?: string | null
+          whatsapp_opt_in_method?: string | null
+          whatsapp_opt_out_at?: string | null
         }
         Relationships: [
           {
@@ -1370,6 +1388,8 @@ export type Database = {
           text_secondary: string
           warning_color: string
           welcome_message: string | null
+          whatsapp_business_number: string | null
+          whatsapp_daily_cap: number
         }
         Insert: {
           accent_color?: string
@@ -1402,6 +1422,8 @@ export type Database = {
           text_secondary?: string
           warning_color?: string
           welcome_message?: string | null
+          whatsapp_business_number?: string | null
+          whatsapp_daily_cap?: number
         }
         Update: {
           accent_color?: string
@@ -1434,8 +1456,79 @@ export type Database = {
           text_secondary?: string
           warning_color?: string
           welcome_message?: string | null
+          whatsapp_business_number?: string | null
+          whatsapp_daily_cap?: number
         }
         Relationships: []
+      }
+      whatsapp_messages: {
+        Row: {
+          body: string | null
+          created_at: string
+          direction: string
+          error: string | null
+          from_number: string | null
+          id: string
+          member_id: string | null
+          related_id: string | null
+          related_kind: string | null
+          status: string
+          template_sid: string | null
+          to_number: string | null
+          twilio_sid: string | null
+          updated_at: string
+          venue_id: string
+        }
+        Insert: {
+          body?: string | null
+          created_at?: string
+          direction: string
+          error?: string | null
+          from_number?: string | null
+          id?: string
+          member_id?: string | null
+          related_id?: string | null
+          related_kind?: string | null
+          status?: string
+          template_sid?: string | null
+          to_number?: string | null
+          twilio_sid?: string | null
+          updated_at?: string
+          venue_id: string
+        }
+        Update: {
+          body?: string | null
+          created_at?: string
+          direction?: string
+          error?: string | null
+          from_number?: string | null
+          id?: string
+          member_id?: string | null
+          related_id?: string | null
+          related_kind?: string | null
+          status?: string
+          template_sid?: string | null
+          to_number?: string | null
+          twilio_sid?: string | null
+          updated_at?: string
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_messages_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_messages_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
@@ -1479,6 +1572,11 @@ export type Database = {
           partner_name: string
           phone: string
           venue_id: string
+          whatsapp_number: string
+          whatsapp_opt_in: boolean
+          whatsapp_opt_in_at: string
+          whatsapp_opt_in_method: string
+          whatsapp_opt_out_at: string
         }[]
       }
       process_payment: {
