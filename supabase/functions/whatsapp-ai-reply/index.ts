@@ -31,7 +31,6 @@ const ANTHROPIC_VERSION = "2023-06-01";
 const MAX_TOOL_ITERATIONS = 5;
 const MAX_OUTPUT_TOKENS = 1500;
 const REPLY_TRUNCATE_AT = 1400;
-const PER_MEMBER_RATE_LIMIT_MS = 30 * 1000;
 
 interface RequestBody {
   venue_id: string;
@@ -152,19 +151,7 @@ async function preflight(
     return { ok: false, reason: "daily AI cap reached", httpStatus: 429 };
   }
 
-  // 3. Per-member rate limit
-  const since = new Date(Date.now() - PER_MEMBER_RATE_LIMIT_MS).toISOString();
-  const { count: recentCount } = await supabase
-    .from("whatsapp_messages")
-    .select("id", { count: "exact", head: true })
-    .eq("member_id", body.member_id)
-    .eq("related_kind", "ai_reply")
-    .gte("created_at", since);
-  if ((recentCount ?? 0) > 0) {
-    return { ok: false, reason: "per-member rate limit", httpStatus: 429 };
-  }
-
-  // 4. Idempotency on inbound MessageSid (stored in twilio_sid on the ai_reply row)
+  // 3. Idempotency on inbound MessageSid (stored in twilio_sid on the ai_reply row)
   const { count: dupCount } = await supabase
     .from("whatsapp_messages")
     .select("id", { count: "exact", head: true })

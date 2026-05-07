@@ -198,10 +198,26 @@ Deno.serve(async (req: Request) => {
       lineItemDescription = `${venue.name} — Booking ${bookingData.booking_code}`;
     }
 
+    // Build a human-readable external reference for the Yoco dashboard / app.
+    // This appears in the merchant's transaction list so payments can be matched
+    // back to a specific member, tab, or booking without checking our DB.
+    const memberLabel = member
+      ? `${member.first_name} ${member.last_name}${member.membership_number ? ` (#${member.membership_number})` : ""}`.trim()
+      : (purpose === "booking_payment" ? bookingData.guest_name : "Visitor");
+    let externalReference: string;
+    if (purpose === "credit_load") {
+      externalReference = `${venue.name} credit top-up — ${memberLabel}`;
+    } else if (purpose === "tab_payment") {
+      externalReference = `${venue.name} bar tab — ${memberLabel}`;
+    } else {
+      externalReference = `${venue.name} booking ${bookingData.booking_code} — ${memberLabel}`;
+    }
+
     // Build metadata
     const metadata: any = {
       venue_name: venue.name,
       line_item_description: lineItemDescription,
+      reference: externalReference,
     };
     if (member) {
       metadata.member_name = `${member.first_name} ${member.last_name}`;
@@ -289,11 +305,13 @@ Deno.serve(async (req: Request) => {
         successUrl,
         cancelUrl,
         failureUrl,
+        externalId: externalReference,
         metadata: {
           checkout_session_id: session.id,
           purpose,
           member_id: member_id || null,
           venue_id,
+          reference: externalReference,
         },
         lineItems: [
           {
