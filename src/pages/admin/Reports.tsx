@@ -25,6 +25,12 @@ interface ReportData {
     units_sold: number;
     revenue: number;
   }[];
+  yocoOnline: {
+    tab: { count: number; total_cents: number };
+    credit: { count: number; total_cents: number };
+    booking: { count: number; total_cents: number };
+    total_cents: number;
+  };
 }
 
 interface InventoryRow {
@@ -129,6 +135,43 @@ export default function Reports() {
           .slice(0, 20);
       }
 
+      // Yoco online income: split completed checkout_sessions by purpose so
+      // bar income (tab payments + credit top-ups) is separated from caravan
+      // / booking income for reconciliation.
+      const { data: yocoSessions } = await supabase
+        .from('checkout_sessions')
+        .select('purpose, amount_cents, completed_at, created_at')
+        .eq('venue_id', venueId)
+        .eq('status', 'completed')
+        .gte('completed_at', fromISO)
+        .lte('completed_at', toISO);
+
+      const yocoBuckets = {
+        tab: { count: 0, total_cents: 0 },
+        credit: { count: 0, total_cents: 0 },
+        booking: { count: 0, total_cents: 0 },
+      };
+      for (const s of (yocoSessions ?? []) as Array<{ purpose: string; amount_cents: number }>) {
+        const cents = s.amount_cents ?? 0;
+        if (s.purpose === 'tab_payment') {
+          yocoBuckets.tab.count += 1;
+          yocoBuckets.tab.total_cents += cents;
+        } else if (s.purpose === 'credit_load') {
+          yocoBuckets.credit.count += 1;
+          yocoBuckets.credit.total_cents += cents;
+        } else if (s.purpose === 'booking_payment') {
+          yocoBuckets.booking.count += 1;
+          yocoBuckets.booking.total_cents += cents;
+        }
+      }
+      const yocoOnline = {
+        ...yocoBuckets,
+        total_cents:
+          yocoBuckets.tab.total_cents
+          + yocoBuckets.credit.total_cents
+          + yocoBuckets.booking.total_cents,
+      };
+
       setReport({
         totalRevenue,
         cashCollected,
@@ -137,6 +180,7 @@ export default function Reports() {
         tabsClosed: tabsClosed ?? 0,
         openTabsCount: openTabsCount ?? 0,
         topProducts,
+        yocoOnline,
       });
 
       // Inventory (always current)
@@ -248,6 +292,45 @@ export default function Reports() {
             <p className="text-base font-medium" style={{ color: '#1A202C' }}>
               Tabs closed this period: {report.tabsClosed}
             </p>
+
+            {/* Yoco online income — split bar vs caravan for reconciliation */}
+            <div>
+              <h3 className="text-lg font-semibold mb-1" style={{ color: '#1A202C' }}>Yoco online income</h3>
+              <p className="text-[13px] italic mb-3" style={{ color: '#718096' }}>
+                Online card payments processed via Yoco, split by what was paid for. Bar income covers bar tab settlements and credit top-ups; caravan / site income covers online accommodation bookings.
+              </p>
+              <div className="bg-card rounded-lg border border-border overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr style={{ background: '#F4F6F9' }}>
+                      {['Category', 'Transactions', 'Total'].map((h) => (
+                        <th key={h} className="px-4 py-3 text-left text-[13px] font-semibold uppercase" style={{ color: '#718096' }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[
+                      { label: 'Bar tab payments', bucket: report.yocoOnline.tab },
+                      { label: 'Credit top-ups', bucket: report.yocoOnline.credit },
+                      { label: 'Caravan / site bookings', bucket: report.yocoOnline.booking },
+                    ].map((row, i) => (
+                      <tr key={row.label} className="h-12 text-sm" style={{ background: i % 2 === 1 ? '#FAFAFA' : 'white', color: '#1A202C' }}>
+                        <td className="px-4 font-medium">{row.label}</td>
+                        <td className="px-4">{row.bucket.count}</td>
+                        <td className="px-4">{formatCents(row.bucket.total_cents)}</td>
+                      </tr>
+                    ))}
+                    <tr className="h-12 text-sm font-semibold" style={{ background: '#F4F6F9', color: '#1A202C' }}>
+                      <td className="px-4">Total online</td>
+                      <td className="px-4">
+                        {report.yocoOnline.tab.count + report.yocoOnline.credit.count + report.yocoOnline.booking.count}
+                      </td>
+                      <td className="px-4">{formatCents(report.yocoOnline.total_cents)}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
 
             {/* Top Products */}
             <div>
