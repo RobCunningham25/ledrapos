@@ -380,7 +380,48 @@ Deno.serve(async (req) => {
     return twiml(200);
   }
 
-  // Anything else: recorded only. Phase 4 will add the intent router for
-  // "tab" / "events" / "help" keywords.
+  // Anything else: hand off to the Claude Haiku assistant if it's enabled for
+  // this venue and we know who the member is. We fire-and-forget so Twilio gets
+  // its 200 inside its retry budget — the agent can take a few seconds to run.
+  if (member) {
+    const { data: venueAi } = await supabase
+      .from("venues")
+      .select("whatsapp_ai_enabled")
+      .eq("id", venueId)
+      .maybeSingle();
+    if (venueAi?.whatsapp_ai_enabled) {
+      const messageSid = formParams["MessageSid"] || `inbound-${Date.now()}`;
+      const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+      const workerToken = Deno.env.get("WHATSAPP_WORKER_TOKEN");
+      if (workerToken) {
+        const aiPromise = fetch(`${supabaseUrl}/functions/v1/whatsapp-ai-reply`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Whatsapp-Worker-Token": workerToken,
+          },
+          body: JSON.stringify({
+            venue_id: venueId,
+            member_id: member.id,
+            inbound_body: body,
+            inbound_message_sid: messageSid,
+          }),
+        }).catch((err) => {
+          console.error(
+            "whatsapp-ai-reply invocation failed:",
+            err instanceof Error ? err.message : String(err),
+          );
+        });
+        // @ts-ignore — EdgeRuntime is provided by the Supabase Edge runtime.
+        if (typeof EdgeRuntime !== "undefined" && EdgeRuntime?.waitUntil) {
+          // @ts-ignore
+          EdgeRuntime.waitUntil(aiPromise);
+        }
+      } else {
+        console.error("WHATSAPP_WORKER_TOKEN missing — cannot invoke AI reply");
+      }
+    }
+  }
+
   return twiml(200);
 });
