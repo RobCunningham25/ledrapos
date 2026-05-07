@@ -25,6 +25,8 @@ import AdminBookings from "./pages/admin/Bookings.tsx";
 import Broadcasts from "./pages/admin/Broadcasts.tsx";
 import BroadcastCompose from "./pages/admin/BroadcastCompose.tsx";
 import BroadcastDetail from "./pages/admin/BroadcastDetail.tsx";
+import WhatsAppAssistant from "./pages/admin/WhatsAppAssistant.tsx";
+import WhatsAppFollowups from "./pages/admin/WhatsAppFollowups.tsx";
 import PortalLogin from "./pages/portal/PortalLogin.tsx";
 import AcceptInvite from "./pages/portal/AcceptInvite.tsx";
 import PortalProtectedRoute from "./components/portal/PortalProtectedRoute.tsx";
@@ -87,6 +89,8 @@ const App = () => (
                 <Route path="broadcasts" element={<Broadcasts />} />
                 <Route path="broadcasts/new" element={<BroadcastCompose />} />
                 <Route path="broadcasts/:id" element={<BroadcastDetail />} />
+                <Route path="whatsapp/assistant" element={<WhatsAppAssistant />} />
+                <Route path="whatsapp/followups" element={<WhatsAppFollowups />} />
                 <Route path="settings" element={<Settings />} />
               </Route>
               <Route path="portal/login" element={<PortalThemeProvider><PortalLogin /></PortalThemeProvider>} />

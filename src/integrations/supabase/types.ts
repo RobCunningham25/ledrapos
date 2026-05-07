@@ -1324,6 +1324,51 @@ export type Database = {
           },
         ]
       }
+      venue_documents: {
+        Row: {
+          content_markdown: string
+          id: string
+          kind: string
+          title: string
+          updated_at: string
+          updated_by: string | null
+          venue_id: string
+        }
+        Insert: {
+          content_markdown?: string
+          id?: string
+          kind: string
+          title: string
+          updated_at?: string
+          updated_by?: string | null
+          venue_id: string
+        }
+        Update: {
+          content_markdown?: string
+          id?: string
+          kind?: string
+          title?: string
+          updated_at?: string
+          updated_by?: string | null
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "venue_documents_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "admin_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "venue_documents_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       venue_settings: {
         Row: {
           id: string
@@ -1388,6 +1433,9 @@ export type Database = {
           text_secondary: string
           warning_color: string
           welcome_message: string | null
+          whatsapp_ai_daily_cap: number
+          whatsapp_ai_enabled: boolean
+          whatsapp_ai_model: string
           whatsapp_business_number: string | null
           whatsapp_daily_cap: number
         }
@@ -1422,6 +1470,9 @@ export type Database = {
           text_secondary?: string
           warning_color?: string
           welcome_message?: string | null
+          whatsapp_ai_daily_cap?: number
+          whatsapp_ai_enabled?: boolean
+          whatsapp_ai_model?: string
           whatsapp_business_number?: string | null
           whatsapp_daily_cap?: number
         }
@@ -1456,10 +1507,77 @@ export type Database = {
           text_secondary?: string
           warning_color?: string
           welcome_message?: string | null
+          whatsapp_ai_daily_cap?: number
+          whatsapp_ai_enabled?: boolean
+          whatsapp_ai_model?: string
           whatsapp_business_number?: string | null
           whatsapp_daily_cap?: number
         }
         Relationships: []
+      }
+      whatsapp_followups: {
+        Row: {
+          created_at: string
+          id: string
+          member_id: string | null
+          notes: string | null
+          original_message: string
+          resolved_at: string | null
+          resolved_by: string | null
+          status: string
+          summary: string
+          urgency: string
+          venue_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          member_id?: string | null
+          notes?: string | null
+          original_message: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: string
+          summary: string
+          urgency?: string
+          venue_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          member_id?: string | null
+          notes?: string | null
+          original_message?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: string
+          summary?: string
+          urgency?: string
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_followups_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_followups_resolved_by_fkey"
+            columns: ["resolved_by"]
+            isOneToOne: false
+            referencedRelation: "admin_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_followups_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       whatsapp_messages: {
         Row: {
