@@ -22,14 +22,29 @@ export const TOOL_DEFINITIONS = [
   {
     name: "read_constitution",
     description:
-      "Read the full text of the club's constitution. Call this when the member asks about constitutional matters: voting rights, AGM procedures, membership categories, board composition, or anything that would be defined in the club's founding document.",
+      "Read the full text of the club's constitution. Call this when the member asks about constitutional matters: voting rights, AGM procedures, membership categories, board composition, current OR past office-bearers (commodores, vice-commodores, treasurers, secretaries), honour rolls, life members, or anything that would be defined or historically recorded in the club's founding document. If the member asks whether a specific named person ever held a club office, check this and read_club_rules before saying you don't know.",
     input_schema: { type: "object", properties: {}, required: [] },
   },
   {
     name: "read_club_rules",
     description:
-      "Read the full text of the club's general rules and bylaws. Call this for questions about day-to-day conduct: dress code, guest policy, slipway use, pet policy, alcohol service, parking, quiet hours, etc.",
+      "Read the full text of the club's general rules, bylaws and any club history captured there. Call this for questions about day-to-day conduct (dress code, guest policy, slipway use, pet policy, alcohol service, parking, quiet hours), and also for any historical record kept in this document — past commodores, honour rolls, trophy winners, life members. If the member asks whether a specific named person ever held a club office, check this and read_constitution before saying you don't know.",
     input_schema: { type: "object", properties: {}, required: [] },
+  },
+  {
+    name: "lookup_member",
+    description:
+      "Look up another club member by name and return their basic directory info (full name, membership number, membership type, partner name, phone, email). Use this when the member asks for another member's contact details or who someone is, e.g. 'what is Delaine's phone number', 'is Mike a member', 'who is the Smiths' partner'. Search is case-insensitive and matches on first OR last name. NEVER use this to look up bar tabs, credit balances, or payment data for other members — that data is private and only get_my_tab / get_my_credit_balance (for the calling member) can return it.",
+    input_schema: {
+      type: "object",
+      properties: {
+        name: {
+          type: "string",
+          description: "First name, last name, or partial name to search for.",
+        },
+      },
+      required: ["name"],
+    },
   },
   {
     name: "get_my_tab",
@@ -238,7 +253,7 @@ async function readVenueDocument(
 async function tool_get_my_tab(ctx: ToolContext): Promise<ToolResult> {
   const { data: tabs } = await ctx.supabase
     .from("tabs")
-    .select("id, created_at")
+    .select("id, opened_at, created_at")
     .eq("venue_id", ctx.venueId)
     .eq("member_id", ctx.memberId)
     .eq("status", "OPEN")
@@ -281,33 +296,31 @@ async function tool_get_my_tab(ctx: ToolContext): Promise<ToolResult> {
   }
   const outstandingCents = Math.max(0, totalItemsCents - totalPaymentsCents);
 
-  if (outstandingCents === 0) {
-    return {
-      output: {
-        status: "no_outstanding",
-        note: "There's an open tab but it has no outstanding balance — nothing to pay right now.",
-      },
-      logSummary: `get_my_tab: open but settled`,
-    };
-  }
-
   // For multi-tab cases, prefer the most recent tab as the "primary" for payment.
-  const primaryTab = tabs[0];
-  const primaryItems = (itemsByTab.get(primaryTab.id as string) ?? []).slice(0, 10);
+  const primaryTab = tabs[0] as { id: string; opened_at: string | null; created_at: string };
+  const primaryItems = (itemsByTab.get(primaryTab.id) ?? []).slice(0, 15);
 
   return {
     output: {
-      status: "open",
+      status: outstandingCents > 0 ? "open_with_balance" : "open_settled",
       outstanding_zar: centsToZar(outstandingCents),
+      items_total_zar: centsToZar(totalItemsCents),
+      payments_total_zar: centsToZar(totalPaymentsCents),
       open_tab_count: tabs.length,
       primary_tab_id: primaryTab.id,
-      primary_tab_recent_items: primaryItems.map((it) => ({
+      primary_tab_opened_at: primaryTab.opened_at ?? primaryTab.created_at,
+      primary_tab_items: primaryItems.map((it) => ({
         item: it.name,
         qty: it.qty,
         line_total_zar: centsToZar(it.line_total_cents),
       })),
+      note: outstandingCents > 0
+        ? "The tab is open and there is an outstanding balance. You may offer pay_my_tab_link to settle."
+        : "The tab is open but everything ordered so far has been paid for (probably paid in cash or credit at the bar; bartender may not have closed it yet). Tell the member the tab is open with no balance owing and list what's been ordered.",
     },
-    logSummary: `get_my_tab: R${centsToZar(outstandingCents).toFixed(2)} across ${tabs.length} tab(s)`,
+    logSummary: outstandingCents > 0
+      ? `get_my_tab: R${centsToZar(outstandingCents).toFixed(2)} owed across ${tabs.length} tab(s), ${primaryItems.length} items`
+      : `get_my_tab: open & settled (R${centsToZar(totalItemsCents).toFixed(2)} ordered, R${centsToZar(totalPaymentsCents).toFixed(2)} paid), ${primaryItems.length} items`,
   };
 }
 
@@ -374,6 +387,68 @@ async function tool_get_my_bookings(
   return {
     output: { status: "ok", count: bookings.length, bookings },
     logSummary: `get_my_bookings: ${bookings.length} upcoming`,
+  };
+}
+
+async function tool_lookup_member(
+  ctx: ToolContext,
+  input: { name: string },
+): Promise<ToolResult> {
+  const query = (input.name ?? "").trim();
+  if (query.length < 2) {
+    return {
+      output: {
+        status: "invalid_query",
+        note: "Need at least 2 characters to search by name.",
+      },
+      logSummary: `lookup_member: query too short`,
+    };
+  }
+
+  // Escape PostgREST `or` wildcards. The `,` separates clauses, `*` is the
+  // wildcard, `%` would also work. Strip both to keep the query safe.
+  const safe = query.replace(/[,*%]/g, " ").trim();
+  const pattern = `%${safe}%`;
+
+  const { data } = await ctx.supabase
+    .from("members")
+    .select("first_name, last_name, membership_number, membership_type, partner_name, phone, whatsapp_number, email, is_active")
+    .eq("venue_id", ctx.venueId)
+    .or(`first_name.ilike.${pattern},last_name.ilike.${pattern},partner_name.ilike.${pattern}`)
+    .limit(10);
+
+  const rows = (data ?? []) as Array<{
+    first_name: string;
+    last_name: string;
+    membership_number: string;
+    membership_type: string;
+    partner_name: string | null;
+    phone: string | null;
+    whatsapp_number: string | null;
+    email: string | null;
+    is_active: boolean | null;
+  }>;
+
+  if (rows.length === 0) {
+    return {
+      output: { status: "no_matches", query: safe },
+      logSummary: `lookup_member: 0 matches for "${safe}"`,
+    };
+  }
+
+  const matches = rows.map((m) => ({
+    name: `${m.first_name} ${m.last_name}`.trim(),
+    membership_number: m.membership_number,
+    membership_type: m.membership_type,
+    partner_name: m.partner_name,
+    phone: m.whatsapp_number ?? m.phone,
+    email: m.email,
+    is_active: m.is_active !== false,
+  }));
+
+  return {
+    output: { status: "ok", count: matches.length, matches },
+    logSummary: `lookup_member: ${matches.length} match(es) for "${safe}"`,
   };
 }
 
@@ -665,7 +740,7 @@ async function tool_pay_my_tab_link(ctx: ToolContext): Promise<ToolResult> {
     outstanding_zar?: number;
     primary_tab_id?: string;
   };
-  if (tabOutput.status !== "open" || !tabOutput.primary_tab_id || !tabOutput.outstanding_zar) {
+  if (tabOutput.status !== "open_with_balance" || !tabOutput.primary_tab_id || !tabOutput.outstanding_zar) {
     return {
       output: { status: "no_outstanding", note: "There's nothing outstanding to pay." },
       logSummary: "pay_my_tab_link: nothing to pay",
@@ -944,6 +1019,8 @@ export async function runTool(
       return await tool_get_my_bookings(ctx, input as { status?: string });
     case "get_my_details":
       return await tool_get_my_details(ctx);
+    case "lookup_member":
+      return await tool_lookup_member(ctx, input as { name: string });
     case "get_upcoming_events":
       return await tool_get_upcoming_events(ctx, input as { limit?: number });
     case "check_caravan_availability":

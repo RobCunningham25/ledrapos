@@ -38,6 +38,25 @@ interface DryRunResult {
   trace: Array<{ tool: string; input: unknown; output: unknown }>;
 }
 
+interface ConversationMember {
+  member_id: string;
+  first_name: string | null;
+  last_name: string | null;
+  membership_number: string | null;
+  last_message_at: string;
+}
+
+interface ConversationMessage {
+  id: string;
+  direction: 'inbound' | 'outbound';
+  body: string | null;
+  related_kind: string | null;
+  status: string;
+  error: string | null;
+  created_at: string;
+  template_sid: string | null;
+}
+
 const DOC_KINDS: VenueDocument['kind'][] = ['constitution', 'club_rules'];
 
 export default function WhatsAppAssistant() {
@@ -59,6 +78,12 @@ export default function WhatsAppAssistant() {
   const [testRunning, setTestRunning] = useState(false);
   const [testResult, setTestResult] = useState<DryRunResult | null>(null);
   const [testError, setTestError] = useState<string | null>(null);
+
+  const [conversations, setConversations] = useState<ConversationMember[]>([]);
+  const [conversationsLoading, setConversationsLoading] = useState(false);
+  const [selectedConvMemberId, setSelectedConvMemberId] = useState<string | null>(null);
+  const [conversationMessages, setConversationMessages] = useState<ConversationMessage[]>([]);
+  const [messagesLoading, setMessagesLoading] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -196,6 +221,123 @@ export default function WhatsAppAssistant() {
     return m.membership_number ? `${name} (#${m.membership_number})` : name;
   };
 
+  const loadConversations = async () => {
+    setConversationsLoading(true);
+    // Pull recent whatsapp_messages with member_id, group client-side to get the
+    // most-recently-active distinct members.
+    const { data } = await supabase
+      .from('whatsapp_messages')
+      .select('member_id, created_at')
+      .eq('venue_id', venueId)
+      .not('member_id', 'is', null)
+      .order('created_at', { ascending: false })
+      .limit(500);
+    const seen = new Map<string, string>();
+    for (const row of (data ?? []) as Array<{ member_id: string; created_at: string }>) {
+      if (!seen.has(row.member_id)) seen.set(row.member_id, row.created_at);
+    }
+    const memberIds = Array.from(seen.keys()).slice(0, 30);
+    if (memberIds.length === 0) {
+      setConversations([]);
+      setConversationsLoading(false);
+      return;
+    }
+    const { data: memberRows } = await supabase
+      .from('members')
+      .select('id, first_name, last_name, membership_number')
+      .in('id', memberIds);
+    const byId = new Map(
+      ((memberRows ?? []) as Array<{ id: string; first_name: string | null; last_name: string | null; membership_number: string | null }>)
+        .map((m) => [m.id, m]),
+    );
+    const convs: ConversationMember[] = memberIds.map((id) => {
+      const m = byId.get(id);
+      return {
+        member_id: id,
+        first_name: m?.first_name ?? null,
+        last_name: m?.last_name ?? null,
+        membership_number: m?.membership_number ?? null,
+        last_message_at: seen.get(id)!,
+      };
+    });
+    setConversations(convs);
+    if (!selectedConvMemberId && convs.length > 0) {
+      setSelectedConvMemberId(convs[0].member_id);
+    }
+    setConversationsLoading(false);
+  };
+
+  const loadMessagesForMember = async (memberId: string) => {
+    setMessagesLoading(true);
+    const { data } = await supabase
+      .from('whatsapp_messages')
+      .select('id, direction, body, related_kind, status, error, created_at, template_sid')
+      .eq('venue_id', venueId)
+      .eq('member_id', memberId)
+      .order('created_at', { ascending: true })
+      .limit(200);
+    setConversationMessages(((data ?? []) as ConversationMessage[]));
+    setMessagesLoading(false);
+  };
+
+  useEffect(() => {
+    if (!venueId) return;
+    loadConversations();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [venueId]);
+
+  useEffect(() => {
+    if (!venueId || !selectedConvMemberId) return;
+    loadMessagesForMember(selectedConvMemberId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedConvMemberId, venueId]);
+
+  const convMemberLabel = (c: ConversationMember) => {
+    const name = [c.first_name, c.last_name].filter(Boolean).join(' ') || 'Unknown member';
+    return c.membership_number ? `${name} (#${c.membership_number})` : name;
+  };
+
+  const formatTimestamp = (iso: string) => {
+    try {
+      return new Date(iso).toLocaleString('en-ZA', {
+        timeZone: 'Africa/Johannesburg',
+        month: 'short',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+    } catch {
+      return iso;
+    }
+  };
+
+  // Categorise a row for rendering. The same body field carries: member text,
+  // assistant text, tool-call summaries, error notes, and template sends.
+  const classifyMessage = (m: ConversationMessage) => {
+    const kind = m.related_kind ?? '';
+    if (m.direction === 'inbound') {
+      return { lane: 'member' as const, label: 'Member' };
+    }
+    if (kind === 'ai_reply') return { lane: 'assistant' as const, label: 'Assistant' };
+    if (kind === 'ai_tool_call') return { lane: 'tool' as const, label: 'Tool call' };
+    if (kind === 'ai_error') return { lane: 'error' as const, label: 'Assistant error' };
+    if (kind === 'optin_reply' || kind === 'optout_reply' || kind === 'portal_reply' || kind === 'link_request' || kind === 'link_request_failed' || kind === 'link_request_settled') {
+      return { lane: 'assistant' as const, label: 'Reply' };
+    }
+    if (m.template_sid || kind === 'tab_reminder' || kind === 'optin_invite' || kind === 'broadcast' || kind?.startsWith('template')) {
+      return { lane: 'system' as const, label: 'Template send' };
+    }
+    return { lane: 'system' as const, label: kind || 'outbound' };
+  };
+
+  const laneStyles: Record<string, string> = {
+    member: 'bg-blue-50 border-blue-200',
+    assistant: 'bg-emerald-50 border-emerald-200',
+    tool: 'bg-amber-50 border-amber-200 font-mono text-xs',
+    error: 'bg-red-50 border-red-200',
+    system: 'bg-muted/40 border-border',
+  };
+
   return (
     <AdminLayout title="WhatsApp Assistant">
       {loading ? (
@@ -315,6 +457,102 @@ export default function WhatsAppAssistant() {
                 </TabsContent>
               ))}
             </Tabs>
+          </section>
+
+          {/* === Recent conversations === */}
+          <section className="bg-card rounded-lg border border-border p-6">
+            <div className="flex items-start justify-between mb-1">
+              <div>
+                <h3 className="text-base font-semibold">Recent conversations</h3>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Live WhatsApp activity per member: inbound messages, assistant replies, tool calls,
+                  template sends, and errors. Tool calls show the one-line summary the assistant
+                  logged — for full tool input/output, use the dry-run tester below.
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  loadConversations();
+                  if (selectedConvMemberId) loadMessagesForMember(selectedConvMemberId);
+                }}
+              >
+                Refresh
+              </Button>
+            </div>
+
+            {conversations.length === 0 && !conversationsLoading && (
+              <p className="text-sm text-muted-foreground mt-4">
+                No WhatsApp activity yet for this venue.
+              </p>
+            )}
+
+            {conversations.length > 0 && (
+              <div className="grid grid-cols-1 md:grid-cols-[260px_1fr] gap-4 mt-4">
+                <div className="border border-border rounded-md overflow-hidden">
+                  <div className="px-3 py-2 text-xs font-semibold text-muted-foreground border-b border-border bg-muted/30">
+                    Recently active members
+                  </div>
+                  <div className="max-h-[480px] overflow-y-auto divide-y divide-border">
+                    {conversations.map((c) => {
+                      const isActive = c.member_id === selectedConvMemberId;
+                      return (
+                        <button
+                          key={c.member_id}
+                          type="button"
+                          onClick={() => setSelectedConvMemberId(c.member_id)}
+                          className={`w-full text-left px-3 py-2 text-sm hover:bg-muted/40 ${
+                            isActive ? 'bg-muted/60' : ''
+                          }`}
+                        >
+                          <div className="font-medium truncate">{convMemberLabel(c)}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {formatTimestamp(c.last_message_at)}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="border border-border rounded-md p-3 max-h-[480px] overflow-y-auto">
+                  {messagesLoading && (
+                    <p className="text-xs text-muted-foreground">Loading messages…</p>
+                  )}
+                  {!messagesLoading && conversationMessages.length === 0 && (
+                    <p className="text-xs text-muted-foreground">No messages.</p>
+                  )}
+                  <div className="space-y-2">
+                    {conversationMessages.map((m) => {
+                      const c = classifyMessage(m);
+                      return (
+                        <div
+                          key={m.id}
+                          className={`rounded-md border px-3 py-2 text-sm ${laneStyles[c.lane]}`}
+                        >
+                          <div className="flex items-center justify-between gap-2 mb-1">
+                            <span className="text-xs font-semibold uppercase tracking-wide">
+                              {c.label}
+                            </span>
+                            <span className="text-xs text-muted-foreground">
+                              {formatTimestamp(m.created_at)}
+                              {m.status && m.status !== 'delivered' ? ` · ${m.status}` : ''}
+                            </span>
+                          </div>
+                          <div className="whitespace-pre-wrap break-words">
+                            {m.body || (m.template_sid ? `[template ${m.template_sid}]` : '[no body]')}
+                          </div>
+                          {m.error && (
+                            <div className="text-xs text-red-700 mt-1">Error: {m.error}</div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
           </section>
 
           {/* === Test in chat === */}
