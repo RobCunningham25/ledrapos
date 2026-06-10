@@ -1,9 +1,10 @@
-import { Navigate, Outlet, useParams } from 'react-router-dom';
+import { Navigate, Outlet } from 'react-router-dom';
 import { useAdminAuth } from '@/contexts/AdminAuthContext';
+import { useVenueNav } from '@/hooks/useVenueNav';
 
 export default function AdminProtectedRoute() {
   const { adminUser, isLoading } = useAdminAuth();
-  const { slug } = useParams<{ slug: string }>();
+  const { adminLoginPath } = useVenueNav();
 
   if (isLoading) {
     return (
@@ -14,7 +15,7 @@ export default function AdminProtectedRoute() {
   }
 
   if (!adminUser || !adminUser.is_active) {
-    return <Navigate to={`/${slug}/admin/login`} replace />;
+    return <Navigate to={adminLoginPath} replace />;
   }
 
   return <Outlet />;

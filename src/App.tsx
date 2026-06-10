@@ -1,9 +1,10 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes, Navigate, Outlet } from "react-router-dom";
+import { BrowserRouter, Route, Routes, Outlet } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { VenueResolver } from "@/contexts/VenueContext";
+import { VenueResolver, VenueProvider } from "@/contexts/VenueContext";
+import { getCustomDomainConfig } from "@/config/customDomains";
 import { POSAuthProvider } from "@/contexts/POSAuthContext";
 import { CartProvider } from "@/contexts/CartContext";
 import { PortalAuthProvider } from "@/contexts/PortalAuthContext";
@@ -41,6 +42,7 @@ import PublicBookingPage from "./pages/PublicBookingPage.tsx";
 import Unsubscribed from "./pages/Unsubscribed.tsx";
 
 const queryClient = new QueryClient();
+const customDomainConfig = getCustomDomainConfig();
 
 function RootRedirect() {
   window.location.href = 'https://ledra.co.za';
@@ -64,56 +66,110 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <Routes>
-          <Route path="/" element={<RootRedirect />} />
-          <Route path="booking">
-            <Route path=":code" element={<PublicBookingPage />} />
-          </Route>
-          <Route path="unsubscribed" element={<Unsubscribed />} />
-          <Route path="/:slug" element={<VenueResolver />}>
-            <Route element={<VenueLayout />}>
-              <Route index element={<Index />} />
-              <Route path="pos" element={<POS />} />
-              <Route path="admin/login" element={<AdminLogin />} />
-              <Route path="admin" element={
-                <AdminAuthProvider>
-                  <AdminProtectedRoute />
-                </AdminAuthProvider>
-              }>
-                <Route index element={<AdminDashboard />} />
-                <Route path="products" element={<Products />} />
-                <Route path="members" element={<Members />} />
-                <Route path="members/:id" element={<MemberDetail />} />
-                <Route path="reports" element={<Reports />} />
-                <Route path="events" element={<Events />} />
-                <Route path="bookings" element={<AdminBookings />} />
-                <Route path="broadcasts" element={<Broadcasts />} />
-                <Route path="broadcasts/new" element={<BroadcastCompose />} />
-                <Route path="broadcasts/:id" element={<BroadcastDetail />} />
-                <Route path="whatsapp/assistant" element={<WhatsAppAssistant />} />
-                <Route path="whatsapp/followups" element={<WhatsAppFollowups />} />
-                <Route path="settings" element={<Settings />} />
+          {customDomainConfig ? (
+            /* Custom domain: no slug in URL — venue resolved from hostname config */
+            <Route element={
+              <VenueProvider slug={customDomainConfig.slug}>
+                <VenueLayout />
+              </VenueProvider>
+            }>
+              {customDomainConfig.section === 'portal' && <>
+                <Route path="login" element={<PortalThemeProvider><PortalLogin /></PortalThemeProvider>} />
+                <Route path="accept-invite" element={<PortalThemeProvider><AcceptInvite /></PortalThemeProvider>} />
+                <Route element={<PortalProtectedRoute />}>
+                  <Route element={
+                    <PortalAuthProvider>
+                      <PortalThemeProvider>
+                        <PortalLayout />
+                      </PortalThemeProvider>
+                    </PortalAuthProvider>
+                  }>
+                    <Route index element={<PortalDashboard />} />
+                    <Route path="bar-tab" element={<PortalBarTab />} />
+                    <Route path="calendar" element={<PortalCalendar />} />
+                    <Route path="my-details" element={<PortalMyDetails />} />
+                    <Route path="bookings" element={<PortalBookings />} />
+                    <Route path="payment-result" element={<PortalPaymentResult />} />
+                  </Route>
+                </Route>
+              </>}
+              {customDomainConfig.section === 'pos' && (
+                <Route index element={<POS />} />
+              )}
+              {customDomainConfig.section === 'admin' && <>
+                <Route path="login" element={<AdminLogin />} />
+                <Route element={<AdminAuthProvider><AdminProtectedRoute /></AdminAuthProvider>}>
+                  <Route index element={<AdminDashboard />} />
+                  <Route path="products" element={<Products />} />
+                  <Route path="members" element={<Members />} />
+                  <Route path="members/:id" element={<MemberDetail />} />
+                  <Route path="reports" element={<Reports />} />
+                  <Route path="events" element={<Events />} />
+                  <Route path="bookings" element={<AdminBookings />} />
+                  <Route path="broadcasts" element={<Broadcasts />} />
+                  <Route path="broadcasts/new" element={<BroadcastCompose />} />
+                  <Route path="broadcasts/:id" element={<BroadcastDetail />} />
+                  <Route path="whatsapp/assistant" element={<WhatsAppAssistant />} />
+                  <Route path="whatsapp/followups" element={<WhatsAppFollowups />} />
+                  <Route path="settings" element={<Settings />} />
+                </Route>
+              </>}
+            </Route>
+          ) : (
+            /* Normal slug-based routing */
+            <>
+              <Route path="/" element={<RootRedirect />} />
+              <Route path="booking">
+                <Route path=":code" element={<PublicBookingPage />} />
               </Route>
-              <Route path="portal/login" element={<PortalThemeProvider><PortalLogin /></PortalThemeProvider>} />
-              <Route path="portal/accept-invite" element={<PortalThemeProvider><AcceptInvite /></PortalThemeProvider>} />
-              <Route path="portal" element={<PortalProtectedRoute />}>
-                <Route element={
-                  <PortalAuthProvider>
-                    <PortalThemeProvider>
-                      <PortalLayout />
-                    </PortalThemeProvider>
-                  </PortalAuthProvider>
-                }>
-                  <Route index element={<PortalDashboard />} />
-                  <Route path="bar-tab" element={<PortalBarTab />} />
-                  <Route path="calendar" element={<PortalCalendar />} />
-                  <Route path="my-details" element={<PortalMyDetails />} />
-                  <Route path="bookings" element={<PortalBookings />} />
-                  <Route path="payment-result" element={<PortalPaymentResult />} />
+              <Route path="unsubscribed" element={<Unsubscribed />} />
+              <Route path="/:slug" element={<VenueResolver />}>
+                <Route element={<VenueLayout />}>
+                  <Route index element={<Index />} />
+                  <Route path="pos" element={<POS />} />
+                  <Route path="admin/login" element={<AdminLogin />} />
+                  <Route path="admin" element={
+                    <AdminAuthProvider>
+                      <AdminProtectedRoute />
+                    </AdminAuthProvider>
+                  }>
+                    <Route index element={<AdminDashboard />} />
+                    <Route path="products" element={<Products />} />
+                    <Route path="members" element={<Members />} />
+                    <Route path="members/:id" element={<MemberDetail />} />
+                    <Route path="reports" element={<Reports />} />
+                    <Route path="events" element={<Events />} />
+                    <Route path="bookings" element={<AdminBookings />} />
+                    <Route path="broadcasts" element={<Broadcasts />} />
+                    <Route path="broadcasts/new" element={<BroadcastCompose />} />
+                    <Route path="broadcasts/:id" element={<BroadcastDetail />} />
+                    <Route path="whatsapp/assistant" element={<WhatsAppAssistant />} />
+                    <Route path="whatsapp/followups" element={<WhatsAppFollowups />} />
+                    <Route path="settings" element={<Settings />} />
+                  </Route>
+                  <Route path="portal/login" element={<PortalThemeProvider><PortalLogin /></PortalThemeProvider>} />
+                  <Route path="portal/accept-invite" element={<PortalThemeProvider><AcceptInvite /></PortalThemeProvider>} />
+                  <Route path="portal" element={<PortalProtectedRoute />}>
+                    <Route element={
+                      <PortalAuthProvider>
+                        <PortalThemeProvider>
+                          <PortalLayout />
+                        </PortalThemeProvider>
+                      </PortalAuthProvider>
+                    }>
+                      <Route index element={<PortalDashboard />} />
+                      <Route path="bar-tab" element={<PortalBarTab />} />
+                      <Route path="calendar" element={<PortalCalendar />} />
+                      <Route path="my-details" element={<PortalMyDetails />} />
+                      <Route path="bookings" element={<PortalBookings />} />
+                      <Route path="payment-result" element={<PortalPaymentResult />} />
+                    </Route>
+                  </Route>
                 </Route>
               </Route>
-            </Route>
-          </Route>
-          <Route path="*" element={<NotFound />} />
+              <Route path="*" element={<NotFound />} />
+            </>
+          )}
         </Routes>
       </BrowserRouter>
     </TooltipProvider>

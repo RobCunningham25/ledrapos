@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useParams, Link } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { usePortalTheme } from '@/contexts/PortalThemeContext';
+import { useVenueNav } from '@/hooks/useVenueNav';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Eye, EyeOff } from 'lucide-react';
@@ -10,8 +11,8 @@ const MIN_PASSWORD_LENGTH = 8;
 
 export default function AcceptInvite() {
   const navigate = useNavigate();
-  const { slug } = useParams<{ slug: string }>();
   const T = usePortalTheme();
+  const { portalPath, portalLoginPath } = useVenueNav();
   const [status, setStatus] = useState<'checking' | 'ready' | 'invalid'>('checking');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -68,7 +69,7 @@ export default function AcceptInvite() {
       return;
     }
 
-    navigate(`/${slug}/portal`, { replace: true });
+    navigate(portalPath(), { replace: true });
   };
 
   if (status === 'checking') {
@@ -100,7 +101,7 @@ export default function AcceptInvite() {
             This invite link is invalid or has expired. Ask the club to resend your invite.
           </p>
           <Link
-            to={`/${slug}/portal/login`}
+            to={portalLoginPath}
             style={{ fontSize: 14, color: 'var(--portal-primary)', textDecoration: 'none' }}
           >
             Go to login

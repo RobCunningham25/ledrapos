@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useVenue } from '@/contexts/VenueContext';
 import { usePortalTheme } from '@/contexts/PortalThemeContext';
+import { useVenueNav } from '@/hooks/useVenueNav';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Eye, EyeOff } from 'lucide-react';
@@ -11,8 +12,8 @@ const REMEMBER_EMAIL_KEY = 'ledrapos_portal_email';
 
 export default function PortalLogin() {
   const navigate = useNavigate();
-  const { slug } = useParams<{ slug: string }>();
   const { venue } = useVenue();
+  const { portalPath } = useVenueNav();
   const T = usePortalTheme();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -30,7 +31,7 @@ export default function PortalLogin() {
 
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
-        navigate(`/${slug}/portal`, { replace: true });
+        navigate(portalPath(), { replace: true });
       } else {
         setCheckingSession(false);
       }
@@ -65,7 +66,7 @@ export default function PortalLogin() {
       }
 
       localStorage.setItem(REMEMBER_EMAIL_KEY, email);
-      navigate(`/${slug}/portal`, { replace: true });
+      navigate(portalPath(), { replace: true });
     }
 
     setLoading(false);
