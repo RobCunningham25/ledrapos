@@ -20,6 +20,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useVenueNav } from '@/hooks/useVenueNav';
+import { useVenue } from '@/contexts/VenueContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Eye, EyeOff } from 'lucide-react';
@@ -30,6 +31,7 @@ type View = 'login' | 'signup' | 'forgot';
 export default function AdminLogin() {
   const navigate = useNavigate();
   const { adminPath, adminLoginPath } = useVenueNav();
+  const { venue } = useVenue();
   const { toast } = useToast();
   const [view, setView] = useState<View>('login');
   const [email, setEmail] = useState('');
@@ -200,8 +202,11 @@ export default function AdminLogin() {
     <div className="flex min-h-screen items-center justify-center px-4" style={{ background: '#F4F6F9' }}>
       <div style={{ maxWidth: 400, width: '100%', background: '#FFFFFF', borderRadius: 8, boxShadow: '0 1px 3px rgba(0,0,0,0.08)', padding: 32 }}>
         <div className="text-center mb-6">
-          <h1 style={{ fontWeight: 700, fontSize: 24, color: '#2E5FA3' }}>Ledra</h1>
-          <p style={{ fontSize: 14, color: '#718096', marginTop: 2 }}>Admin Panel</p>
+          {venue?.logo_url && (
+            <img src={venue.logo_url} alt={venue.name} style={{ maxHeight: 72, margin: '0 auto 12px', objectFit: 'contain', display: 'block' }} />
+          )}
+          <h1 style={{ fontWeight: 700, fontSize: 20, color: '#2E5FA3' }}>{venue?.name ?? 'Admin Panel'}</h1>
+          <p style={{ fontSize: 13, color: '#718096', marginTop: 2 }}>Admin Panel</p>
         </div>
 
         {view === 'login' && (

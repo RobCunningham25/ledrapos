@@ -4,7 +4,6 @@ import { usePOSAuth } from '@/contexts/POSAuthContext';
 import { useVenue } from '@/contexts/VenueContext';
 import { useVenueNav } from '@/hooks/useVenueNav';
 import { Loader2 } from 'lucide-react';
-import ledraLogo from '@/assets/ledra-logo.svg';
 
 const MAX_PIN_LENGTH = 6;
 
@@ -13,7 +12,7 @@ const PINLogin = () => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const { login } = usePOSAuth();
-  const { venueName } = useVenue();
+  const { venue, venueName } = useVenue();
   const { posPath } = useVenueNav();
   const navigate = useNavigate();
 
@@ -46,11 +45,11 @@ const PINLogin = () => {
     <div className="flex min-h-screen items-center justify-center bg-page px-4">
       <div className="w-full max-w-[400px] rounded-lg border border-border bg-card p-10 shadow-subtle">
         <div className="mb-8 text-center">
-          <div className="flex flex-col items-center">
-            <img src={ledraLogo} alt="Ledra" className="h-8" />
-            <span className="text-[28px] font-bold text-primary -mt-1">POS</span>
-          </div>
-          <p className="mt-1 text-sm text-muted-foreground">{venueName}</p>
+          {venue?.logo_url
+            ? <img src={venue.logo_url} alt={venueName} className="h-20 object-contain mx-auto mb-3" />
+            : <span className="text-[28px] font-bold text-primary block mb-1">POS</span>
+          }
+          <p className="text-base font-semibold text-foreground">{venueName}</p>
         </div>
 
         {/* PIN dots */}
