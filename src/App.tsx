@@ -28,6 +28,9 @@ import BroadcastCompose from "./pages/admin/BroadcastCompose.tsx";
 import BroadcastDetail from "./pages/admin/BroadcastDetail.tsx";
 import WhatsAppAssistant from "./pages/admin/WhatsAppAssistant.tsx";
 import WhatsAppFollowups from "./pages/admin/WhatsAppFollowups.tsx";
+import Applications from "./pages/admin/Applications.tsx";
+import ApplicationNoticePage from "./pages/admin/ApplicationNoticePage.tsx";
+import MembershipApplicationPage from "./pages/MembershipApplicationPage.tsx";
 import PortalLogin from "./pages/portal/PortalLogin.tsx";
 import AcceptInvite from "./pages/portal/AcceptInvite.tsx";
 import PortalProtectedRoute from "./components/portal/PortalProtectedRoute.tsx";
@@ -76,6 +79,8 @@ const App = () => (
               {customDomainConfig.section === 'portal' && <>
                 <Route path="login" element={<PortalThemeProvider><PortalLogin /></PortalThemeProvider>} />
                 <Route path="accept-invite" element={<PortalThemeProvider><AcceptInvite /></PortalThemeProvider>} />
+                <Route path="unsubscribed" element={<Unsubscribed />} />
+                <Route path="apply" element={<MembershipApplicationPage />} />
                 <Route element={<PortalProtectedRoute />}>
                   <Route element={
                     <PortalAuthProvider>
@@ -111,8 +116,13 @@ const App = () => (
                   <Route path="broadcasts/:id" element={<BroadcastDetail />} />
                   <Route path="whatsapp/assistant" element={<WhatsAppAssistant />} />
                   <Route path="whatsapp/followups" element={<WhatsAppFollowups />} />
+                  <Route path="applications" element={<Applications />} />
+                  <Route path="applications/:id/notice" element={<ApplicationNoticePage />} />
                   <Route path="settings" element={<Settings />} />
                 </Route>
+              </>}
+              {customDomainConfig.section === 'public' && <>
+                <Route path="booking/:code" element={<PublicBookingPage />} />
               </>}
             </Route>
           ) : (
@@ -145,8 +155,11 @@ const App = () => (
                     <Route path="broadcasts/:id" element={<BroadcastDetail />} />
                     <Route path="whatsapp/assistant" element={<WhatsAppAssistant />} />
                     <Route path="whatsapp/followups" element={<WhatsAppFollowups />} />
+                    <Route path="applications" element={<Applications />} />
+                    <Route path="applications/:id/notice" element={<ApplicationNoticePage />} />
                     <Route path="settings" element={<Settings />} />
                   </Route>
+                  <Route path="apply" element={<MembershipApplicationPage />} />
                   <Route path="portal/login" element={<PortalThemeProvider><PortalLogin /></PortalThemeProvider>} />
                   <Route path="portal/accept-invite" element={<PortalThemeProvider><AcceptInvite /></PortalThemeProvider>} />
                   <Route path="portal" element={<PortalProtectedRoute />}>

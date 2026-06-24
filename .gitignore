@@ -15,6 +15,9 @@ dist-ssr
 # Supabase CLI cache
 supabase/.temp/
 
+# Local Supabase access token (never commit)
+.env.supabase
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

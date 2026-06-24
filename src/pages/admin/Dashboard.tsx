@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
 import { format, startOfWeek, endOfWeek } from 'date-fns';
+import { useNavigate } from 'react-router-dom';
 import AdminLayout from '@/components/admin/AdminLayout';
 import BarTabRemindersCard from '@/components/admin/BarTabRemindersCard';
 import OpenTabsDrawer from '@/components/admin/OpenTabsDrawer';
 import { useVenue } from '@/contexts/VenueContext';
+import { useVenueNav } from '@/hooks/useVenueNav';
 import { supabase } from '@/integrations/supabase/client';
 import { formatCents } from '@/utils/currency';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -70,6 +72,7 @@ export default function Dashboard() {
           <div style={gridStyle}>
             <OpenTabsCard />
             <PendingEftBookingsCard />
+            <PendingApplicationsCard />
           </div>
         </section>
 
@@ -313,6 +316,73 @@ function NextEventCard() {
           <div style={{ fontSize: 16, fontWeight: 600, color: '#1A202C' }}>{state.event.title}</div>
           <p style={subText}>{format(new Date(state.event.event_date + 'T00:00:00'), 'EEEE, d MMMM yyyy')}</p>
           <p style={labelText}>Next Event</p>
+        </>
+      )}
+    </div>
+  );
+}
+
+function PendingApplicationsCard() {
+  const { venueId } = useVenue();
+  const navigate = useNavigate();
+  const { adminPath } = useVenueNav();
+  const [state, setState] = useState<
+    { status: 'loading' } | { status: 'error' } | { status: 'ok'; count: number }
+  >({ status: 'loading' });
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setState({ status: 'loading' });
+      const { count, error } = await supabase
+        .from('membership_applications')
+        .select('id', { count: 'exact', head: true })
+        .eq('venue_id', venueId)
+        .eq('status', 'pending');
+
+      if (cancelled) return;
+      if (error) { setState({ status: 'error' }); return; }
+      setState({ status: 'ok', count: count ?? 0 });
+    })();
+    return () => { cancelled = true; };
+  }, [venueId]);
+
+  return (
+    <div style={cardStyle}>
+      {state.status === 'loading' && (
+        <>
+          <Skeleton className="h-9 w-16" />
+          <Skeleton className="h-4 w-32 mt-2" />
+          <Skeleton className="h-4 w-24 mt-3" />
+        </>
+      )}
+      {state.status === 'error' && <p style={errorText}>Failed to load applications.</p>}
+      {state.status === 'ok' && state.count === 0 && <p style={mutedText}>No pending applications</p>}
+      {state.status === 'ok' && state.count > 0 && (
+        <>
+          <div style={bigNumber}>{state.count}</div>
+          <p style={subText}>{state.count === 1 ? 'application' : 'applications'} awaiting review</p>
+          <p style={labelText}>Pending Applications</p>
+          <button
+            type="button"
+            onClick={() => navigate(adminPath('applications'))}
+            style={{
+              marginTop: 12,
+              background: 'transparent',
+              color: '#2E5FA3',
+              fontSize: 14,
+              fontWeight: 600,
+              border: '1px solid #2E5FA3',
+              borderRadius: 6,
+              padding: '8px 14px',
+              cursor: 'pointer',
+              transition: 'background 0.15s, color 0.15s',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = '#2E5FA3'; e.currentTarget.style.color = '#FFFFFF'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#2E5FA3'; }}
+          >
+            Review Applications
+          </button>
         </>
       )}
     </div>
