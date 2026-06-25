@@ -834,7 +834,7 @@ export default function MembershipApplicationPage() {
 
             <p style={{ textAlign: 'center', marginTop: 16, fontSize: 12, color: T.textMuted }}>
               Prefer a paper form?{' '}
-              <a href="/VCA_Application Form 2026_2027.pdf" target="_blank" rel="noopener noreferrer" style={{ color: T.teal, textDecoration: 'underline' }}>
+              <a href="/VCA_Application_Form_2026_2027.pdf" target="_blank" rel="noopener noreferrer" style={{ color: T.teal, textDecoration: 'underline' }}>
                 Download the PDF application
               </a>
             </p>
