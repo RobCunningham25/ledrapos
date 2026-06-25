@@ -36,6 +36,7 @@ export interface Application {
   partner_name: string | null;
   partner_dob: string | null;
   children: { name: string; dob: string }[] | null;
+  addon_members: { category: 'junior' | 'intermediate'; name: string; dob: string }[] | null;
   boating_experience: string | null;
   boats: { type: string; name: string; reg_no: string; ownership: string }[] | null;
   photo_url: string | null;
@@ -44,6 +45,8 @@ export interface Application {
     land_levy_cents: number;
     pro_rata_subs_cents: number;
     months_remaining: number;
+    addon_fees_cents?: number;
+    addon_breakdown?: { label: string; cents: number }[];
     total_cents: number;
   } | null;
   interview_conducted_at: string | null;

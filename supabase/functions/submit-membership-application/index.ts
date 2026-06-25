@@ -40,8 +40,13 @@ function renderAdminNotificationEmail(args: {
   mobile: string;
   totalCents: number;
   applicationUrl: string;
+  addonMembers: { category: string; name: string }[];
 }): string {
   const safe = (s: string) => escapeHtml(s);
+  const addonRow = args.addonMembers.length > 0
+    ? `<tr><td style="padding:8px 0;border-bottom:1px solid #F1F5F9;font-size:13px;color:#64748B;">Add-ons</td>
+           <td style="padding:8px 0;border-bottom:1px solid #F1F5F9;font-size:14px;color:#334155;">${safe(args.addonMembers.map(m => `${m.name} (${m.category === 'intermediate' ? '19–30' : '12–18'})`).join(', '))}</td></tr>`
+    : '';
   return `<!doctype html>
 <html>
 <body style="margin:0;padding:0;background:#FAF8F5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#1B3A4B;">
@@ -56,6 +61,7 @@ function renderAdminNotificationEmail(args: {
             <td style="padding:8px 0;border-bottom:1px solid #F1F5F9;font-size:14px;font-weight:600;color:#1B3A4B;">${safe(args.applicantName)}</td></tr>
         <tr><td style="padding:8px 0;border-bottom:1px solid #F1F5F9;font-size:13px;color:#64748B;">Category</td>
             <td style="padding:8px 0;border-bottom:1px solid #F1F5F9;font-size:14px;color:#334155;">${safe(CATEGORY_LABELS[args.category] ?? args.category)}</td></tr>
+        ${addonRow}
         <tr><td style="padding:8px 0;border-bottom:1px solid #F1F5F9;font-size:13px;color:#64748B;">Email</td>
             <td style="padding:8px 0;border-bottom:1px solid #F1F5F9;font-size:14px;color:#334155;">${safe(args.email)}</td></tr>
         <tr><td style="padding:8px 0;border-bottom:1px solid #F1F5F9;font-size:13px;color:#64748B;">Mobile</td>
@@ -88,7 +94,7 @@ Deno.serve(async (req) => {
       contact_mobile, contact_work, contact_home, email,
       emergency_contact_name, emergency_contact_number,
       occupation, employer, business_type, other_clubs,
-      partner_name, partner_dob, children, boating_experience, boats,
+      partner_name, partner_dob, children, addon_members, boating_experience, boats,
       photo_url,
     } = body;
 
@@ -133,6 +139,7 @@ Deno.serve(async (req) => {
         partner_name: partner_name || null,
         partner_dob: partner_dob || null,
         children: children || null,
+        addon_members: addon_members || null,
         boating_experience: boating_experience || null,
         boats: boats || null,
         photo_url: photo_url || null,
@@ -164,6 +171,7 @@ Deno.serve(async (req) => {
         mobile: contact_mobile,
         totalCents,
         applicationUrl,
+        addonMembers: Array.isArray(addon_members) ? addon_members : [],
       });
 
       await fetch("https://api.resend.com/emails", {

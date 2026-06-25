@@ -239,9 +239,12 @@ export default function ApplicationDrawer({ application: app, venueId, onClose, 
           <Section title="Family">
             {app.partner_name && <Row label="Partner" value={[app.partner_name, app.partner_dob ? format(new Date(app.partner_dob + 'T00:00:00'), 'd MMM yyyy') : null].filter(Boolean).join(', ')} />}
             {(app.children ?? []).map((c, i) => (
-              <Row key={i} label={`Child ${i + 1}`} value={[c.name, c.dob ? format(new Date(c.dob + 'T00:00:00'), 'd MMM yyyy') : null].filter(Boolean).join(', ')} />
+              <Row key={i} label={`Child ${i + 1} (under 12)`} value={[c.name, c.dob ? format(new Date(c.dob + 'T00:00:00'), 'd MMM yyyy') : null].filter(Boolean).join(', ')} />
             ))}
-            {!app.partner_name && !(app.children?.length) && <p style={{ fontSize: 13, color: T.textMuted }}>None specified</p>}
+            {(app.addon_members ?? []).map((m, i) => (
+              <Row key={i} label={m.category === 'intermediate' ? `Intermediate (19–30)` : `Junior (12–18)`} value={[m.name, m.dob ? format(new Date(m.dob + 'T00:00:00'), 'd MMM yyyy') : null].filter(Boolean).join(', ')} />
+            ))}
+            {!app.partner_name && !(app.children?.length) && !(app.addon_members?.length) && <p style={{ fontSize: 13, color: T.textMuted }}>None specified</p>}
           </Section>
 
           {/* Boats */}
@@ -260,8 +263,11 @@ export default function ApplicationDrawer({ application: app, venueId, onClose, 
           {fees && (
             <Section title="Calculated fees">
               {fees.joining_fee_cents > 0 && <Row label="Joining fee (once-off)" value={formatZAR(fees.joining_fee_cents)} />}
-              {fees.land_levy_cents > 0 && <Row label="Land levy" value={formatZAR(fees.land_levy_cents)} />}
+              {fees.land_levy_cents > 0 && <Row label="Levy (first 5 years, per year)" value={formatZAR(fees.land_levy_cents)} />}
               <Row label={`Pro-rata subs (${fees.months_remaining} months)`} value={formatZAR(fees.pro_rata_subs_cents)} />
+              {(fees.addon_breakdown ?? []).map((item, i) => (
+                <Row key={i} label={item.label} value={formatZAR(item.cents)} />
+              ))}
               <div style={{ padding: '8px 0', display: 'flex', justifyContent: 'space-between' }}>
                 <span style={{ fontSize: 13, fontWeight: 700, color: T.navy }}>Total due</span>
                 <span style={{ fontSize: 13, fontWeight: 700, color: T.navy }}>{formatZAR(fees.total_cents)}</span>

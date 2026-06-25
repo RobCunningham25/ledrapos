@@ -3,11 +3,14 @@ import { useVenue } from '@/contexts/VenueContext';
 import { supabase } from '@/integrations/supabase/client';
 import {
   CATEGORY_FEES,
+  ADDON_FEES,
   calculateFees,
   formatZAR,
   type MembershipCategory,
+  type AddOnCategory,
+  type AddOnMember,
 } from '@/utils/membershipFees';
-import { Loader2, Upload, X, Check, ChevronRight, ChevronLeft, Anchor } from 'lucide-react';
+import { Loader2, Upload, X, Check, ChevronRight, ChevronLeft, Anchor, Plus } from 'lucide-react';
 
 const T = {
   navy: '#1B3A4B',
@@ -89,24 +92,55 @@ function Field({ label, required, children }: { label: string; required?: boolea
   );
 }
 
+function FeeRow({ label, value, bold, muted }: { label: string; value: string; bold?: boolean; muted?: boolean }) {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+      <span style={{ fontSize: 13, color: muted ? '#4ADE80' : '#166534', fontWeight: bold ? 700 : 400 }}>{label}</span>
+      <span style={{ fontSize: 13, color: muted ? '#4ADE80' : '#166534', fontWeight: bold ? 700 : 600, flexShrink: 0 }}>{value}</span>
+    </div>
+  );
+}
+
 // ─── Step 1: Category & Fees ────────────────────────────────────────────────
 
-const CATEGORIES: MembershipCategory[] = ['ordinary', 'social', 'intermediate', 'junior', 'crew_visitor'];
+const CATEGORIES: MembershipCategory[] = ['ordinary', 'social', 'crew_visitor', 'junior'];
 
 function StepCategory({
   selected,
   onSelect,
+  addons,
+  onAddonsChange,
 }: {
   selected: MembershipCategory | null;
   onSelect: (c: MembershipCategory) => void;
+  addons: AddOnMember[];
+  onAddonsChange: (a: AddOnMember[]) => void;
 }) {
-  const fees = selected ? calculateFees(selected) : null;
+  const fees = selected ? calculateFees(selected, addons) : null;
+
+  const addAddon = (category: AddOnCategory) => {
+    onAddonsChange([...addons, { category, name: '', dob: '' }]);
+  };
+
+  const updateAddon = (i: number, field: keyof AddOnMember, value: string) => {
+    const next = [...addons];
+    next[i] = { ...next[i], [field]: value };
+    onAddonsChange(next);
+  };
+
+  const removeAddon = (i: number) => {
+    onAddonsChange(addons.filter((_, idx) => idx !== i));
+  };
+
+  const intermediateCount = addons.filter((a) => a.category === 'intermediate').length;
+  const canAddIntermediate = intermediateCount < 1; // max 1 intermediate add-on
+  const canAddJunior = addons.filter((a) => a.category === 'junior').length < 6;
 
   return (
     <div>
       <h2 style={{ fontSize: 18, fontWeight: 700, color: T.navy, marginBottom: 4 }}>Membership Category</h2>
       <p style={{ fontSize: 14, color: T.textSecondary, marginBottom: 24 }}>
-        Select the membership type that applies to you. Fees are pro-rated from the current month to end of April.
+        Select the membership type that applies to you. Annual subscriptions are pro-rated from the current month to end of April.
       </p>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 24 }}>
@@ -117,7 +151,7 @@ function StepCategory({
             <button
               key={cat}
               type="button"
-              onClick={() => onSelect(cat)}
+              onClick={() => { onSelect(cat); if (cat !== 'ordinary') onAddonsChange([]); }}
               style={{
                 textAlign: 'left',
                 padding: '14px 16px',
@@ -129,14 +163,21 @@ function StepCategory({
               }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
-                <div>
+                <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 14, fontWeight: 700, color: active ? T.teal : T.textPrimary }}>{info.label}</div>
                   <div style={{ fontSize: 12, color: T.textSecondary, marginTop: 3, lineHeight: 1.4 }}>{info.description}</div>
                 </div>
-                <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                <div style={{ textAlign: 'right', flexShrink: 0, minWidth: 120 }}>
                   <div style={{ fontSize: 13, fontWeight: 700, color: T.navy }}>{formatZAR(info.annualCents)}/yr</div>
                   {info.joiningFeeCents > 0 && (
-                    <div style={{ fontSize: 11, color: T.textMuted }}>+ {formatZAR(info.joiningFeeCents)} once-off</div>
+                    <div style={{ fontSize: 11, color: T.error, fontWeight: 600 }}>
+                      + {formatZAR(info.joiningFeeCents)} joining fee
+                    </div>
+                  )}
+                  {info.landLevyCents > 0 && (
+                    <div style={{ fontSize: 11, color: T.textMuted }}>
+                      + {formatZAR(info.landLevyCents)} levy/yr (first 5 yrs)
+                    </div>
                   )}
                 </div>
               </div>
@@ -145,28 +186,100 @@ function StepCategory({
         })}
       </div>
 
+      {/* Add-on members — Ordinary only */}
+      {selected === 'ordinary' && (
+        <div style={{ marginBottom: 24 }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: T.navy, marginBottom: 6 }}>Add-on family members</div>
+          <p style={{ fontSize: 13, color: T.textSecondary, marginBottom: 14 }}>
+            As an Ordinary Member you may add your children to your membership at reduced rates.
+            Intermediate (19–30) and Junior (12–18) members are attached to your application.
+          </p>
+
+          {addons.map((addon, i) => (
+            <div key={i} style={{ display: 'flex', gap: 10, marginBottom: 10, alignItems: 'flex-end', padding: '12px 14px', background: '#F8FAFC', border: `1px solid ${T.border}`, borderRadius: 8 }}>
+              <div style={{ width: 130, flexShrink: 0 }}>
+                <Label>{ADDON_FEES[addon.category].label}</Label>
+                <div style={{ fontSize: 12, padding: '9px 10px', border: `1px solid ${T.border}`, borderRadius: 6, background: '#F1F5F9', color: T.textSecondary }}>
+                  {addon.category === 'intermediate' ? '19–30 yrs' : '12–18 yrs'}
+                </div>
+              </div>
+              <div style={{ flex: 1 }}>
+                <Label required>Full name</Label>
+                <FieldInput
+                  value={addon.name}
+                  onChange={(e) => updateAddon(i, 'name', e.target.value)}
+                  placeholder="Full name"
+                />
+              </div>
+              <div style={{ width: 140 }}>
+                <Label>Date of birth</Label>
+                <FieldInput type="date" value={addon.dob} onChange={(e) => updateAddon(i, 'dob', e.target.value)} />
+              </div>
+              <button
+                type="button"
+                onClick={() => removeAddon(i)}
+                style={{ padding: '9px 10px', background: 'transparent', border: `1px solid ${T.border}`, borderRadius: 6, cursor: 'pointer', color: T.error, marginBottom: 0, flexShrink: 0 }}
+              >
+                <X size={14} />
+              </button>
+            </div>
+          ))}
+
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            {canAddIntermediate && (
+              <button
+                type="button"
+                onClick={() => addAddon('intermediate')}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: T.teal, background: 'transparent', border: `1px dashed ${T.teal}`, borderRadius: 6, padding: '7px 14px', cursor: 'pointer' }}
+              >
+                <Plus size={14} /> Add Intermediate Member (19–30)
+              </button>
+            )}
+            {canAddJunior && (
+              <button
+                type="button"
+                onClick={() => addAddon('junior')}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: T.teal, background: 'transparent', border: `1px dashed ${T.teal}`, borderRadius: 6, padding: '7px 14px', cursor: 'pointer' }}
+              >
+                <Plus size={14} /> Add Junior Member (12–18)
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Fee summary */}
       {fees && selected && (
         <div style={{ ...card, background: '#F0FDF4', border: '1px solid #BBF7D0' }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: '#166534', marginBottom: 12 }}>
             Fee Estimate — {CATEGORY_FEES[selected].label}
+            {addons.filter(a => a.name.trim()).length > 0 && ` + ${addons.filter(a => a.name.trim()).length} add-on${addons.filter(a => a.name.trim()).length > 1 ? 's' : ''}`}
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {fees.joining_fee_cents > 0 && (
               <FeeRow label="Once-off joining fee" value={formatZAR(fees.joining_fee_cents)} />
             )}
             {fees.land_levy_cents > 0 && (
-              <FeeRow label="Land levy (first 5 years)*" value={formatZAR(fees.land_levy_cents)} />
+              <FeeRow label={`Levy — ${formatZAR(fees.land_levy_cents)}/yr (first 5 years)`} value="" />
             )}
             <FeeRow
               label={`Pro-rata subscription (${fees.months_remaining} of 12 months)`}
               value={formatZAR(fees.pro_rata_subs_cents)}
             />
+            {fees.addon_breakdown.map((item, i) => (
+              <FeeRow key={i} label={item.label} value={formatZAR(item.cents)} muted />
+            ))}
             <div style={{ height: 1, background: '#BBF7D0', margin: '4px 0' }} />
-            <FeeRow label="Total due" value={formatZAR(fees.total_cents)} bold />
+            <FeeRow
+              label={`Total due${fees.land_levy_cents > 0 ? ' (excl. levy)' : ''}`}
+              value={formatZAR(fees.total_cents)}
+              bold
+            />
           </div>
           {fees.land_levy_cents > 0 && (
-            <p style={{ fontSize: 11, color: '#166534', marginTop: 10 }}>
-              * Land levy applies to Ordinary Members for their first 5 years. Subject to committee review.
+            <p style={{ fontSize: 11, color: '#166534', marginTop: 10, lineHeight: 1.5 }}>
+              * Levy of {formatZAR(fees.land_levy_cents)}/year is payable for the first 5 years of membership.
+              This is billed annually and is not included in the pro-rata total above.
             </p>
           )}
           <div style={{ marginTop: 12, padding: '10px 12px', background: '#FFFFFF', borderRadius: 6, border: '1px solid #BBF7D0' }}>
@@ -180,15 +293,6 @@ function StepCategory({
           </div>
         </div>
       )}
-    </div>
-  );
-}
-
-function FeeRow({ label, value, bold }: { label: string; value: string; bold?: boolean }) {
-  return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
-      <span style={{ fontSize: 13, color: '#166534', fontWeight: bold ? 700 : 400 }}>{label}</span>
-      <span style={{ fontSize: 13, color: '#166534', fontWeight: bold ? 700 : 600, flexShrink: 0 }}>{value}</span>
     </div>
   );
 }
@@ -234,7 +338,7 @@ function StepPersonal({ data, onChange }: { data: PersonalData; onChange: (d: Pe
 
       <div style={{ fontSize: 13, fontWeight: 700, color: T.navy, margin: '8px 0 14px' }}>Postal address</div>
       <Field label="Address"><FieldInput value={data.postal_address} onChange={set('postal_address')} /></Field>
-      <Field label="Postal code" ><FieldInput value={data.postal_code} onChange={set('postal_code')} style={{ maxWidth: 120 }} /></Field>
+      <Field label="Postal code"><FieldInput value={data.postal_code} onChange={set('postal_code')} style={{ maxWidth: 120 }} /></Field>
 
       <div style={{ fontSize: 13, fontWeight: 700, color: T.navy, margin: '8px 0 14px' }}>Home address</div>
       <Field label="Address"><FieldInput value={data.home_address} onChange={set('home_address')} /></Field>
@@ -329,7 +433,7 @@ function StepFamily({
   return (
     <div>
       <h2 style={{ fontSize: 18, fontWeight: 700, color: T.navy, marginBottom: 4 }}>Family & Vessels</h2>
-      <p style={{ fontSize: 14, color: T.textSecondary, marginBottom: 24 }}>Partner, children, and boats you own or co-own.</p>
+      <p style={{ fontSize: 14, color: T.textSecondary, marginBottom: 24 }}>Partner, children under 12, and boats you own or co-own.</p>
 
       {showPartner && (
         <>
@@ -341,7 +445,8 @@ function StepFamily({
         </>
       )}
 
-      <div style={{ fontSize: 13, fontWeight: 700, color: T.navy, margin: '8px 0 14px' }}>Children</div>
+      <div style={{ fontSize: 13, fontWeight: 700, color: T.navy, margin: '8px 0 6px' }}>Children under 12</div>
+      <p style={{ fontSize: 12, color: T.textMuted, marginBottom: 12 }}>Children under 12 are included in your membership at no extra cost.</p>
       {data.children.map((child, i) => (
         <div key={i} style={{ display: 'flex', gap: 10, marginBottom: 10, alignItems: 'flex-end' }}>
           <div style={{ flex: 1 }}>
@@ -352,14 +457,14 @@ function StepFamily({
             <Label>Date of birth</Label>
             <FieldInput type="date" value={child.dob} onChange={setChild(i, 'dob')} />
           </div>
-          <button type="button" onClick={() => removeChild(i)} style={{ padding: '9px 10px', background: 'transparent', border: `1px solid ${T.border}`, borderRadius: 6, cursor: 'pointer', color: T.error, marginBottom: 0 }}>
+          <button type="button" onClick={() => removeChild(i)} style={{ padding: '9px 10px', background: 'transparent', border: `1px solid ${T.border}`, borderRadius: 6, cursor: 'pointer', color: T.error }}>
             <X size={14} />
           </button>
         </div>
       ))}
-      {data.children.length < 5 && (
+      {data.children.length < 8 && (
         <button type="button" onClick={addChild} style={{ fontSize: 13, color: T.teal, background: 'transparent', border: `1px dashed ${T.teal}`, borderRadius: 6, padding: '6px 14px', cursor: 'pointer', marginBottom: 20 }}>
-          + Add child
+          + Add child (under 12)
         </button>
       )}
 
@@ -436,7 +541,6 @@ function StepPhoto({
         A photo of the applicant (and partner/family if applicable) is required. JPG or PNG, max 5 MB.
       </p>
 
-      {/* Photo upload */}
       <div style={{ marginBottom: 24 }}>
         <Label required>Photo</Label>
         {photoPreview ? (
@@ -478,7 +582,6 @@ function StepPhoto({
         <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }} />
       </div>
 
-      {/* Declaration */}
       <div style={{ ...card, background: '#F8FAFC', marginBottom: 20 }}>
         <p style={{ fontSize: 13, lineHeight: 1.7, color: T.textSecondary, margin: 0 }}>
           I hereby agree, on acceptance of my membership to the Vaal Cruising Association, to abide by the
@@ -520,10 +623,10 @@ function Confirmation({ name }: { name: string }) {
           'Once accepted, you will receive your fee schedule and banking details by email.',
           'Fees are due in full on notification of probationary acceptance.',
           'Final review is carried out after a minimum 8-week probationary period.',
-        ].map((step, i) => (
+        ].map((s, i) => (
           <div key={i} style={{ display: 'flex', gap: 10, marginBottom: 8 }}>
             <div style={{ width: 20, height: 20, borderRadius: '50%', background: T.teal, color: '#FFF', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>{i + 1}</div>
-            <span style={{ fontSize: 13, color: T.textSecondary, lineHeight: 1.5 }}>{step}</span>
+            <span style={{ fontSize: 13, color: T.textSecondary, lineHeight: 1.5 }}>{s}</span>
           </div>
         ))}
       </div>
@@ -543,6 +646,7 @@ export default function MembershipApplicationPage() {
   const [error, setError] = useState('');
 
   const [category, setCategory] = useState<MembershipCategory | null>(null);
+  const [addons, setAddons] = useState<AddOnMember[]>([]);
   const [personal, setPersonal] = useState<PersonalData>({
     surname: '', first_names: '', id_number: '', date_of_birth: '',
     postal_address: '', postal_code: '', home_address: '', home_code: '',
@@ -559,6 +663,10 @@ export default function MembershipApplicationPage() {
 
   const validateStep = (): string => {
     if (step === 0 && !category) return 'Please select a membership category.';
+    if (step === 0 && category === 'ordinary') {
+      const unnamed = addons.some((a) => !a.name.trim());
+      if (unnamed) return 'Please enter a name for each add-on family member, or remove them.';
+    }
     if (step === 1) {
       if (!personal.surname.trim()) return 'Surname is required.';
       if (!personal.first_names.trim()) return 'First names are required.';
@@ -588,7 +696,6 @@ export default function MembershipApplicationPage() {
     setSubmitting(true);
 
     try {
-      // Upload photo first
       let photoUrl: string | null = null;
       if (photoFile) {
         const ext = photoFile.name.split('.').pop() ?? 'jpg';
@@ -600,7 +707,8 @@ export default function MembershipApplicationPage() {
         photoUrl = path;
       }
 
-      const fees = category ? calculateFees(category) : null;
+      const namedAddons = addons.filter((a) => a.name.trim());
+      const fees = category ? calculateFees(category, namedAddons) : null;
 
       const { error: fnErr } = await supabase.functions.invoke('submit-membership-application', {
         body: {
@@ -612,6 +720,8 @@ export default function MembershipApplicationPage() {
                 land_levy_cents: fees.land_levy_cents,
                 pro_rata_subs_cents: fees.pro_rata_subs_cents,
                 months_remaining: fees.months_remaining,
+                addon_fees_cents: fees.addon_fees_cents,
+                addon_breakdown: fees.addon_breakdown,
                 total_cents: fees.total_cents,
               }
             : null,
@@ -619,6 +729,7 @@ export default function MembershipApplicationPage() {
           partner_name: family.partner_name || null,
           partner_dob: family.partner_dob || null,
           children: family.children.filter((c) => c.name.trim()).length > 0 ? family.children.filter((c) => c.name.trim()) : null,
+          addon_members: namedAddons.length > 0 ? namedAddons : null,
           boating_experience: family.boating_experience || null,
           boats: family.boats.filter((b) => b.name.trim()).length > 0 ? family.boats.filter((b) => b.name.trim()) : null,
           photo_url: photoUrl,
@@ -667,8 +778,6 @@ export default function MembershipApplicationPage() {
                   }}>
                     {i < step ? <Check size={12} /> : i + 1}
                   </div>
-                  <div style={{ fontSize: 11, color: i === step ? T.navy : T.textMuted, fontWeight: i === step ? 600 : 400, textAlign: 'center', display: 'none' }}
-                    className="sm:block">{label}</div>
                 </div>
               ))}
             </div>
@@ -676,7 +785,14 @@ export default function MembershipApplicationPage() {
 
             {/* Step content */}
             <div style={card}>
-              {step === 0 && <StepCategory selected={category} onSelect={setCategory} />}
+              {step === 0 && (
+                <StepCategory
+                  selected={category}
+                  onSelect={(c) => { setCategory(c); if (c !== 'ordinary') setAddons([]); }}
+                  addons={addons}
+                  onAddonsChange={setAddons}
+                />
+              )}
               {step === 1 && <StepPersonal data={personal} onChange={setPersonal} />}
               {step === 2 && <StepFamily data={family} onChange={setFamily} category={category!} />}
               {step === 3 && (
@@ -716,7 +832,6 @@ export default function MembershipApplicationPage() {
               </div>
             </div>
 
-            {/* PDF download link */}
             <p style={{ textAlign: 'center', marginTop: 16, fontSize: 12, color: T.textMuted }}>
               Prefer a paper form?{' '}
               <a href="/VCA_Application Form 2026_2027.pdf" target="_blank" rel="noopener noreferrer" style={{ color: T.teal, textDecoration: 'underline' }}>
