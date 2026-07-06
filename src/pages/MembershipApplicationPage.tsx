@@ -101,9 +101,36 @@ function FeeRow({ label, value, bold, muted }: { label: string; value: string; b
   );
 }
 
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function sanitizePhone(val: string): string {
+  const hasPlus = val.trimStart().startsWith('+');
+  const digits = val.replace(/\D/g, '');
+  return (hasPlus ? '+' : '') + digits;
+}
+
+function isValidEmail(val: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(val.trim());
+}
+
+function isValidPhone(val: string): boolean {
+  // Accept +27XXXXXXXXX or 0XXXXXXXXX (9 digits after prefix)
+  return /^(\+27|0)\d{9}$/.test(val.replace(/\s/g, ''));
+}
+
+function todayStr(): string {
+  return new Date().toISOString().split('T')[0];
+}
+
+function yearsAgo(n: number): string {
+  const d = new Date();
+  d.setFullYear(d.getFullYear() - n);
+  return d.toISOString().split('T')[0];
+}
+
 // ─── Step 1: Category & Fees ────────────────────────────────────────────────
 
-const CATEGORIES: MembershipCategory[] = ['ordinary', 'social', 'crew_visitor', 'junior'];
+const CATEGORIES: MembershipCategory[] = ['ordinary', 'social', 'crew_visitor'];
 
 function StepCategory({
   selected,
@@ -213,7 +240,13 @@ function StepCategory({
               </div>
               <div style={{ width: 140 }}>
                 <Label>Date of birth</Label>
-                <FieldInput type="date" value={addon.dob} onChange={(e) => updateAddon(i, 'dob', e.target.value)} />
+                <FieldInput
+                  type="date"
+                  value={addon.dob}
+                  onChange={(e) => updateAddon(i, 'dob', e.target.value)}
+                  min={addon.category === 'intermediate' ? yearsAgo(30) : yearsAgo(18)}
+                  max={addon.category === 'intermediate' ? yearsAgo(19) : yearsAgo(12)}
+                />
               </div>
               <button
                 type="button"
@@ -324,6 +357,15 @@ function StepPersonal({ data, onChange }: { data: PersonalData; onChange: (d: Pe
   const set = (field: keyof PersonalData) => (e: React.ChangeEvent<HTMLInputElement>) =>
     onChange({ ...data, [field]: e.target.value });
 
+  const setPhone = (field: 'contact_mobile' | 'contact_work' | 'contact_home' | 'emergency_contact_number') =>
+    (e: React.ChangeEvent<HTMLInputElement>) =>
+      onChange({ ...data, [field]: sanitizePhone(e.target.value) });
+
+  const setIdNumber = (e: React.ChangeEvent<HTMLInputElement>) =>
+    onChange({ ...data, id_number: e.target.value.replace(/\D/g, '').slice(0, 13) });
+
+  const today = todayStr();
+
   return (
     <div>
       <h2 style={{ fontSize: 18, fontWeight: 700, color: T.navy, marginBottom: 4 }}>Personal Details</h2>
@@ -332,8 +374,24 @@ function StepPersonal({ data, onChange }: { data: PersonalData; onChange: (d: Pe
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0 16px' }}>
         <Field label="Surname" required><FieldInput value={data.surname} onChange={set('surname')} /></Field>
         <Field label="First names" required><FieldInput value={data.first_names} onChange={set('first_names')} /></Field>
-        <Field label="ID number"><FieldInput value={data.id_number} onChange={set('id_number')} /></Field>
-        <Field label="Date of birth"><FieldInput type="date" value={data.date_of_birth} onChange={set('date_of_birth')} /></Field>
+        <Field label="ID number (13 digits)">
+          <FieldInput
+            value={data.id_number}
+            onChange={setIdNumber}
+            inputMode="numeric"
+            maxLength={13}
+            placeholder="e.g. 8001015009087"
+          />
+        </Field>
+        <Field label="Date of birth">
+          <FieldInput
+            type="date"
+            value={data.date_of_birth}
+            onChange={set('date_of_birth')}
+            min="1900-01-01"
+            max={today}
+          />
+        </Field>
       </div>
 
       <div style={{ fontSize: 13, fontWeight: 700, color: T.navy, margin: '8px 0 14px' }}>Postal address</div>
@@ -346,17 +404,60 @@ function StepPersonal({ data, onChange }: { data: PersonalData; onChange: (d: Pe
 
       <div style={{ fontSize: 13, fontWeight: 700, color: T.navy, margin: '8px 0 14px' }}>Contact numbers</div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0 16px' }}>
-        <Field label="Mobile" required><FieldInput type="tel" value={data.contact_mobile} onChange={set('contact_mobile')} /></Field>
-        <Field label="Work"><FieldInput type="tel" value={data.contact_work} onChange={set('contact_work')} /></Field>
-        <Field label="Home"><FieldInput type="tel" value={data.contact_home} onChange={set('contact_home')} /></Field>
+        <Field label="Mobile" required>
+          <FieldInput
+            type="tel"
+            inputMode="numeric"
+            value={data.contact_mobile}
+            onChange={setPhone('contact_mobile')}
+            placeholder="+27 82 123 4567"
+          />
+        </Field>
+        <Field label="Work">
+          <FieldInput
+            type="tel"
+            inputMode="numeric"
+            value={data.contact_work}
+            onChange={setPhone('contact_work')}
+            placeholder="+27 11 123 4567"
+          />
+        </Field>
+        <Field label="Home">
+          <FieldInput
+            type="tel"
+            inputMode="numeric"
+            value={data.contact_home}
+            onChange={setPhone('contact_home')}
+            placeholder="+27 16 123 4567"
+          />
+        </Field>
       </div>
 
-      <Field label="Email address" required><FieldInput type="email" value={data.email} onChange={set('email')} /></Field>
+      <Field label="Email address" required>
+        <FieldInput
+          type="email"
+          inputMode="email"
+          value={data.email}
+          onChange={set('email')}
+          placeholder="you@example.com"
+        />
+      </Field>
 
-      <div style={{ fontSize: 13, fontWeight: 700, color: T.navy, margin: '8px 0 14px' }}>Emergency contact</div>
+      <div style={{ fontSize: 13, fontWeight: 700, color: T.navy, margin: '8px 0 4px' }}>Emergency contact</div>
+      <p style={{ fontSize: 12, color: T.textMuted, margin: '0 0 14px' }}>Must be someone other than your partner or spouse.</p>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0 16px' }}>
-        <Field label="Name"><FieldInput value={data.emergency_contact_name} onChange={set('emergency_contact_name')} /></Field>
-        <Field label="Contact number"><FieldInput type="tel" value={data.emergency_contact_number} onChange={set('emergency_contact_number')} /></Field>
+        <Field label="Name" required>
+          <FieldInput value={data.emergency_contact_name} onChange={set('emergency_contact_name')} placeholder="Full name" />
+        </Field>
+        <Field label="Contact number" required>
+          <FieldInput
+            type="tel"
+            inputMode="numeric"
+            value={data.emergency_contact_number}
+            onChange={setPhone('emergency_contact_number')}
+            placeholder="+27 82 123 4567"
+          />
+        </Field>
       </div>
 
       <div style={{ fontSize: 13, fontWeight: 700, color: T.navy, margin: '8px 0 14px' }}>Occupation</div>
@@ -440,7 +541,9 @@ function StepFamily({
           <div style={{ fontSize: 13, fontWeight: 700, color: T.navy, marginBottom: 14 }}>Partner</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0 16px' }}>
             <Field label="Partner's name"><FieldInput value={data.partner_name} onChange={setPartner('partner_name')} /></Field>
-            <Field label="Date of birth"><FieldInput type="date" value={data.partner_dob} onChange={setPartner('partner_dob')} /></Field>
+            <Field label="Date of birth">
+              <FieldInput type="date" value={data.partner_dob} onChange={setPartner('partner_dob')} min="1900-01-01" max={todayStr()} />
+            </Field>
           </div>
         </>
       )}
@@ -455,7 +558,7 @@ function StepFamily({
           </div>
           <div style={{ width: 140 }}>
             <Label>Date of birth</Label>
-            <FieldInput type="date" value={child.dob} onChange={setChild(i, 'dob')} />
+            <FieldInput type="date" value={child.dob} onChange={setChild(i, 'dob')} min={yearsAgo(12)} max={todayStr()} />
           </div>
           <button type="button" onClick={() => removeChild(i)} style={{ padding: '9px 10px', background: 'transparent', border: `1px solid ${T.border}`, borderRadius: 6, cursor: 'pointer', color: T.error }}>
             <X size={14} />
@@ -671,7 +774,12 @@ export default function MembershipApplicationPage() {
       if (!personal.surname.trim()) return 'Surname is required.';
       if (!personal.first_names.trim()) return 'First names are required.';
       if (!personal.contact_mobile.trim()) return 'Mobile number is required.';
+      if (!isValidPhone(personal.contact_mobile)) return 'Mobile must be a valid South African number starting with +27 or 0 (e.g. +27821234567).';
       if (!personal.email.trim()) return 'Email address is required.';
+      if (!isValidEmail(personal.email)) return 'Please enter a valid email address.';
+      if (!personal.emergency_contact_name.trim()) return 'Emergency contact name is required.';
+      if (!personal.emergency_contact_number.trim()) return 'Emergency contact number is required.';
+      if (!isValidPhone(personal.emergency_contact_number)) return 'Emergency contact number must be a valid South African number starting with +27 or 0.';
     }
     if (step === 3) {
       if (!photoFile) return 'A photo is required.';
