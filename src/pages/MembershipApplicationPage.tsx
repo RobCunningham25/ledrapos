@@ -337,8 +337,6 @@ interface PersonalData {
   first_names: string;
   id_number: string;
   date_of_birth: string;
-  postal_address: string;
-  postal_code: string;
   home_address: string;
   home_code: string;
   contact_mobile: string;
@@ -394,10 +392,6 @@ function StepPersonal({ data, onChange }: { data: PersonalData; onChange: (d: Pe
         </Field>
       </div>
 
-      <div style={{ fontSize: 13, fontWeight: 700, color: T.navy, margin: '8px 0 14px' }}>Postal address</div>
-      <Field label="Address"><FieldInput value={data.postal_address} onChange={set('postal_address')} /></Field>
-      <Field label="Postal code"><FieldInput value={data.postal_code} onChange={set('postal_code')} style={{ maxWidth: 120 }} /></Field>
-
       <div style={{ fontSize: 13, fontWeight: 700, color: T.navy, margin: '8px 0 14px' }}>Home address</div>
       <Field label="Address"><FieldInput value={data.home_address} onChange={set('home_address')} /></Field>
       <Field label="Postal code"><FieldInput value={data.home_code} onChange={set('home_code')} style={{ maxWidth: 120 }} /></Field>
@@ -443,7 +437,18 @@ function StepPersonal({ data, onChange }: { data: PersonalData; onChange: (d: Pe
         />
       </Field>
 
-      <div style={{ fontSize: 13, fontWeight: 700, color: T.navy, margin: '8px 0 4px' }}>Emergency contact</div>
+      <div style={{ fontSize: 13, fontWeight: 700, color: T.navy, margin: '8px 0 14px' }}>Occupation</div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0 16px' }}>
+        <Field label="Occupation"><FieldInput value={data.occupation} onChange={set('occupation')} /></Field>
+        <Field label="Employer"><FieldInput value={data.employer} onChange={set('employer')} /></Field>
+        <Field label="Type of business"><FieldInput value={data.business_type} onChange={set('business_type')} /></Field>
+      </div>
+
+      <Field label="Other clubs (name and activities)">
+        <FieldInput value={data.other_clubs} onChange={set('other_clubs')} />
+      </Field>
+
+      <div style={{ fontSize: 13, fontWeight: 700, color: T.navy, margin: '16px 0 4px' }}>Emergency contact</div>
       <p style={{ fontSize: 12, color: T.textMuted, margin: '0 0 14px' }}>Must be someone other than your partner or spouse.</p>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0 16px' }}>
         <Field label="Name" required>
@@ -459,17 +464,6 @@ function StepPersonal({ data, onChange }: { data: PersonalData; onChange: (d: Pe
           />
         </Field>
       </div>
-
-      <div style={{ fontSize: 13, fontWeight: 700, color: T.navy, margin: '8px 0 14px' }}>Occupation</div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0 16px' }}>
-        <Field label="Occupation"><FieldInput value={data.occupation} onChange={set('occupation')} /></Field>
-        <Field label="Employer"><FieldInput value={data.employer} onChange={set('employer')} /></Field>
-        <Field label="Type of business"><FieldInput value={data.business_type} onChange={set('business_type')} /></Field>
-      </div>
-
-      <Field label="Other clubs (name and activities)">
-        <FieldInput value={data.other_clubs} onChange={set('other_clubs')} />
-      </Field>
     </div>
   );
 }
@@ -752,7 +746,7 @@ export default function MembershipApplicationPage() {
   const [addons, setAddons] = useState<AddOnMember[]>([]);
   const [personal, setPersonal] = useState<PersonalData>({
     surname: '', first_names: '', id_number: '', date_of_birth: '',
-    postal_address: '', postal_code: '', home_address: '', home_code: '',
+    home_address: '', home_code: '',
     contact_mobile: '', contact_work: '', contact_home: '', email: '',
     emergency_contact_name: '', emergency_contact_number: '',
     occupation: '', employer: '', business_type: '', other_clubs: '',
