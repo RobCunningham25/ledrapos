@@ -101,6 +101,11 @@ function FeeRow({ label, value, bold, muted }: { label: string; value: string; b
   );
 }
 
+interface Child {
+  name: string;
+  dob: string;
+}
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function sanitizePhone(val: string): string {
@@ -137,11 +142,15 @@ function StepCategory({
   onSelect,
   addons,
   onAddonsChange,
+  children,
+  onChildrenChange,
 }: {
   selected: MembershipCategory | null;
   onSelect: (c: MembershipCategory) => void;
   addons: AddOnMember[];
   onAddonsChange: (a: AddOnMember[]) => void;
+  children: Child[];
+  onChildrenChange: (c: Child[]) => void;
 }) {
   const fees = selected ? calculateFees(selected, addons) : null;
 
@@ -159,9 +168,18 @@ function StepCategory({
     onAddonsChange(addons.filter((_, idx) => idx !== i));
   };
 
+  const updateChild = (i: number, field: keyof Child, value: string) => {
+    const next = [...children];
+    next[i] = { ...next[i], [field]: value };
+    onChildrenChange(next);
+  };
+
+  const removeChild = (i: number) => onChildrenChange(children.filter((_, idx) => idx !== i));
+
   const intermediateCount = addons.filter((a) => a.category === 'intermediate').length;
   const canAddIntermediate = intermediateCount < 1; // max 1 intermediate add-on
   const canAddJunior = addons.filter((a) => a.category === 'junior').length < 6;
+  const showChildren = selected === 'ordinary' || selected === 'social';
 
   return (
     <div>
@@ -213,13 +231,14 @@ function StepCategory({
         })}
       </div>
 
-      {/* Add-on members — Ordinary only */}
-      {selected === 'ordinary' && (
+      {/* Family members */}
+      {(selected === 'ordinary' || selected === 'social') && (
         <div style={{ marginBottom: 24 }}>
-          <div style={{ fontSize: 14, fontWeight: 700, color: T.navy, marginBottom: 6 }}>Add-on family members</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: T.navy, marginBottom: 6 }}>Family members</div>
           <p style={{ fontSize: 13, color: T.textSecondary, marginBottom: 14 }}>
-            As an Ordinary Member you may add your children to your membership at reduced rates.
-            Intermediate (19–30) and Junior (12–18) members are attached to your application.
+            {selected === 'ordinary'
+              ? 'Add your children to your membership. Intermediate (19–30) and Junior (12–18) carry a separate annual fee; children under 12 are included at no extra cost.'
+              : 'Add your children under 12 to your membership — they are included at no extra cost.'}
           </p>
 
           {addons.map((addon, i) => (
@@ -258,8 +277,36 @@ function StepCategory({
             </div>
           ))}
 
+          {/* Children under 12 */}
+          {showChildren && (
+            <>
+              {children.length > 0 && (
+                <div style={{ fontSize: 12, fontWeight: 600, color: T.textSecondary, margin: '12px 0 8px' }}>Children under 12 (included, no extra cost)</div>
+              )}
+              {children.map((child, i) => (
+                <div key={i} style={{ display: 'flex', gap: 10, marginBottom: 10, alignItems: 'flex-end', padding: '12px 14px', background: '#F8FAFC', border: `1px solid ${T.border}`, borderRadius: 8 }}>
+                  <div style={{ width: 130, flexShrink: 0 }}>
+                    <Label>Under 12</Label>
+                    <div style={{ fontSize: 12, padding: '9px 10px', border: `1px solid ${T.border}`, borderRadius: 6, background: '#F1F5F9', color: T.textSecondary }}>Under 12 yrs</div>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <Label required>Full name</Label>
+                    <FieldInput value={child.name} onChange={(e) => updateChild(i, 'name', e.target.value)} placeholder="Full name" />
+                  </div>
+                  <div style={{ width: 140 }}>
+                    <Label required>Date of birth</Label>
+                    <FieldInput type="date" value={child.dob} onChange={(e) => updateChild(i, 'dob', e.target.value)} min={yearsAgo(12)} max={todayStr()} />
+                  </div>
+                  <button type="button" onClick={() => removeChild(i)} style={{ padding: '9px 10px', background: 'transparent', border: `1px solid ${T.border}`, borderRadius: 6, cursor: 'pointer', color: T.error, marginBottom: 0, flexShrink: 0 }}>
+                    <X size={14} />
+                  </button>
+                </div>
+              ))}
+            </>
+          )}
+
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-            {canAddIntermediate && (
+            {selected === 'ordinary' && canAddIntermediate && (
               <button
                 type="button"
                 onClick={() => addAddon('intermediate')}
@@ -268,13 +315,22 @@ function StepCategory({
                 <Plus size={14} /> Add Intermediate Member (19–30)
               </button>
             )}
-            {canAddJunior && (
+            {selected === 'ordinary' && canAddJunior && (
               <button
                 type="button"
                 onClick={() => addAddon('junior')}
                 style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: T.teal, background: 'transparent', border: `1px dashed ${T.teal}`, borderRadius: 6, padding: '7px 14px', cursor: 'pointer' }}
               >
                 <Plus size={14} /> Add Junior Member (12–18)
+              </button>
+            )}
+            {showChildren && children.length < 8 && (
+              <button
+                type="button"
+                onClick={() => onChildrenChange([...children, { name: '', dob: '' }])}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: T.teal, background: 'transparent', border: `1px dashed ${T.teal}`, borderRadius: 6, padding: '7px 14px', cursor: 'pointer' }}
+              >
+                <Plus size={14} /> Add Child (under 12)
               </button>
             )}
           </div>
@@ -315,15 +371,9 @@ function StepCategory({
               This is billed annually and is not included in the pro-rata total above.
             </p>
           )}
-          <div style={{ marginTop: 12, padding: '10px 12px', background: '#FFFFFF', borderRadius: 6, border: '1px solid #BBF7D0' }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: '#166534', marginBottom: 4 }}>Banking details</div>
-            <div style={{ fontSize: 12, color: '#166534', lineHeight: 1.6 }}>
-              Account Name: Vaal Cruising Association<br />
-              Bank: FNB · Account: 63004352603 · Branch: 255355<br />
-              Reference: Your full name<br />
-              Send proof to: <strong>vaalcruisingfinance@gmail.com</strong>
-            </div>
-          </div>
+          <p style={{ fontSize: 11, color: '#166534', marginTop: 10, lineHeight: 1.5 }}>
+            Banking details and a full fee invoice will be sent by email once your application has been reviewed and accepted.
+          </p>
         </div>
       )}
     </div>
@@ -381,7 +431,7 @@ function StepPersonal({ data, onChange }: { data: PersonalData; onChange: (d: Pe
             placeholder="e.g. 8001015009087"
           />
         </Field>
-        <Field label="Date of birth">
+        <Field label="Date of birth" required>
           <FieldInput
             type="date"
             value={data.date_of_birth}
@@ -470,11 +520,6 @@ function StepPersonal({ data, onChange }: { data: PersonalData; onChange: (d: Pe
 
 // ─── Step 3: Family & Boats ───────────────────────────────────────────────────
 
-interface Child {
-  name: string;
-  dob: string;
-}
-
 interface Boat {
   type: string;
   name: string;
@@ -485,7 +530,6 @@ interface Boat {
 interface FamilyData {
   partner_name: string;
   partner_dob: string;
-  children: Child[];
   boating_experience: string;
   boats: Boat[];
 }
@@ -504,15 +548,6 @@ function StepFamily({
   const setPartner = (field: 'partner_name' | 'partner_dob') => (e: React.ChangeEvent<HTMLInputElement>) =>
     onChange({ ...data, [field]: e.target.value });
 
-  const setChild = (i: number, field: keyof Child) => (e: React.ChangeEvent<HTMLInputElement>) => {
-    const children = [...data.children];
-    children[i] = { ...children[i], [field]: e.target.value };
-    onChange({ ...data, children });
-  };
-
-  const addChild = () => onChange({ ...data, children: [...data.children, { name: '', dob: '' }] });
-  const removeChild = (i: number) => onChange({ ...data, children: data.children.filter((_, idx) => idx !== i) });
-
   const setBoat = (i: number, field: keyof Boat) => (e: React.ChangeEvent<HTMLInputElement>) => {
     const boats = [...data.boats];
     boats[i] = { ...boats[i], [field]: e.target.value };
@@ -527,42 +562,19 @@ function StepFamily({
 
   return (
     <div>
-      <h2 style={{ fontSize: 18, fontWeight: 700, color: T.navy, marginBottom: 4 }}>Family & Vessels</h2>
-      <p style={{ fontSize: 14, color: T.textSecondary, marginBottom: 24 }}>Partner, children under 12, and boats you own or co-own.</p>
+      <h2 style={{ fontSize: 18, fontWeight: 700, color: T.navy, marginBottom: 4 }}>Partner & Vessels</h2>
+      <p style={{ fontSize: 14, color: T.textSecondary, marginBottom: 24 }}>Partner details and boats you own or co-own.</p>
 
       {showPartner && (
         <>
           <div style={{ fontSize: 13, fontWeight: 700, color: T.navy, marginBottom: 14 }}>Partner</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0 16px' }}>
             <Field label="Partner's name"><FieldInput value={data.partner_name} onChange={setPartner('partner_name')} /></Field>
-            <Field label="Date of birth">
+            <Field label="Date of birth" required>
               <FieldInput type="date" value={data.partner_dob} onChange={setPartner('partner_dob')} min="1900-01-01" max={todayStr()} />
             </Field>
           </div>
         </>
-      )}
-
-      <div style={{ fontSize: 13, fontWeight: 700, color: T.navy, margin: '8px 0 6px' }}>Children under 12</div>
-      <p style={{ fontSize: 12, color: T.textMuted, marginBottom: 12 }}>Children under 12 are included in your membership at no extra cost.</p>
-      {data.children.map((child, i) => (
-        <div key={i} style={{ display: 'flex', gap: 10, marginBottom: 10, alignItems: 'flex-end' }}>
-          <div style={{ flex: 1 }}>
-            <Label>Name</Label>
-            <FieldInput value={child.name} onChange={setChild(i, 'name')} placeholder="Full name" />
-          </div>
-          <div style={{ width: 140 }}>
-            <Label>Date of birth</Label>
-            <FieldInput type="date" value={child.dob} onChange={setChild(i, 'dob')} min={yearsAgo(12)} max={todayStr()} />
-          </div>
-          <button type="button" onClick={() => removeChild(i)} style={{ padding: '9px 10px', background: 'transparent', border: `1px solid ${T.border}`, borderRadius: 6, cursor: 'pointer', color: T.error }}>
-            <X size={14} />
-          </button>
-        </div>
-      ))}
-      {data.children.length < 8 && (
-        <button type="button" onClick={addChild} style={{ fontSize: 13, color: T.teal, background: 'transparent', border: `1px dashed ${T.teal}`, borderRadius: 6, padding: '6px 14px', cursor: 'pointer', marginBottom: 20 }}>
-          + Add child (under 12)
-        </button>
       )}
 
       <div style={{ fontSize: 13, fontWeight: 700, color: T.navy, margin: '16px 0 8px' }}>Yachting, boating & club admin experience</div>
@@ -744,6 +756,7 @@ export default function MembershipApplicationPage() {
 
   const [category, setCategory] = useState<MembershipCategory | null>(null);
   const [addons, setAddons] = useState<AddOnMember[]>([]);
+  const [children, setChildren] = useState<Child[]>([]);
   const [personal, setPersonal] = useState<PersonalData>({
     surname: '', first_names: '', id_number: '', date_of_birth: '',
     home_address: '', home_code: '',
@@ -752,21 +765,24 @@ export default function MembershipApplicationPage() {
     occupation: '', employer: '', business_type: '', other_clubs: '',
   });
   const [family, setFamily] = useState<FamilyData>({
-    partner_name: '', partner_dob: '', children: [], boating_experience: '', boats: [],
+    partner_name: '', partner_dob: '', boating_experience: '', boats: [],
   });
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [agreed, setAgreed] = useState(false);
 
   const validateStep = (): string => {
-    if (step === 0 && !category) return 'Please select a membership category.';
-    if (step === 0 && category === 'ordinary') {
-      const unnamed = addons.some((a) => !a.name.trim());
-      if (unnamed) return 'Please enter a name for each add-on family member, or remove them.';
+    if (step === 0) {
+      if (!category) return 'Please select a membership category.';
+      if (addons.some((a) => !a.name.trim())) return 'Please enter a name for each add-on family member, or remove them.';
+      if (addons.some((a) => a.name.trim() && !a.dob)) return 'Date of birth is required for all add-on family members.';
+      if (children.some((c) => !c.name.trim())) return 'Please enter a name for each child, or remove them.';
+      if (children.some((c) => !c.dob)) return 'Date of birth is required for all children.';
     }
     if (step === 1) {
       if (!personal.surname.trim()) return 'Surname is required.';
       if (!personal.first_names.trim()) return 'First names are required.';
+      if (!personal.date_of_birth) return 'Date of birth is required.';
       if (!personal.contact_mobile.trim()) return 'Mobile number is required.';
       if (!isValidPhone(personal.contact_mobile)) return 'Mobile must be a valid South African number starting with +27 or 0 (e.g. +27821234567).';
       if (!personal.email.trim()) return 'Email address is required.';
@@ -774,6 +790,9 @@ export default function MembershipApplicationPage() {
       if (!personal.emergency_contact_name.trim()) return 'Emergency contact name is required.';
       if (!personal.emergency_contact_number.trim()) return 'Emergency contact number is required.';
       if (!isValidPhone(personal.emergency_contact_number)) return 'Emergency contact number must be a valid South African number starting with +27 or 0.';
+    }
+    if (step === 2) {
+      if (family.partner_name.trim() && !family.partner_dob) return "Partner's date of birth is required.";
     }
     if (step === 3) {
       if (!photoFile) return 'A photo is required.';
@@ -830,7 +849,7 @@ export default function MembershipApplicationPage() {
           ...personal,
           partner_name: family.partner_name || null,
           partner_dob: family.partner_dob || null,
-          children: family.children.filter((c) => c.name.trim()).length > 0 ? family.children.filter((c) => c.name.trim()) : null,
+          children: children.filter((c) => c.name.trim()).length > 0 ? children.filter((c) => c.name.trim()) : null,
           addon_members: namedAddons.length > 0 ? namedAddons : null,
           boating_experience: family.boating_experience || null,
           boats: family.boats.filter((b) => b.name.trim()).length > 0 ? family.boats.filter((b) => b.name.trim()) : null,
@@ -890,9 +909,11 @@ export default function MembershipApplicationPage() {
               {step === 0 && (
                 <StepCategory
                   selected={category}
-                  onSelect={(c) => { setCategory(c); if (c !== 'ordinary') setAddons([]); }}
+                  onSelect={(c) => { setCategory(c); if (c !== 'ordinary') setAddons([]); if (c !== 'ordinary' && c !== 'social') setChildren([]); }}
                   addons={addons}
                   onAddonsChange={setAddons}
+                  children={children}
+                  onChildrenChange={setChildren}
                 />
               )}
               {step === 1 && <StepPersonal data={personal} onChange={setPersonal} />}
