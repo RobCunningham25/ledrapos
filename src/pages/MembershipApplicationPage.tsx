@@ -393,15 +393,17 @@ interface PersonalData {
   contact_work: string;
   contact_home: string;
   email: string;
-  emergency_contact_name: string;
-  emergency_contact_number: string;
   occupation: string;
   employer: string;
   business_type: string;
   other_clubs: string;
+  emergency_contact_name: string;
+  emergency_contact_number: string;
+  partner_name: string;
+  partner_dob: string;
 }
 
-function StepPersonal({ data, onChange }: { data: PersonalData; onChange: (d: PersonalData) => void }) {
+function StepPersonal({ data, onChange, category }: { data: PersonalData; onChange: (d: PersonalData) => void; category: MembershipCategory | null }) {
   const set = (field: keyof PersonalData) => (e: React.ChangeEvent<HTMLInputElement>) =>
     onChange({ ...data, [field]: e.target.value });
 
@@ -514,6 +516,18 @@ function StepPersonal({ data, onChange }: { data: PersonalData; onChange: (d: Pe
           />
         </Field>
       </div>
+
+      {(category === 'ordinary' || category === 'social') && (
+        <>
+          <div style={{ fontSize: 13, fontWeight: 700, color: T.navy, margin: '16px 0 14px' }}>Partner</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0 16px' }}>
+            <Field label="Partner's name"><FieldInput value={data.partner_name} onChange={set('partner_name')} /></Field>
+            <Field label="Date of birth" required>
+              <FieldInput type="date" value={data.partner_dob} onChange={set('partner_dob')} min="1900-01-01" max={today} />
+            </Field>
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -528,8 +542,6 @@ interface Boat {
 }
 
 interface FamilyData {
-  partner_name: string;
-  partner_dob: string;
   boating_experience: string;
   boats: Boat[];
 }
@@ -537,17 +549,10 @@ interface FamilyData {
 function StepFamily({
   data,
   onChange,
-  category,
 }: {
   data: FamilyData;
   onChange: (d: FamilyData) => void;
-  category: MembershipCategory;
 }) {
-  const showPartner = ['ordinary', 'social'].includes(category);
-
-  const setPartner = (field: 'partner_name' | 'partner_dob') => (e: React.ChangeEvent<HTMLInputElement>) =>
-    onChange({ ...data, [field]: e.target.value });
-
   const setBoat = (i: number, field: keyof Boat) => (e: React.ChangeEvent<HTMLInputElement>) => {
     const boats = [...data.boats];
     boats[i] = { ...boats[i], [field]: e.target.value };
@@ -562,20 +567,8 @@ function StepFamily({
 
   return (
     <div>
-      <h2 style={{ fontSize: 18, fontWeight: 700, color: T.navy, marginBottom: 4 }}>Partner & Vessels</h2>
-      <p style={{ fontSize: 14, color: T.textSecondary, marginBottom: 24 }}>Partner details and boats you own or co-own.</p>
-
-      {showPartner && (
-        <>
-          <div style={{ fontSize: 13, fontWeight: 700, color: T.navy, marginBottom: 14 }}>Partner</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0 16px' }}>
-            <Field label="Partner's name"><FieldInput value={data.partner_name} onChange={setPartner('partner_name')} /></Field>
-            <Field label="Date of birth" required>
-              <FieldInput type="date" value={data.partner_dob} onChange={setPartner('partner_dob')} min="1900-01-01" max={todayStr()} />
-            </Field>
-          </div>
-        </>
-      )}
+      <h2 style={{ fontSize: 18, fontWeight: 700, color: T.navy, marginBottom: 4 }}>Vessels & Experience</h2>
+      <p style={{ fontSize: 14, color: T.textSecondary, marginBottom: 24 }}>Boats you own or co-own, and your boating background.</p>
 
       <div style={{ fontSize: 13, fontWeight: 700, color: T.navy, margin: '16px 0 8px' }}>Yachting, boating & club admin experience</div>
       <Field label="">
@@ -745,7 +738,7 @@ function Confirmation({ name }: { name: string }) {
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 
-const STEPS = ['Category', 'Personal details', 'Family & vessels', 'Photo & declaration'];
+const STEPS = ['Category', 'Personal details', 'Vessels & experience', 'Photo & declaration'];
 
 export default function MembershipApplicationPage() {
   const { venueId, venue } = useVenue();
@@ -761,11 +754,12 @@ export default function MembershipApplicationPage() {
     surname: '', first_names: '', id_number: '', date_of_birth: '',
     home_address: '', home_code: '',
     contact_mobile: '', contact_work: '', contact_home: '', email: '',
-    emergency_contact_name: '', emergency_contact_number: '',
     occupation: '', employer: '', business_type: '', other_clubs: '',
+    emergency_contact_name: '', emergency_contact_number: '',
+    partner_name: '', partner_dob: '',
   });
   const [family, setFamily] = useState<FamilyData>({
-    partner_name: '', partner_dob: '', boating_experience: '', boats: [],
+    boating_experience: '', boats: [],
   });
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
@@ -790,9 +784,7 @@ export default function MembershipApplicationPage() {
       if (!personal.emergency_contact_name.trim()) return 'Emergency contact name is required.';
       if (!personal.emergency_contact_number.trim()) return 'Emergency contact number is required.';
       if (!isValidPhone(personal.emergency_contact_number)) return 'Emergency contact number must be a valid South African number starting with +27 or 0.';
-    }
-    if (step === 2) {
-      if (family.partner_name.trim() && !family.partner_dob) return "Partner's date of birth is required.";
+      if (personal.partner_name.trim() && !personal.partner_dob) return "Partner's date of birth is required.";
     }
     if (step === 3) {
       if (!photoFile) return 'A photo is required.';
@@ -847,8 +839,8 @@ export default function MembershipApplicationPage() {
               }
             : null,
           ...personal,
-          partner_name: family.partner_name || null,
-          partner_dob: family.partner_dob || null,
+          partner_name: personal.partner_name || null,
+          partner_dob: personal.partner_dob || null,
           children: children.filter((c) => c.name.trim()).length > 0 ? children.filter((c) => c.name.trim()) : null,
           addon_members: namedAddons.length > 0 ? namedAddons : null,
           boating_experience: family.boating_experience || null,
@@ -916,8 +908,8 @@ export default function MembershipApplicationPage() {
                   onChildrenChange={setChildren}
                 />
               )}
-              {step === 1 && <StepPersonal data={personal} onChange={setPersonal} />}
-              {step === 2 && <StepFamily data={family} onChange={setFamily} category={category!} />}
+              {step === 1 && <StepPersonal data={personal} onChange={setPersonal} category={category} />}
+              {step === 2 && <StepFamily data={family} onChange={setFamily} />}
               {step === 3 && (
                 <StepPhoto
                   photoFile={photoFile}
