@@ -128,6 +128,12 @@ Dashboard cards use: white background, `1px solid #E2E8F0` border, `8px` radius,
   unsubscribe via `unsubscribe` Edge Function → 302 redirect to public Vite route `/unsubscribed`.
   4 starter templates seeded for VCA (Letter from Commodore / Newsletter / Formal Letter / Casual
   notice). Footer auto-injected with venue address + unsubscribe link (POPIA + RFC 8058 compliant).
+- **Portal password reset:** `request-password-reset` Edge Function (unauthenticated; looks up
+  active member by email + venue, generates a recovery link via `generateLink`, sends branded
+  email through Resend — never Supabase's rate-limited built-in SMTP) → member lands on
+  `/reset-password` (custom domain) or `/:slug/portal/reset-password`, both rendering the shared
+  `SetPasswordFromLink` component (also used by AcceptInvite). Redirect targets must be in the
+  Supabase Auth URI allowlist (`portal.vaalcruising.co.za/**` and `pos.ledra.co.za/**` are).
 - **Data:** 74 VCA members + boats/sites imported; product catalogue with ZAR pricing
 
 ---

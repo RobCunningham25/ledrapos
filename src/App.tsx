@@ -33,6 +33,7 @@ import ApplicationNoticePage from "./pages/admin/ApplicationNoticePage.tsx";
 import MembershipApplicationPage from "./pages/MembershipApplicationPage.tsx";
 import PortalLogin from "./pages/portal/PortalLogin.tsx";
 import AcceptInvite from "./pages/portal/AcceptInvite.tsx";
+import PortalResetPassword from "./pages/portal/PortalResetPassword.tsx";
 import PortalProtectedRoute from "./components/portal/PortalProtectedRoute.tsx";
 import PortalLayout from "./components/portal/PortalLayout.tsx";
 import PortalBarTab from "./pages/portal/PortalBarTab.tsx";
@@ -79,6 +80,7 @@ const App = () => (
               {customDomainConfig.section === 'portal' && <>
                 <Route path="login" element={<PortalThemeProvider><PortalLogin /></PortalThemeProvider>} />
                 <Route path="accept-invite" element={<PortalThemeProvider><AcceptInvite /></PortalThemeProvider>} />
+                <Route path="reset-password" element={<PortalThemeProvider><PortalResetPassword /></PortalThemeProvider>} />
                 <Route path="unsubscribed" element={<Unsubscribed />} />
                 <Route path="apply" element={<MembershipApplicationPage />} />
                 <Route element={<PortalProtectedRoute />}>
@@ -162,6 +164,7 @@ const App = () => (
                   <Route path="apply" element={<MembershipApplicationPage />} />
                   <Route path="portal/login" element={<PortalThemeProvider><PortalLogin /></PortalThemeProvider>} />
                   <Route path="portal/accept-invite" element={<PortalThemeProvider><AcceptInvite /></PortalThemeProvider>} />
+                  <Route path="portal/reset-password" element={<PortalThemeProvider><PortalResetPassword /></PortalThemeProvider>} />
                   <Route path="portal" element={<PortalProtectedRoute />}>
                     <Route element={
                       <PortalAuthProvider>

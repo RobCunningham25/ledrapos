@@ -53,3 +53,6 @@ verify_jwt = false
 
 [functions.submit-membership-application]
 verify_jwt = false
+
+[functions.request-password-reset]
+verify_jwt = false

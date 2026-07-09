@@ -12,7 +12,7 @@ const REMEMBER_EMAIL_KEY = 'ledrapos_portal_email';
 
 export default function PortalLogin() {
   const navigate = useNavigate();
-  const { venue } = useVenue();
+  const { venueId } = useVenue();
   const { portalPath } = useVenueNav();
   const T = usePortalTheme();
   const [email, setEmail] = useState('');
@@ -77,10 +77,23 @@ export default function PortalLogin() {
     setError('');
     setLoading(true);
 
-    const { error: resetError } = await supabase.auth.resetPasswordForEmail(resetEmail);
+    const res = await supabase.functions.invoke('request-password-reset', {
+      body: { email: resetEmail, venue_id: venueId },
+    });
 
-    if (resetError) {
-      setError(resetError.message);
+    if (res.error) {
+      // Supabase-js returns `error` on non-2xx. Try to surface the function's JSON body.
+      let detail: string | null = null;
+      const ctx = (res.error as { context?: Response }).context;
+      if (ctx && typeof ctx.json === 'function') {
+        try {
+          const body = await ctx.json();
+          if (body?.error) detail = body.error;
+        } catch { /* body wasn't JSON */ }
+      }
+      setError(detail || res.error.message || 'Failed to send reset email');
+    } else if (res.data?.error) {
+      setError(res.data.error);
     } else {
       setResetSent(true);
     }
