@@ -24,9 +24,12 @@ interface Member {
   membership_type: string;
   email: string | null;
   phone: string | null;
+  home_address: string | null;
   partner_name: string | null;
   partner_first_name: string | null;
   partner_last_name: string | null;
+  partner_email: string | null;
+  partner_phone: string | null;
   emergency_contact_name: string | null;
   emergency_contact_phone: string | null;
   is_active: boolean;
@@ -143,6 +146,18 @@ export default function MemberDetail() {
       .maybeSingle();
     setMember(data as Member | null);
     setLoading(false);
+  }, [id, venueId]);
+
+  const [siteNumbers, setSiteNumbers] = useState<string[]>([]);
+  const [shedNumbers, setShedNumbers] = useState<string[]>([]);
+  const fetchSitesSheds = useCallback(async () => {
+    if (!id) return;
+    const [sitesRes, shedsRes] = await Promise.all([
+      supabase.from('member_sites').select('site_number').eq('member_id', id).eq('venue_id', venueId).order('created_at'),
+      supabase.from('member_boat_sheds').select('shed_number').eq('member_id', id).eq('venue_id', venueId).order('created_at'),
+    ]);
+    setSiteNumbers(((sitesRes.data as { site_number: string }[]) || []).map(r => r.site_number));
+    setShedNumbers(((shedsRes.data as { shed_number: string }[]) || []).map(r => r.shed_number));
   }, [id, venueId]);
 
   const fetchAdminAccess = useCallback(async (email: string | null) => {
@@ -406,7 +421,7 @@ export default function MemberDetail() {
     }));
   };
 
-  useEffect(() => { fetchMember(); fetchCreditBalance(); fetchBalanceDue(); }, [fetchMember, fetchCreditBalance, fetchBalanceDue]);
+  useEffect(() => { fetchMember(); fetchCreditBalance(); fetchBalanceDue(); fetchSitesSheds(); }, [fetchMember, fetchCreditBalance, fetchBalanceDue, fetchSitesSheds]);
   useEffect(() => { fetchAdminAccess(member?.email ?? null); }, [member?.email, fetchAdminAccess]);
   useEffect(() => { fetchCredits(); }, [fetchCredits]);
   useEffect(() => { fetchTabs(); fetchTabSummary(); }, [fetchTabs, fetchTabSummary]);
@@ -575,11 +590,28 @@ export default function MemberDetail() {
             <p style={{ fontSize: 13, color: '#718096', fontWeight: 500 }}>Phone</p>
             <p style={{ fontSize: 15, fontWeight: 500, color: '#1A202C' }}>{member.phone || '—'}</p>
           </div>
+          <div className="md:col-span-2">
+            <p style={{ fontSize: 13, color: '#718096', fontWeight: 500 }}>Home Address</p>
+            <p style={{ fontSize: 15, fontWeight: 500, color: '#1A202C' }}>{member.home_address || '—'}</p>
+          </div>
+          <div>
+            <p style={{ fontSize: 13, color: '#718096', fontWeight: 500 }}>Sites</p>
+            <p style={{ fontSize: 15, fontWeight: 500, color: '#1A202C' }}>{siteNumbers.join(', ') || '—'}</p>
+          </div>
+          <div>
+            <p style={{ fontSize: 13, color: '#718096', fontWeight: 500 }}>Boat Sheds</p>
+            <p style={{ fontSize: 15, fontWeight: 500, color: '#1A202C' }}>{shedNumbers.join(', ') || '—'}</p>
+          </div>
           <div>
             <p style={{ fontSize: 13, color: '#718096', fontWeight: 500 }}>Partner</p>
             <p style={{ fontSize: 15, fontWeight: 500, color: '#1A202C' }}>
               {[member.partner_first_name, member.partner_last_name].filter(Boolean).join(' ') || '—'}
             </p>
+            {(member.partner_email || member.partner_phone) && (
+              <p style={{ fontSize: 13, color: '#718096' }}>
+                {[member.partner_email, member.partner_phone].filter(Boolean).join(' · ')}
+              </p>
+            )}
           </div>
           <div>
             <p style={{ fontSize: 13, color: '#718096', fontWeight: 500 }}>Emergency Contact</p>
@@ -1003,7 +1035,7 @@ export default function MemberDetail() {
         <MemberDetailsTab
           memberId={member.id}
           venueId={venueId}
-          onMemberUpdated={() => { fetchMember(); fetchCreditBalance(); fetchBalanceDue(); }}
+          onMemberUpdated={() => { fetchMember(); fetchCreditBalance(); fetchBalanceDue(); fetchSitesSheds(); }}
         />
       )}
 
@@ -1013,7 +1045,7 @@ export default function MemberDetail() {
         onClose={() => setDrawerOpen(false)}
         venueId={venueId}
         member={member}
-        onSuccess={() => { fetchMember(); fetchCreditBalance(); fetchBalanceDue(); }}
+        onSuccess={() => { fetchMember(); fetchCreditBalance(); fetchBalanceDue(); fetchSitesSheds(); }}
       />
     </AdminLayout>
   );

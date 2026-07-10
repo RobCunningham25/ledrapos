@@ -17,7 +17,7 @@ interface Props {
 
 export default function MemberDetailsTab({ memberId, venueId, onMemberUpdated }: Props) {
   const [personal, setPersonal] = useState({
-    first_name: '', last_name: '', email: '', phone: '',
+    first_name: '', last_name: '', email: '', phone: '', home_address: '',
     emergency_contact_name: '', emergency_contact_phone: '',
   });
   const [savingPersonal, setSavingPersonal] = useState(false);
@@ -38,12 +38,13 @@ export default function MemberDetailsTab({ memberId, venueId, onMemberUpdated }:
   const fetchMemberData = useCallback(async () => {
     const { data } = await supabase
       .from('members')
-      .select('first_name, last_name, email, phone, emergency_contact_name, emergency_contact_phone, partner_first_name, partner_last_name, partner_email, partner_phone')
+      .select('first_name, last_name, email, phone, home_address, emergency_contact_name, emergency_contact_phone, partner_first_name, partner_last_name, partner_email, partner_phone')
       .eq('id', memberId).eq('venue_id', venueId).single();
     if (data) {
       setPersonal({
         first_name: data.first_name || '', last_name: data.last_name || '',
         email: data.email || '', phone: data.phone || '',
+        home_address: data.home_address || '',
         emergency_contact_name: data.emergency_contact_name || '',
         emergency_contact_phone: data.emergency_contact_phone || '',
       });
@@ -77,6 +78,7 @@ export default function MemberDetailsTab({ memberId, venueId, onMemberUpdated }:
     const { error } = await supabase.from('members').update({
       first_name: personal.first_name.trim(), last_name: personal.last_name.trim(),
       email: personal.email.trim() || null, phone: personal.phone.trim() || null,
+      home_address: personal.home_address.trim() || null,
       emergency_contact_name: personal.emergency_contact_name.trim() || null,
       emergency_contact_phone: personal.emergency_contact_phone.trim() || null,
     }).eq('id', memberId).eq('venue_id', venueId);
@@ -138,6 +140,7 @@ export default function MemberDetailsTab({ memberId, venueId, onMemberUpdated }:
             <p style={{ fontSize: 12, color: '#718096', marginTop: 4 }}>Changing email here updates contact details. Login email remains unchanged.</p>
           </div>
           <div><label style={labelStyle}>Phone</label><Input value={personal.phone} onChange={e => setPersonal(p => ({ ...p, phone: e.target.value }))} style={inputStyle} /></div>
+          <div className="md:col-span-2"><label style={labelStyle}>Home Address</label><Input value={personal.home_address} onChange={e => setPersonal(p => ({ ...p, home_address: e.target.value }))} placeholder="Street, suburb, town, postal code" style={inputStyle} /></div>
           <div><label style={labelStyle}>Emergency Contact Name</label><Input value={personal.emergency_contact_name} onChange={e => setPersonal(p => ({ ...p, emergency_contact_name: e.target.value }))} style={inputStyle} /></div>
           <div><label style={labelStyle}>Emergency Contact Phone</label><Input value={personal.emergency_contact_phone} onChange={e => setPersonal(p => ({ ...p, emergency_contact_phone: e.target.value }))} style={inputStyle} /></div>
         </div>

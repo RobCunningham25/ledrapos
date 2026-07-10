@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { X, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -36,12 +37,22 @@ interface MemberDrawerProps {
   onSuccess: () => void;
 }
 
+// Sites/sheds are rows in member_sites / member_boat_sheds (a member can have
+// several of each). In edit mode changes hit the DB immediately, mirroring the
+// Details tab; in add mode they're collected locally (id: null) and inserted
+// after the member row exists.
+interface MultiRow {
+  id: string | null;
+  value: string;
+}
+
 interface FormState {
   first_name: string;
   last_name: string;
   membership_number: string;
   email: string;
   phone: string;
+  home_address: string;
   emergency_contact_name: string;
   emergency_contact_phone: string;
   membership_type: string;
@@ -60,6 +71,7 @@ const emptyForm: FormState = {
   membership_number: '',
   email: '',
   phone: '',
+  home_address: '',
   emergency_contact_name: '',
   emergency_contact_phone: '',
   membership_type: 'ordinary',
@@ -78,6 +90,11 @@ export default function MemberDrawer({ isOpen, onClose, venueId, member, onSucce
   const [errors, setErrors] = useState<Partial<Record<keyof FormState, string>>>({});
   const [saving, setSaving] = useState(false);
 
+  const [sites, setSites] = useState<MultiRow[]>([]);
+  const [sheds, setSheds] = useState<MultiRow[]>([]);
+  const [newSite, setNewSite] = useState('');
+  const [newShed, setNewShed] = useState('');
+
   useEffect(() => {
     if (isOpen) {
       if (member) {
@@ -87,6 +104,7 @@ export default function MemberDrawer({ isOpen, onClose, venueId, member, onSucce
           membership_number: member.membership_number,
           email: member.email || '',
           phone: member.phone || '',
+          home_address: '',
           emergency_contact_name: '',
           emergency_contact_phone: '',
           membership_type: member.membership_type,
@@ -101,7 +119,7 @@ export default function MemberDrawer({ isOpen, onClose, venueId, member, onSucce
         // The members-list RPC doesn't return these columns — fetch them directly.
         supabase
           .from('members')
-          .select('emergency_contact_name, emergency_contact_phone, partner_email, partner_phone')
+          .select('emergency_contact_name, emergency_contact_phone, partner_email, partner_phone, home_address')
           .eq('id', member.id)
           .eq('venue_id', venueId)
           .single()
@@ -109,6 +127,7 @@ export default function MemberDrawer({ isOpen, onClose, venueId, member, onSucce
             if (data) {
               setForm(prev => ({
                 ...prev,
+                home_address: data.home_address || '',
                 emergency_contact_name: data.emergency_contact_name || '',
                 emergency_contact_phone: data.emergency_contact_phone || '',
                 partner_email: data.partner_email || '',
@@ -116,15 +135,89 @@ export default function MemberDrawer({ isOpen, onClose, venueId, member, onSucce
               }));
             }
           });
+        supabase
+          .from('member_sites')
+          .select('id, site_number')
+          .eq('member_id', member.id)
+          .eq('venue_id', venueId)
+          .order('created_at')
+          .then(({ data }) => {
+            setSites(((data as { id: string; site_number: string }[]) || []).map(r => ({ id: r.id, value: r.site_number })));
+          });
+        supabase
+          .from('member_boat_sheds')
+          .select('id, shed_number')
+          .eq('member_id', member.id)
+          .eq('venue_id', venueId)
+          .order('created_at')
+          .then(({ data }) => {
+            setSheds(((data as { id: string; shed_number: string }[]) || []).map(r => ({ id: r.id, value: r.shed_number })));
+          });
       } else {
         setForm(emptyForm);
+        setSites([]);
+        setSheds([]);
       }
+      setNewSite('');
+      setNewShed('');
       setErrors({});
     }
   }, [isOpen, member, venueId]);
 
   const set = (key: keyof FormState, value: string | boolean) =>
     setForm(prev => ({ ...prev, [key]: value }));
+
+  const addSite = async () => {
+    const value = newSite.trim();
+    if (!value) return;
+    if (isEdit && member) {
+      const { data, error } = await supabase
+        .from('member_sites')
+        .insert({ venue_id: venueId, member_id: member.id, site_number: value })
+        .select('id')
+        .single();
+      if (error) { toast.error('Failed to add site'); return; }
+      setSites(prev => [...prev, { id: data.id, value }]);
+    } else {
+      setSites(prev => [...prev, { id: null, value }]);
+    }
+    setNewSite('');
+  };
+
+  const removeSite = async (index: number) => {
+    const row = sites[index];
+    if (row.id) {
+      const { error } = await supabase.from('member_sites').delete().eq('id', row.id);
+      if (error) { toast.error('Failed to remove site'); return; }
+    }
+    setSites(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const addShed = async () => {
+    const value = newShed.trim();
+    if (!value) return;
+    if (isEdit && member) {
+      const { data, error } = await supabase
+        .from('member_boat_sheds')
+        .insert({ venue_id: venueId, member_id: member.id, shed_number: value })
+        .select('id')
+        .single();
+      if (error) { toast.error('Failed to add shed'); return; }
+      setSheds(prev => [...prev, { id: data.id, value }]);
+    } else {
+      setSheds(prev => [...prev, { id: null, value }]);
+    }
+    setNewShed('');
+  };
+
+  const removeShed = async (index: number) => {
+    const row = sheds[index];
+    if (row.id) {
+      const { error } = await supabase.from('member_boat_sheds').delete().eq('id', row.id);
+      if (error) { toast.error('Failed to remove shed'); return; }
+    }
+    setSheds(prev => prev.filter((_, i) => i !== index));
+  };
 
   function validate(): boolean {
     const e: Partial<Record<keyof FormState, string>> = {};
@@ -159,6 +252,7 @@ export default function MemberDrawer({ isOpen, onClose, venueId, member, onSucce
       membership_number: form.membership_number.trim(),
       email: form.email.trim() || null,
       phone: form.phone.trim() || null,
+      home_address: form.home_address.trim() || null,
       emergency_contact_name: form.emergency_contact_name.trim() || null,
       emergency_contact_phone: form.emergency_contact_phone.trim() || null,
       membership_type: form.membership_type,
@@ -180,7 +274,24 @@ export default function MemberDrawer({ isOpen, onClose, venueId, member, onSucce
     if (isEdit && member) {
       ({ error } = await supabase.from('members').update(record).eq('id', member.id).eq('venue_id', venueId));
     } else {
-      ({ error } = await supabase.from('members').insert(record));
+      const { data: created, error: insertError } = await supabase
+        .from('members')
+        .insert(record)
+        .select('id')
+        .single();
+      error = insertError;
+      // Flush sites/sheds collected before the member existed.
+      if (!error && created) {
+        const pendingSites = sites.filter(s => !s.id).map(s => ({ venue_id: venueId, member_id: created.id, site_number: s.value }));
+        const pendingSheds = sheds.filter(s => !s.id).map(s => ({ venue_id: venueId, member_id: created.id, shed_number: s.value }));
+        const [siteRes, shedRes] = await Promise.all([
+          pendingSites.length ? supabase.from('member_sites').insert(pendingSites) : Promise.resolve({ error: null }),
+          pendingSheds.length ? supabase.from('member_boat_sheds').insert(pendingSheds) : Promise.resolve({ error: null }),
+        ]);
+        if (siteRes.error || shedRes.error) {
+          toast.error('Member saved, but some sites/sheds failed to save — edit the member to retry');
+        }
+      }
     }
 
     setSaving(false);
@@ -241,6 +352,19 @@ export default function MemberDrawer({ isOpen, onClose, venueId, member, onSucce
           })}
           {field('Email', 'email', { type: 'email', placeholder: 'john@example.com', helper: 'Required for portal access' })}
           {field('Phone', 'phone', { placeholder: '+27 82 123 4567' })}
+
+          <div>
+            <Label style={{ fontSize: 14, fontWeight: 500, color: '#1A202C' }}>Home Address</Label>
+            <Textarea
+              value={form.home_address}
+              onChange={e => set('home_address', e.target.value)}
+              placeholder="Street, suburb, town, postal code"
+              rows={2}
+              className="mt-1"
+              style={{ borderRadius: 6, fontSize: 14 }}
+            />
+          </div>
+
           {field('Emergency Contact Name', 'emergency_contact_name', { placeholder: 'e.g. Jane Smith' })}
           {field('Emergency Contact Phone', 'emergency_contact_phone', { placeholder: '+27 82 123 4567' })}
 
@@ -276,6 +400,58 @@ export default function MemberDrawer({ isOpen, onClose, venueId, member, onSucce
             placeholder: '+27 82 123 4567',
             helper: 'Partners can message the club WhatsApp number from this phone',
           })}
+
+          {/* ===== Sites & boat sheds ===== */}
+          <div style={{ borderTop: '1px solid #E2E8F0', paddingTop: 16, marginTop: 8 }}>
+            <Label style={{ fontSize: 14, fontWeight: 600, color: '#1A202C' }}>Site Numbers</Label>
+            <div className="flex flex-wrap gap-2 mt-2 mb-2">
+              {sites.length === 0 && <p style={{ fontSize: 12, color: '#718096' }}>No sites added</p>}
+              {sites.map((s, i) => (
+                <span key={s.id ?? `new-${i}`} className="inline-flex items-center gap-1" style={{ fontSize: 13, color: '#1A202C', background: '#F4F6F9', border: '1px solid #E2E8F0', borderRadius: 16, padding: '4px 12px' }}>
+                  {s.value}
+                  <button type="button" onClick={() => removeSite(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#718096', display: 'flex', alignItems: 'center' }}>
+                    <X size={12} />
+                  </button>
+                </span>
+              ))}
+            </div>
+            <div className="flex items-center gap-2">
+              <Input
+                placeholder="Site number"
+                value={newSite}
+                onChange={e => setNewSite(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addSite(); } }}
+                style={{ height: 40, borderRadius: 6, fontSize: 14, width: 160 }}
+              />
+              <Button type="button" onClick={addSite} style={{ height: 36, background: '#2E5FA3', color: '#FFFFFF', fontWeight: 500, borderRadius: 6, paddingLeft: 14, paddingRight: 14 }}>Add</Button>
+            </div>
+
+            <Label style={{ fontSize: 14, fontWeight: 600, color: '#1A202C', display: 'block', marginTop: 16 }}>Boat Shed Numbers</Label>
+            <div className="flex flex-wrap gap-2 mt-2 mb-2">
+              {sheds.length === 0 && <p style={{ fontSize: 12, color: '#718096' }}>No sheds added</p>}
+              {sheds.map((s, i) => (
+                <span key={s.id ?? `new-${i}`} className="inline-flex items-center gap-1" style={{ fontSize: 13, color: '#1A202C', background: '#F4F6F9', border: '1px solid #E2E8F0', borderRadius: 16, padding: '4px 12px' }}>
+                  {s.value}
+                  <button type="button" onClick={() => removeShed(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#718096', display: 'flex', alignItems: 'center' }}>
+                    <X size={12} />
+                  </button>
+                </span>
+              ))}
+            </div>
+            <div className="flex items-center gap-2">
+              <Input
+                placeholder="Shed number"
+                value={newShed}
+                onChange={e => setNewShed(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addShed(); } }}
+                style={{ height: 40, borderRadius: 6, fontSize: 14, width: 160 }}
+              />
+              <Button type="button" onClick={addShed} style={{ height: 36, background: '#2E5FA3', color: '#FFFFFF', fontWeight: 500, borderRadius: 6, paddingLeft: 14, paddingRight: 14 }}>Add</Button>
+            </div>
+            {isEdit && (
+              <p style={{ fontSize: 12, color: '#718096', marginTop: 8 }}>Site and shed changes save immediately.</p>
+            )}
+          </div>
 
           {/* ===== WhatsApp section ===== */}
           <div style={{ borderTop: '1px solid #E2E8F0', paddingTop: 16, marginTop: 8 }}>

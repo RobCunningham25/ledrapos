@@ -1002,6 +1002,7 @@ export type Database = {
           emergency_contact_name: string | null
           emergency_contact_phone: string | null
           first_name: string
+          home_address: string | null
           id: string
           is_active: boolean | null
           last_name: string
@@ -1031,6 +1032,7 @@ export type Database = {
           emergency_contact_name?: string | null
           emergency_contact_phone?: string | null
           first_name: string
+          home_address?: string | null
           id?: string
           is_active?: boolean | null
           last_name: string
@@ -1060,6 +1062,7 @@ export type Database = {
           emergency_contact_name?: string | null
           emergency_contact_phone?: string | null
           first_name?: string
+          home_address?: string | null
           id?: string
           is_active?: boolean | null
           last_name?: string
@@ -1892,16 +1895,21 @@ export type Database = {
           auth_user_id: string
           created_at: string
           email: string
+          emergency_contact_name: string
+          emergency_contact_phone: string
           first_name: string
+          home_address: string
           id: string
           is_active: boolean
           last_name: string
           last_sign_in_at: string
           membership_number: string
           membership_type: string
+          partner_email: string
           partner_first_name: string
           partner_last_name: string
           partner_name: string
+          partner_phone: string
           phone: string
           venue_id: string
           whatsapp_number: string
