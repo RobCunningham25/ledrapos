@@ -859,6 +859,48 @@ export type Database = {
           },
         ]
       }
+      member_children: {
+        Row: {
+          created_at: string | null
+          date_of_birth: string
+          full_name: string
+          id: string
+          member_id: string
+          venue_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          date_of_birth: string
+          full_name: string
+          id?: string
+          member_id: string
+          venue_id: string
+        }
+        Update: {
+          created_at?: string | null
+          date_of_birth?: string
+          full_name?: string
+          id?: string
+          member_id?: string
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "member_children_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "member_children_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       member_credits: {
         Row: {
           amount_cents: number

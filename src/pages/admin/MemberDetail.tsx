@@ -14,6 +14,7 @@ import { ArrowLeft, Pencil, ChevronDown, ChevronUp, Shield, Loader2, MessageCirc
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { formatRelativeTime } from '@/utils/time';
+import { childCategoryLabel } from '@/utils/childCategory';
 import { useAdminAuth } from '@/contexts/AdminAuthContext';
 
 interface Member {
@@ -150,14 +151,18 @@ export default function MemberDetail() {
 
   const [siteNumbers, setSiteNumbers] = useState<string[]>([]);
   const [shedNumbers, setShedNumbers] = useState<string[]>([]);
+  const [childSummaries, setChildSummaries] = useState<string[]>([]);
   const fetchSitesSheds = useCallback(async () => {
     if (!id) return;
-    const [sitesRes, shedsRes] = await Promise.all([
+    const [sitesRes, shedsRes, childrenRes] = await Promise.all([
       supabase.from('member_sites').select('site_number').eq('member_id', id).eq('venue_id', venueId).order('created_at'),
       supabase.from('member_boat_sheds').select('shed_number').eq('member_id', id).eq('venue_id', venueId).order('created_at'),
+      supabase.from('member_children').select('full_name, date_of_birth').eq('member_id', id).eq('venue_id', venueId).order('date_of_birth'),
     ]);
     setSiteNumbers(((sitesRes.data as { site_number: string }[]) || []).map(r => r.site_number));
     setShedNumbers(((shedsRes.data as { shed_number: string }[]) || []).map(r => r.shed_number));
+    setChildSummaries(((childrenRes.data as { full_name: string; date_of_birth: string }[]) || [])
+      .map(r => `${r.full_name} (${childCategoryLabel(r.date_of_birth)})`));
   }, [id, venueId]);
 
   const fetchAdminAccess = useCallback(async (email: string | null) => {
@@ -612,6 +617,10 @@ export default function MemberDetail() {
                 {[member.partner_email, member.partner_phone].filter(Boolean).join(' · ')}
               </p>
             )}
+          </div>
+          <div>
+            <p style={{ fontSize: 13, color: '#718096', fontWeight: 500 }}>Children</p>
+            <p style={{ fontSize: 15, fontWeight: 500, color: '#1A202C' }}>{childSummaries.join(', ') || '—'}</p>
           </div>
           <div>
             <p style={{ fontSize: 13, color: '#718096', fontWeight: 500 }}>Emergency Contact</p>

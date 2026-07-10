@@ -5,10 +5,12 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Loader2, X } from 'lucide-react';
 import { toast } from 'sonner';
+import { childCategoryLabel } from '@/utils/childCategory';
 
 interface SiteRow { id: string; site_number: string }
 interface ShedRow { id: string; shed_number: string }
 interface BoatRow { id: string; boat_name: string; registration_number: string | null }
+interface ChildRow { id: string; full_name: string; date_of_birth: string }
 
 export default function PortalMyDetails() {
   const { member } = usePortalAuth();
@@ -33,6 +35,9 @@ export default function PortalMyDetails() {
   const [boats, setBoats] = useState<BoatRow[]>([]);
   const [newBoatName, setNewBoatName] = useState('');
   const [newBoatReg, setNewBoatReg] = useState('');
+  const [children, setChildren] = useState<ChildRow[]>([]);
+  const [newChildName, setNewChildName] = useState('');
+  const [newChildDob, setNewChildDob] = useState('');
 
   const fetchMemberData = useCallback(async () => {
     if (!memberId || !venueId) return;
@@ -75,7 +80,13 @@ export default function PortalMyDetails() {
     setBoats((data as BoatRow[]) || []);
   }, [memberId, venueId]);
 
-  useEffect(() => { fetchMemberData(); fetchSites(); fetchSheds(); fetchBoats(); }, [fetchMemberData, fetchSites, fetchSheds, fetchBoats]);
+  const fetchChildren = useCallback(async () => {
+    if (!memberId || !venueId) return;
+    const { data } = await supabase.from('member_children').select('id, full_name, date_of_birth').eq('member_id', memberId).eq('venue_id', venueId).order('date_of_birth');
+    setChildren((data as ChildRow[]) || []);
+  }, [memberId, venueId]);
+
+  useEffect(() => { fetchMemberData(); fetchSites(); fetchSheds(); fetchBoats(); fetchChildren(); }, [fetchMemberData, fetchSites, fetchSheds, fetchBoats, fetchChildren]);
 
   const savePersonal = async () => {
     if (!personal.first_name.trim() || !personal.last_name.trim()) { toast.error('First and last name are required'); return; }
@@ -123,6 +134,14 @@ export default function PortalMyDetails() {
     setNewBoatName(''); setNewBoatReg(''); fetchBoats(); toast.success('Boat added');
   };
   const removeBoat = async (id: string) => { await supabase.from('member_boats').delete().eq('id', id); fetchBoats(); };
+
+  const addChild = async () => {
+    if (!newChildName.trim()) { toast.error('Please enter the child\'s name'); return; }
+    if (!newChildDob) { toast.error('Date of birth is required'); return; }
+    await supabase.from('member_children').insert({ venue_id: venueId!, member_id: memberId!, full_name: newChildName.trim(), date_of_birth: newChildDob });
+    setNewChildName(''); setNewChildDob(''); fetchChildren(); toast.success('Child added');
+  };
+  const removeChild = async (id: string) => { await supabase.from('member_children').delete().eq('id', id); fetchChildren(); };
 
   const inputStyle: React.CSSProperties = { height: 44, borderRadius: 8, fontSize: 14, borderColor: 'var(--portal-card-border)' };
   const labelStyle: React.CSSProperties = { fontSize: 13, fontWeight: 500, color: 'var(--portal-text-secondary)', marginBottom: 4, display: 'block' };
@@ -202,6 +221,32 @@ export default function PortalMyDetails() {
           {savingPartner && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
           Save Partner Details
         </Button>
+      </div>
+
+      {/* Section 2b: Children */}
+      <div style={sectionCardStyle}>
+        <h2 style={sectionHeading}>Children</h2>
+        {children.length === 0 && <p style={{ fontSize: 13, color: 'var(--portal-text-muted)', marginBottom: 12 }}>No children added</p>}
+        <div className="space-y-2 mb-3">
+          {children.map(c => (
+            <div key={c.id} className="relative" style={{ background: 'var(--portal-card-bg)', border: `1px solid var(--portal-card-border)`, borderRadius: 8, padding: 12 }}>
+              <p style={{ fontWeight: 500, color: 'var(--portal-text-primary)' }}>
+                {c.full_name}
+                <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--portal-accent)', background: 'var(--portal-page-bg)', borderRadius: 4, padding: '2px 8px', marginLeft: 8 }}>
+                  {childCategoryLabel(c.date_of_birth)}
+                </span>
+              </p>
+              <p style={{ fontSize: 13, color: 'var(--portal-text-muted)' }}>Born {c.date_of_birth}</p>
+              <button onClick={() => removeChild(c.id)} className="absolute top-3 right-3" style={{ fontSize: 13, color: 'var(--portal-danger)', background: 'none', border: 'none', cursor: 'pointer' }}>Remove</button>
+            </div>
+          ))}
+        </div>
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+          <Input placeholder="Child's full name" value={newChildName} onChange={e => setNewChildName(e.target.value)} style={{ ...inputStyle, flex: 1 }} />
+          <Input type="date" value={newChildDob} onChange={e => setNewChildDob(e.target.value)} style={{ ...inputStyle, width: 170 }} />
+          <Button onClick={addChild} style={{ height: 36, background: 'var(--portal-accent)', color: '#FFFFFF', fontWeight: 500, borderRadius: 'var(--portal-button-radius)', paddingLeft: 14, paddingRight: 14, flexShrink: 0 }}>Add</Button>
+        </div>
+        <p style={{ fontSize: 12, color: 'var(--portal-text-muted)', marginTop: 8 }}>Category is worked out from date of birth: Under 12 (included), Junior 12–18, Intermediate 19–30.</p>
       </div>
 
       {/* Section 3: Site Numbers */}

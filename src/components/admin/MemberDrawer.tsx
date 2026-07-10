@@ -8,6 +8,7 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { childCategoryLabel } from '@/utils/childCategory';
 
 interface MemberRow {
   id: string;
@@ -44,6 +45,12 @@ interface MemberDrawerProps {
 interface MultiRow {
   id: string | null;
   value: string;
+}
+
+interface ChildRow {
+  id: string | null;
+  name: string;
+  dob: string;
 }
 
 interface FormState {
@@ -94,6 +101,9 @@ export default function MemberDrawer({ isOpen, onClose, venueId, member, onSucce
   const [sheds, setSheds] = useState<MultiRow[]>([]);
   const [newSite, setNewSite] = useState('');
   const [newShed, setNewShed] = useState('');
+  const [kids, setKids] = useState<ChildRow[]>([]);
+  const [newChildName, setNewChildName] = useState('');
+  const [newChildDob, setNewChildDob] = useState('');
 
   useEffect(() => {
     if (isOpen) {
@@ -153,13 +163,25 @@ export default function MemberDrawer({ isOpen, onClose, venueId, member, onSucce
           .then(({ data }) => {
             setSheds(((data as { id: string; shed_number: string }[]) || []).map(r => ({ id: r.id, value: r.shed_number })));
           });
+        supabase
+          .from('member_children')
+          .select('id, full_name, date_of_birth')
+          .eq('member_id', member.id)
+          .eq('venue_id', venueId)
+          .order('date_of_birth')
+          .then(({ data }) => {
+            setKids(((data as { id: string; full_name: string; date_of_birth: string }[]) || []).map(r => ({ id: r.id, name: r.full_name, dob: r.date_of_birth })));
+          });
       } else {
         setForm(emptyForm);
         setSites([]);
         setSheds([]);
+        setKids([]);
       }
       setNewSite('');
       setNewShed('');
+      setNewChildName('');
+      setNewChildDob('');
       setErrors({});
     }
   }, [isOpen, member, venueId]);
@@ -217,6 +239,34 @@ export default function MemberDrawer({ isOpen, onClose, venueId, member, onSucce
       if (error) { toast.error('Failed to remove shed'); return; }
     }
     setSheds(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const addChild = async () => {
+    const name = newChildName.trim();
+    if (!name) { toast.error("Child's name is required"); return; }
+    if (!newChildDob) { toast.error('Date of birth is required'); return; }
+    if (isEdit && member) {
+      const { data, error } = await supabase
+        .from('member_children')
+        .insert({ venue_id: venueId, member_id: member.id, full_name: name, date_of_birth: newChildDob })
+        .select('id')
+        .single();
+      if (error) { toast.error('Failed to add child'); return; }
+      setKids(prev => [...prev, { id: data.id, name, dob: newChildDob }]);
+    } else {
+      setKids(prev => [...prev, { id: null, name, dob: newChildDob }]);
+    }
+    setNewChildName('');
+    setNewChildDob('');
+  };
+
+  const removeChild = async (index: number) => {
+    const row = kids[index];
+    if (row.id) {
+      const { error } = await supabase.from('member_children').delete().eq('id', row.id);
+      if (error) { toast.error('Failed to remove child'); return; }
+    }
+    setKids(prev => prev.filter((_, i) => i !== index));
   };
 
   function validate(): boolean {
@@ -284,12 +334,14 @@ export default function MemberDrawer({ isOpen, onClose, venueId, member, onSucce
       if (!error && created) {
         const pendingSites = sites.filter(s => !s.id).map(s => ({ venue_id: venueId, member_id: created.id, site_number: s.value }));
         const pendingSheds = sheds.filter(s => !s.id).map(s => ({ venue_id: venueId, member_id: created.id, shed_number: s.value }));
-        const [siteRes, shedRes] = await Promise.all([
+        const pendingKids = kids.filter(k => !k.id).map(k => ({ venue_id: venueId, member_id: created.id, full_name: k.name, date_of_birth: k.dob }));
+        const [siteRes, shedRes, kidRes] = await Promise.all([
           pendingSites.length ? supabase.from('member_sites').insert(pendingSites) : Promise.resolve({ error: null }),
           pendingSheds.length ? supabase.from('member_boat_sheds').insert(pendingSheds) : Promise.resolve({ error: null }),
+          pendingKids.length ? supabase.from('member_children').insert(pendingKids) : Promise.resolve({ error: null }),
         ]);
-        if (siteRes.error || shedRes.error) {
-          toast.error('Member saved, but some sites/sheds failed to save — edit the member to retry');
+        if (siteRes.error || shedRes.error || kidRes.error) {
+          toast.error('Member saved, but some sites/sheds/children failed to save — edit the member to retry');
         }
       }
     }
@@ -448,9 +500,43 @@ export default function MemberDrawer({ isOpen, onClose, venueId, member, onSucce
               />
               <Button type="button" onClick={addShed} style={{ height: 36, background: '#2E5FA3', color: '#FFFFFF', fontWeight: 500, borderRadius: 6, paddingLeft: 14, paddingRight: 14 }}>Add</Button>
             </div>
-            {isEdit && (
-              <p style={{ fontSize: 12, color: '#718096', marginTop: 8 }}>Site and shed changes save immediately.</p>
-            )}
+            <Label style={{ fontSize: 14, fontWeight: 600, color: '#1A202C', display: 'block', marginTop: 16 }}>Children</Label>
+            <div className="space-y-2 mt-2 mb-2">
+              {kids.length === 0 && <p style={{ fontSize: 12, color: '#718096' }}>No children added</p>}
+              {kids.map((k, i) => (
+                <div key={k.id ?? `new-${i}`} className="flex items-center justify-between" style={{ border: '1px solid #E2E8F0', borderRadius: 6, padding: '8px 12px' }}>
+                  <div>
+                    <span style={{ fontSize: 13, fontWeight: 500, color: '#1A202C' }}>{k.name}</span>
+                    <span style={{ fontSize: 11, fontWeight: 600, color: '#2E5FA3', background: 'rgba(46,95,163,0.1)', borderRadius: 4, padding: '2px 6px', marginLeft: 8 }}>
+                      {childCategoryLabel(k.dob)}
+                    </span>
+                    <p style={{ fontSize: 12, color: '#718096' }}>Born {k.dob}</p>
+                  </div>
+                  <button type="button" onClick={() => removeChild(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#718096', display: 'flex', alignItems: 'center' }}>
+                    <X size={14} />
+                  </button>
+                </div>
+              ))}
+            </div>
+            <div className="flex items-center gap-2">
+              <Input
+                placeholder="Child's full name"
+                value={newChildName}
+                onChange={e => setNewChildName(e.target.value)}
+                style={{ height: 40, borderRadius: 6, fontSize: 14, flex: 1 }}
+              />
+              <Input
+                type="date"
+                value={newChildDob}
+                onChange={e => setNewChildDob(e.target.value)}
+                style={{ height: 40, borderRadius: 6, fontSize: 14, width: 150 }}
+              />
+              <Button type="button" onClick={addChild} style={{ height: 36, background: '#2E5FA3', color: '#FFFFFF', fontWeight: 500, borderRadius: 6, paddingLeft: 14, paddingRight: 14 }}>Add</Button>
+            </div>
+            <p style={{ fontSize: 12, color: '#718096', marginTop: 8 }}>
+              Category comes from date of birth: Under 12 (included), Junior 12–18, Intermediate 19–30.
+              {isEdit && ' Site, shed, and child changes save immediately.'}
+            </p>
           </div>
 
           {/* ===== WhatsApp section ===== */}

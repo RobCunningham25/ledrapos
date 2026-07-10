@@ -4,10 +4,12 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Loader2, X } from 'lucide-react';
 import { toast } from 'sonner';
+import { childCategoryLabel } from '@/utils/childCategory';
 
 interface SiteRow { id: string; site_number: string }
 interface ShedRow { id: string; shed_number: string }
 interface BoatRow { id: string; boat_name: string; registration_number: string | null }
+interface ChildRow { id: string; full_name: string; date_of_birth: string }
 
 interface Props {
   memberId: string;
@@ -34,6 +36,9 @@ export default function MemberDetailsTab({ memberId, venueId, onMemberUpdated }:
   const [boats, setBoats] = useState<BoatRow[]>([]);
   const [newBoatName, setNewBoatName] = useState('');
   const [newBoatReg, setNewBoatReg] = useState('');
+  const [children, setChildren] = useState<ChildRow[]>([]);
+  const [newChildName, setNewChildName] = useState('');
+  const [newChildDob, setNewChildDob] = useState('');
 
   const fetchMemberData = useCallback(async () => {
     const { data } = await supabase
@@ -70,7 +75,12 @@ export default function MemberDetailsTab({ memberId, venueId, onMemberUpdated }:
     setBoats((data as BoatRow[]) || []);
   }, [memberId, venueId]);
 
-  useEffect(() => { fetchMemberData(); fetchSites(); fetchSheds(); fetchBoats(); }, [fetchMemberData, fetchSites, fetchSheds, fetchBoats]);
+  const fetchChildren = useCallback(async () => {
+    const { data } = await supabase.from('member_children').select('id, full_name, date_of_birth').eq('member_id', memberId).eq('venue_id', venueId).order('date_of_birth');
+    setChildren((data as ChildRow[]) || []);
+  }, [memberId, venueId]);
+
+  useEffect(() => { fetchMemberData(); fetchSites(); fetchSheds(); fetchBoats(); fetchChildren(); }, [fetchMemberData, fetchSites, fetchSheds, fetchBoats, fetchChildren]);
 
   const savePersonal = async () => {
     if (!personal.first_name.trim() || !personal.last_name.trim()) { toast.error('First and last name are required'); return; }
@@ -121,6 +131,14 @@ export default function MemberDetailsTab({ memberId, venueId, onMemberUpdated }:
   };
   const removeBoat = async (id: string) => { await supabase.from('member_boats').delete().eq('id', id); fetchBoats(); };
 
+  const addChild = async () => {
+    if (!newChildName.trim()) { toast.error('Child name is required'); return; }
+    if (!newChildDob) { toast.error('Date of birth is required'); return; }
+    await supabase.from('member_children').insert({ venue_id: venueId, member_id: memberId, full_name: newChildName.trim(), date_of_birth: newChildDob });
+    setNewChildName(''); setNewChildDob(''); fetchChildren(); toast.success('Child added');
+  };
+  const removeChild = async (id: string) => { await supabase.from('member_children').delete().eq('id', id); fetchChildren(); };
+
   const inputStyle = { height: 44, borderRadius: 6, fontSize: 14 };
   const labelStyle: React.CSSProperties = { fontSize: 13, fontWeight: 500, color: '#718096', marginBottom: 4, display: 'block' };
   const cardStyle: React.CSSProperties = { background: '#FFFFFF', borderRadius: 8, border: '1px solid #E2E8F0', padding: 20, marginBottom: 16 };
@@ -161,6 +179,32 @@ export default function MemberDetailsTab({ memberId, venueId, onMemberUpdated }:
         <Button onClick={savePartner} disabled={savingPartner} className="mt-4" style={{ height: 44, background: '#2E5FA3', color: '#FFFFFF', fontWeight: 600, borderRadius: 6, paddingLeft: 24, paddingRight: 24 }}>
           {savingPartner && <Loader2 className="h-4 w-4 animate-spin mr-2" />}Save Partner Details
         </Button>
+      </div>
+
+      {/* Children */}
+      <div style={cardStyle}>
+        <h3 style={sectionHeading}>Children</h3>
+        {children.length === 0 && <p style={{ fontSize: 13, color: '#718096', marginBottom: 12 }}>No children added</p>}
+        <div className="space-y-2 mb-3">
+          {children.map(c => (
+            <div key={c.id} className="relative" style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 6, padding: 12 }}>
+              <p style={{ fontWeight: 500, color: '#1A202C' }}>
+                {c.full_name}
+                <span style={{ fontSize: 12, fontWeight: 600, color: '#2E5FA3', background: 'rgba(46,95,163,0.1)', borderRadius: 4, padding: '2px 8px', marginLeft: 8 }}>
+                  {childCategoryLabel(c.date_of_birth)}
+                </span>
+              </p>
+              <p style={{ fontSize: 13, color: '#718096' }}>Born {c.date_of_birth}</p>
+              <button onClick={() => removeChild(c.id)} className="absolute top-3 right-3" style={{ fontSize: 13, color: '#C0392B', background: 'none', border: 'none', cursor: 'pointer' }}>Remove</button>
+            </div>
+          ))}
+        </div>
+        <div className="flex flex-col md:flex-row items-stretch md:items-center gap-2">
+          <Input placeholder="Child's full name" value={newChildName} onChange={e => setNewChildName(e.target.value)} style={{ ...inputStyle, flex: 1 }} />
+          <Input type="date" value={newChildDob} onChange={e => setNewChildDob(e.target.value)} style={{ ...inputStyle, width: 170 }} />
+          <Button onClick={addChild} style={{ height: 36, background: '#2E5FA3', color: '#FFFFFF', fontWeight: 500, borderRadius: 6, paddingLeft: 14, paddingRight: 14, flexShrink: 0 }}>Add</Button>
+        </div>
+        <p style={{ fontSize: 12, color: '#718096', marginTop: 8 }}>Category is worked out from date of birth: Under 12 (included), Junior 12–18, Intermediate 19–30.</p>
       </div>
 
       {/* Site Numbers */}
