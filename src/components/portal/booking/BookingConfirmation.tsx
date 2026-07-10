@@ -16,7 +16,7 @@ export default function BookingConfirmation({ bookingCode, isFree, bookingId, to
   const [copied, setCopied] = useState(false);
   const isVisitor = bookingFor === 'visitor';
   const showPayment = !isFree && totalCents > 0 && onSelectPayment && !isVisitor;
-  const visitorLink = `${window.location.origin}/booking/${bookingCode}`;
+  const visitorLink = `https://booking.vaalcruising.co.za/booking/${bookingCode}`;
 
   useEffect(() => { if (copied) { const t = setTimeout(() => setCopied(false), 2000); return () => clearTimeout(t); } }, [copied]);
   const handleCopyLink = async () => { await navigator.clipboard.writeText(visitorLink); setCopied(true); };

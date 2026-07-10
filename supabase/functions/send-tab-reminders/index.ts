@@ -131,11 +131,11 @@ Deno.serve(async (req) => {
     const resendApiKey = Deno.env.get("RESEND_API_KEY");
     if (!resendApiKey) return json(500, { success: false, error: "RESEND_API_KEY not configured" });
 
-    const siteUrl = (Deno.env.get("SITE_URL") || "https://pos.ledra.co.za").replace(/\/+$/, "");
+    const siteUrl = (Deno.env.get("SITE_URL") || "https://booking.vaalcruising.co.za").replace(/\/+$/, "");
 
     const { data: venue } = await supabase
       .from("venues")
-      .select("id, name, slug, contact_email, broadcast_from_email")
+      .select("id, name, slug, contact_email, broadcast_from_email, portal_domain")
       .eq("id", body.venue_id)
       .maybeSingle();
     if (!venue) return json(404, { success: false, error: "Venue not found" });
@@ -144,7 +144,9 @@ Deno.serve(async (req) => {
       || Deno.env.get("INVITE_FROM_EMAIL")
       || "info@vaalcruising.co.za";
     const fromHeader = `${venue.name} <${fromEmail}>`;
-    const portalUrl = `${siteUrl}/${venue.slug}/portal`;
+    const portalUrl = venue.portal_domain
+      ? `https://${venue.portal_domain}`
+      : `${siteUrl}/${venue.slug}/portal`;
 
     // ===== Find open tabs for non-cash customers =====
     const { data: openTabs, error: tabsError } = await supabase

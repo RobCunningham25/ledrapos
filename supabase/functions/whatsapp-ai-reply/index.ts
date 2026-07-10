@@ -37,6 +37,10 @@ interface RequestBody {
   member_id: string;
   inbound_body: string;
   inbound_message_sid: string;
+  // Number the inbound came from — replies go here. Falls back to the member's
+  // whatsapp_number/phone when absent. Matters when a partner texts in: the
+  // reply must go to the partner's phone, not the member's.
+  reply_to_e164?: string | null;
   dry_run?: boolean;
 }
 
@@ -71,6 +75,16 @@ async function callAnthropic(params: {
   messages: AnthropicMessage[];
   tools: typeof TOOL_DEFINITIONS;
 }): Promise<AnthropicResponse> {
+  // Prompt caching: the tool catalog and system prompt are static for the whole
+  // tool-use loop (only the messages array grows), so mark both as cacheable.
+  // The tool block is cached by putting cache_control on the LAST tool; the
+  // system block gets its own breakpoint. This cuts input cost on every
+  // iteration after the first, and across inbound messages within the 5-min TTL.
+  const tools = params.tools.map((t, i) =>
+    i === params.tools.length - 1
+      ? { ...t, cache_control: { type: "ephemeral" } }
+      : t
+  );
   const res = await fetch(ANTHROPIC_MESSAGES_URL, {
     method: "POST",
     headers: {
@@ -81,9 +95,11 @@ async function callAnthropic(params: {
     body: JSON.stringify({
       model: params.model,
       max_tokens: MAX_OUTPUT_TOKENS,
-      system: params.system,
+      system: [
+        { type: "text", text: params.system, cache_control: { type: "ephemeral" } },
+      ],
       messages: params.messages,
-      tools: params.tools,
+      tools,
     }),
   });
   if (!res.ok) {
@@ -494,6 +510,7 @@ Deno.serve(async (req) => {
           original_message: body.inbound_body.slice(0, 2000),
           urgency: "normal",
           status: "open",
+          reason: "knowledge_gap",
         });
       } catch (err) {
         console.error(
@@ -521,7 +538,9 @@ Deno.serve(async (req) => {
     });
   }
 
-  if (!ctx.memberE164) {
+  const replyTo = body.reply_to_e164 || ctx.memberE164;
+
+  if (!replyTo) {
     await logAiEvent(supabase, {
       venue_id: body.venue_id,
       member_id: body.member_id,
@@ -536,7 +555,7 @@ Deno.serve(async (req) => {
   const sendRes = await sendWhatsAppReply({
     venueId: body.venue_id,
     memberId: body.member_id,
-    toE164: ctx.memberE164,
+    toE164: replyTo,
     body: finalText,
     inboundMessageSid: body.inbound_message_sid,
   });

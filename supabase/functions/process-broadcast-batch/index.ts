@@ -93,7 +93,7 @@ Deno.serve(async (req) => {
     return json(500, { error: "RESEND_API_KEY not configured" });
   }
 
-  const siteUrl = (Deno.env.get("SITE_URL") || "https://pos.ledra.co.za").replace(/\/+$/, "");
+  const fallbackBaseUrl = "https://portal.vaalcruising.co.za";
 
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,
@@ -119,7 +119,7 @@ Deno.serve(async (req) => {
   // ===== Load venue =====
   const { data: venue, error: venueError } = await supabase
     .from("venues")
-    .select("id, name, address, contact_email, broadcast_from_email")
+    .select("id, name, address, contact_email, contact_phone, broadcast_from_email, logo_url, portal_domain")
     .eq("id", broadcast.venue_id)
     .maybeSingle();
 
@@ -206,12 +206,17 @@ Deno.serve(async (req) => {
         await sleep(THROTTLE_MS - since);
       }
 
-      const unsubscribeUrl = buildUnsubscribeUrl(siteUrl, row.unsubscribe_token);
+      const portalBase = venue.portal_domain
+        ? `https://${venue.portal_domain}`
+        : fallbackBaseUrl;
+      const unsubscribeUrl = buildUnsubscribeUrl(portalBase, row.unsubscribe_token);
       const { html, text } = wrapWithFooter({
         subject: broadcast.subject,
         bodyHtml: broadcast.body_html,
         venueName: venue.name,
         venueAddress: venue.address,
+        logoUrl: venue.logo_url,
+        contactPhone: venue.contact_phone,
         unsubscribeUrl,
       });
 

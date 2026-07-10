@@ -367,6 +367,7 @@ export type Database = {
           error: string | null
           id: string
           member_id: string
+          recipient_type: string
           resend_message_id: string | null
           sent_at: string | null
           status: string
@@ -379,6 +380,7 @@ export type Database = {
           error?: string | null
           id?: string
           member_id: string
+          recipient_type?: string
           resend_message_id?: string | null
           sent_at?: string | null
           status?: string
@@ -391,6 +393,7 @@ export type Database = {
           error?: string | null
           id?: string
           member_id?: string
+          recipient_type?: string
           resend_message_id?: string | null
           sent_at?: string | null
           status?: string
@@ -1087,6 +1090,148 @@ export type Database = {
           },
         ]
       }
+      membership_applications: {
+        Row: {
+          addon_members: Json | null
+          boating_experience: string | null
+          boats: Json | null
+          business_type: string | null
+          calculated_fees: Json | null
+          children: Json | null
+          contact_home: string | null
+          contact_mobile: string
+          contact_work: string | null
+          created_at: string
+          date_of_birth: string | null
+          email: string
+          emergency_contact_name: string | null
+          emergency_contact_number: string | null
+          employer: string | null
+          first_names: string
+          home_address: string | null
+          home_code: string | null
+          id: string
+          id_number: string | null
+          interview_conducted_at: string | null
+          member_id: string | null
+          members_notified_at: string | null
+          membership_category: string
+          occupation: string | null
+          other_clubs: string | null
+          partner_dob: string | null
+          partner_name: string | null
+          photo_url: string | null
+          postal_address: string | null
+          postal_code: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          reviewer_notes: string | null
+          status: string
+          surname: string
+          venue_id: string
+        }
+        Insert: {
+          addon_members?: Json | null
+          boating_experience?: string | null
+          boats?: Json | null
+          business_type?: string | null
+          calculated_fees?: Json | null
+          children?: Json | null
+          contact_home?: string | null
+          contact_mobile: string
+          contact_work?: string | null
+          created_at?: string
+          date_of_birth?: string | null
+          email: string
+          emergency_contact_name?: string | null
+          emergency_contact_number?: string | null
+          employer?: string | null
+          first_names: string
+          home_address?: string | null
+          home_code?: string | null
+          id?: string
+          id_number?: string | null
+          interview_conducted_at?: string | null
+          member_id?: string | null
+          members_notified_at?: string | null
+          membership_category: string
+          occupation?: string | null
+          other_clubs?: string | null
+          partner_dob?: string | null
+          partner_name?: string | null
+          photo_url?: string | null
+          postal_address?: string | null
+          postal_code?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          reviewer_notes?: string | null
+          status?: string
+          surname: string
+          venue_id: string
+        }
+        Update: {
+          addon_members?: Json | null
+          boating_experience?: string | null
+          boats?: Json | null
+          business_type?: string | null
+          calculated_fees?: Json | null
+          children?: Json | null
+          contact_home?: string | null
+          contact_mobile?: string
+          contact_work?: string | null
+          created_at?: string
+          date_of_birth?: string | null
+          email?: string
+          emergency_contact_name?: string | null
+          emergency_contact_number?: string | null
+          employer?: string | null
+          first_names?: string
+          home_address?: string | null
+          home_code?: string | null
+          id?: string
+          id_number?: string | null
+          interview_conducted_at?: string | null
+          member_id?: string | null
+          members_notified_at?: string | null
+          membership_category?: string
+          occupation?: string | null
+          other_clubs?: string | null
+          partner_dob?: string | null
+          partner_name?: string | null
+          photo_url?: string | null
+          postal_address?: string | null
+          postal_code?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          reviewer_notes?: string | null
+          status?: string
+          surname?: string
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "membership_applications_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "membership_applications_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "admin_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "membership_applications_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       payments: {
         Row: {
           amount_cents: number
@@ -1369,6 +1514,72 @@ export type Database = {
           },
         ]
       }
+      venue_knowledge: {
+        Row: {
+          body: string
+          category: string
+          created_at: string
+          id: string
+          is_published: boolean
+          keywords: string
+          priority: number
+          search_tsv: unknown
+          source: string | null
+          tags: string[]
+          title: string
+          updated_at: string
+          updated_by: string | null
+          venue_id: string
+        }
+        Insert: {
+          body?: string
+          category?: string
+          created_at?: string
+          id?: string
+          is_published?: boolean
+          keywords?: string
+          priority?: number
+          search_tsv?: unknown
+          source?: string | null
+          tags?: string[]
+          title: string
+          updated_at?: string
+          updated_by?: string | null
+          venue_id: string
+        }
+        Update: {
+          body?: string
+          category?: string
+          created_at?: string
+          id?: string
+          is_published?: boolean
+          keywords?: string
+          priority?: number
+          search_tsv?: unknown
+          source?: string | null
+          tags?: string[]
+          title?: string
+          updated_at?: string
+          updated_by?: string | null
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "venue_knowledge_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "admin_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "venue_knowledge_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       venue_settings: {
         Row: {
           id: string
@@ -1522,6 +1733,7 @@ export type Database = {
           member_id: string | null
           notes: string | null
           original_message: string
+          reason: string
           resolved_at: string | null
           resolved_by: string | null
           status: string
@@ -1535,6 +1747,7 @@ export type Database = {
           member_id?: string | null
           notes?: string | null
           original_message: string
+          reason?: string
           resolved_at?: string | null
           resolved_by?: string | null
           status?: string
@@ -1548,6 +1761,7 @@ export type Database = {
           member_id?: string | null
           notes?: string | null
           original_message?: string
+          reason?: string
           resolved_at?: string | null
           resolved_by?: string | null
           status?: string
@@ -1709,11 +1923,23 @@ export type Database = {
         }
         Returns: Json
       }
+      search_venue_knowledge: {
+        Args: { p_limit?: number; p_query: string; p_venue_id: string }
+        Returns: {
+          body: string
+          category: string
+          id: string
+          rank: number
+          source: string
+          title: string
+        }[]
+      }
       select_broadcast_recipients: {
         Args: { p_filter?: Json; p_venue_id: string }
         Returns: {
           email: string
           id: string
+          recipient_type: string
           status: string
         }[]
       }

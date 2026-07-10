@@ -23,6 +23,7 @@ type VenueRow = {
   slug: string
   name: string
   contact_email: string | null
+  portal_domain: string | null
 }
 
 function escapeHtml(s: string) {
@@ -84,11 +85,15 @@ async function generateLinkAndSend(
   resendApiKey: string,
   fromEmail: string,
 ): Promise<{ user?: { id: string }; error?: string }> {
+  const redirectBase = venue.portal_domain
+    ? `https://${venue.portal_domain}/accept-invite`
+    : `${siteUrl}/${venue.slug}/portal/accept-invite`
+
   const { data: linkData, error: linkError } = await supabase.auth.admin.generateLink({
     type: 'invite',
     email: member.email,
     options: {
-      redirectTo: `${siteUrl}/${venue.slug}/portal/accept-invite`,
+      redirectTo: redirectBase,
       data: { member_id: member.id, venue_id: member.venue_id },
     },
   })
@@ -208,7 +213,7 @@ Deno.serve(async (req) => {
 
     const { data: venue, error: venueError } = await supabase
       .from('venues')
-      .select('slug, name, contact_email')
+      .select('slug, name, contact_email, portal_domain')
       .eq('id', venue_id)
       .single<VenueRow>()
 

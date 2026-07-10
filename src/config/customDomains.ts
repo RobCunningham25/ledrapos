@@ -1,12 +1,13 @@
 export interface CustomDomainConfig {
   slug: string;
-  section: 'portal' | 'pos' | 'admin';
+  section: 'portal' | 'pos' | 'admin' | 'public';
 }
 
 export const CUSTOM_DOMAINS: Record<string, CustomDomainConfig> = {
   'portal.vaalcruising.co.za': { slug: 'vca', section: 'portal' },
   'pos.vaalcruising.co.za': { slug: 'vca', section: 'pos' },
   'admin.vaalcruising.co.za': { slug: 'vca', section: 'admin' },
+  'booking.vaalcruising.co.za': { slug: 'vca', section: 'public' },
 };
 
 export function getCustomDomainConfig(): CustomDomainConfig | null {

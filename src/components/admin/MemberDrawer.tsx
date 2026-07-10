@@ -42,9 +42,13 @@ interface FormState {
   membership_number: string;
   email: string;
   phone: string;
+  emergency_contact_name: string;
+  emergency_contact_phone: string;
   membership_type: string;
   partner_first_name: string;
   partner_last_name: string;
+  partner_email: string;
+  partner_phone: string;
   is_active: boolean;
   whatsapp_number: string;
   whatsapp_manual_opt_out: boolean;
@@ -56,9 +60,13 @@ const emptyForm: FormState = {
   membership_number: '',
   email: '',
   phone: '',
+  emergency_contact_name: '',
+  emergency_contact_phone: '',
   membership_type: 'ordinary',
   partner_first_name: '',
   partner_last_name: '',
+  partner_email: '',
+  partner_phone: '',
   is_active: true,
   whatsapp_number: '',
   whatsapp_manual_opt_out: false,
@@ -79,19 +87,41 @@ export default function MemberDrawer({ isOpen, onClose, venueId, member, onSucce
           membership_number: member.membership_number,
           email: member.email || '',
           phone: member.phone || '',
+          emergency_contact_name: '',
+          emergency_contact_phone: '',
           membership_type: member.membership_type,
           partner_first_name: member.partner_first_name || '',
           partner_last_name: member.partner_last_name || '',
+          partner_email: '',
+          partner_phone: '',
           is_active: member.is_active,
           whatsapp_number: member.whatsapp_number || member.phone || '',
           whatsapp_manual_opt_out: !!member.whatsapp_opt_out_at && !member.whatsapp_opt_in,
         });
+        // The members-list RPC doesn't return these columns — fetch them directly.
+        supabase
+          .from('members')
+          .select('emergency_contact_name, emergency_contact_phone, partner_email, partner_phone')
+          .eq('id', member.id)
+          .eq('venue_id', venueId)
+          .single()
+          .then(({ data }) => {
+            if (data) {
+              setForm(prev => ({
+                ...prev,
+                emergency_contact_name: data.emergency_contact_name || '',
+                emergency_contact_phone: data.emergency_contact_phone || '',
+                partner_email: data.partner_email || '',
+                partner_phone: data.partner_phone || '',
+              }));
+            }
+          });
       } else {
         setForm(emptyForm);
       }
       setErrors({});
     }
-  }, [isOpen, member]);
+  }, [isOpen, member, venueId]);
 
   const set = (key: keyof FormState, value: string | boolean) =>
     setForm(prev => ({ ...prev, [key]: value }));
@@ -103,6 +133,9 @@ export default function MemberDrawer({ isOpen, onClose, venueId, member, onSucce
     if (!form.membership_number.trim()) e.membership_number = 'Membership number is required';
     if (form.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
       e.email = 'Invalid email format';
+    }
+    if (form.partner_email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.partner_email.trim())) {
+      e.partner_email = 'Invalid email format';
     }
     setErrors(e);
     return Object.keys(e).length === 0;
@@ -126,9 +159,13 @@ export default function MemberDrawer({ isOpen, onClose, venueId, member, onSucce
       membership_number: form.membership_number.trim(),
       email: form.email.trim() || null,
       phone: form.phone.trim() || null,
+      emergency_contact_name: form.emergency_contact_name.trim() || null,
+      emergency_contact_phone: form.emergency_contact_phone.trim() || null,
       membership_type: form.membership_type,
       partner_first_name: form.partner_first_name.trim() || null,
       partner_last_name: form.partner_last_name.trim() || null,
+      partner_email: form.partner_email.trim() || null,
+      partner_phone: form.partner_phone.trim() || null,
       is_active: form.is_active,
       whatsapp_number: form.whatsapp_number.trim() || null,
     };
@@ -204,6 +241,8 @@ export default function MemberDrawer({ isOpen, onClose, venueId, member, onSucce
           })}
           {field('Email', 'email', { type: 'email', placeholder: 'john@example.com', helper: 'Required for portal access' })}
           {field('Phone', 'phone', { placeholder: '+27 82 123 4567' })}
+          {field('Emergency Contact Name', 'emergency_contact_name', { placeholder: 'e.g. Jane Smith' })}
+          {field('Emergency Contact Phone', 'emergency_contact_phone', { placeholder: '+27 82 123 4567' })}
 
           <div>
             <Label style={{ fontSize: 14, fontWeight: 500, color: '#1A202C' }}>Membership Type</Label>
@@ -227,6 +266,15 @@ export default function MemberDrawer({ isOpen, onClose, venueId, member, onSucce
           })}
           {field('Partner Last Name', 'partner_last_name', {
             placeholder: 'Partner last name',
+          })}
+          {field('Partner Email', 'partner_email', {
+            type: 'email',
+            placeholder: 'partner@example.com',
+            helper: 'Partners with an email address receive club broadcast emails',
+          })}
+          {field('Partner Cellphone', 'partner_phone', {
+            placeholder: '+27 82 123 4567',
+            helper: 'Partners can message the club WhatsApp number from this phone',
           })}
 
           {/* ===== WhatsApp section ===== */}

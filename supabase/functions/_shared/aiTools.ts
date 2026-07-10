@@ -20,6 +20,22 @@ import {
 
 export const TOOL_DEFINITIONS = [
   {
+    name: "search_knowledge",
+    description:
+      "Search the club's knowledge base for the answer to almost any general question about the club — facilities and how to use them (slipway, moorings, gate/boom access, wifi, ablutions, braai/hall), hours, fees and prices, booking and payment procedures, sailing and racing info, club policies, who to contact about a particular issue, club history, and general FAQs. This is your FIRST stop for any factual club question. Pass a short natural-language query describing what the member wants to know (you may rephrase their message into good search terms, e.g. member says 'when can I put my boat in' → query 'slipway launch hours procedure'). Returns the most relevant knowledge entries. If it returns nothing useful, only THEN fall back to read_constitution / read_club_rules for governance matters, or escalate_to_admin.",
+    input_schema: {
+      type: "object",
+      properties: {
+        query: {
+          type: "string",
+          description:
+            "Natural-language search query describing what the member wants to know. Rephrase into clear search terms; include synonyms if the wording is unusual.",
+        },
+      },
+      required: ["query"],
+    },
+  },
+  {
     name: "read_constitution",
     description:
       "Read the full text of the club's constitution. Call this when the member asks about constitutional matters: voting rights, AGM procedures, membership categories, board composition, current OR past office-bearers (commodores, vice-commodores, treasurers, secretaries), honour rolls, life members, or anything that would be defined or historically recorded in the club's founding document. If the member asks whether a specific named person ever held a club office, check this and read_club_rules before saying you don't know.",
@@ -216,6 +232,76 @@ const SITE_URL = (Deno.env.get("SITE_URL") ?? PORTAL_BASE_URL).replace(/\/+$/, "
 
 const centsToZar = (cents: number) => Math.round(cents) / 100;
 
+// ===== Knowledge base (searchable) =====
+
+async function tool_search_knowledge(
+  ctx: ToolContext,
+  input: { query: string },
+): Promise<ToolResult> {
+  const query = (input.query ?? "").trim();
+  if (query.length < 2) {
+    return {
+      output: {
+        status: "invalid_query",
+        note: "Need at least 2 characters to search.",
+      },
+      logSummary: "search_knowledge: query too short",
+    };
+  }
+
+  const { data, error } = await ctx.supabase.rpc("search_venue_knowledge", {
+    p_venue_id: ctx.venueId,
+    p_query: query,
+    p_limit: 4,
+  });
+
+  if (error) {
+    console.error("search_knowledge rpc failed:", error);
+    return {
+      output: { status: "error", note: "Knowledge search failed." },
+      logSummary: `search_knowledge: rpc error ${error.message?.slice(0, 80)}`,
+    };
+  }
+
+  const rows = (data ?? []) as Array<{
+    id: string;
+    category: string;
+    title: string;
+    body: string;
+    source: string | null;
+  }>;
+
+  if (rows.length === 0) {
+    return {
+      output: {
+        status: "no_matches",
+        query,
+        note:
+          "Nothing in the knowledge base matched. Do NOT invent an answer. Consider read_constitution / read_club_rules if this is a governance question, otherwise tell the member you don't have that on file and escalate if it matters.",
+      },
+      logSummary: `search_knowledge: 0 matches for "${query.slice(0, 60)}"`,
+    };
+  }
+
+  const entries = rows.map((r) => ({
+    title: r.title,
+    category: r.category,
+    answer: r.body,
+    source: r.source ?? undefined,
+  }));
+
+  return {
+    output: {
+      status: "ok",
+      count: entries.length,
+      entries,
+      note:
+        "Answer from these entries only. If none actually addresses the question, say you don't have that on file rather than guessing.",
+    },
+    logSummary: `search_knowledge: ${entries.length} hit(s) for "${query.slice(0, 60)}"`,
+  };
+}
+
 // ===== Knowledge documents =====
 
 async function readVenueDocument(
@@ -270,7 +356,7 @@ async function tool_get_my_tab(ctx: ToolContext): Promise<ToolResult> {
   const [itemsRes, paymentsRes] = await Promise.all([
     ctx.supabase
       .from("tab_items")
-      .select("tab_id, name, qty, line_total_cents, created_at")
+      .select("tab_id, qty, line_total_cents, created_at, liquor_products(name)")
       .in("tab_id", tabIds)
       .order("created_at", { ascending: false }),
     ctx.supabase
@@ -279,15 +365,37 @@ async function tool_get_my_tab(ctx: ToolContext): Promise<ToolResult> {
       .in("tab_id", tabIds),
   ]);
 
+  if (itemsRes.error) {
+    console.error("get_my_tab tab_items query failed:", itemsRes.error);
+  }
+  if (paymentsRes.error) {
+    console.error("get_my_tab payments query failed:", paymentsRes.error);
+  }
+
+  type ItemRow = {
+    tab_id: string;
+    qty: number | null;
+    line_total_cents: number | null;
+    liquor_products: { name: string | null } | { name: string | null }[] | null;
+  };
+
   const itemsByTab = new Map<string, Array<{ name: string; qty: number; line_total_cents: number }>>();
   let totalItemsCents = 0;
-  for (const it of (itemsRes.data ?? []) as Array<{ tab_id: string; name: string; qty: number; line_total_cents: number }>) {
+  for (const it of (itemsRes.data ?? []) as ItemRow[]) {
     let arr = itemsByTab.get(it.tab_id);
     if (!arr) {
       arr = [];
       itemsByTab.set(it.tab_id, arr);
     }
-    arr.push({ name: it.name, qty: it.qty, line_total_cents: it.line_total_cents ?? 0 });
+    const productRel = it.liquor_products;
+    const productName = Array.isArray(productRel)
+      ? (productRel[0]?.name ?? "Item")
+      : (productRel?.name ?? "Item");
+    arr.push({
+      name: productName,
+      qty: it.qty ?? 1,
+      line_total_cents: it.line_total_cents ?? 0,
+    });
     totalItemsCents += it.line_total_cents ?? 0;
   }
   let totalPaymentsCents = 0;
@@ -1007,6 +1115,8 @@ export async function runTool(
   ctx: ToolContext,
 ): Promise<ToolResult> {
   switch (name) {
+    case "search_knowledge":
+      return await tool_search_knowledge(ctx, input as { query: string });
     case "read_constitution":
       return await readVenueDocument(ctx, "constitution");
     case "read_club_rules":

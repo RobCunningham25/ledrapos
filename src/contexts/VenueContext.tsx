@@ -47,8 +47,8 @@ export function VenueProvider({ slug, children }: { slug: string; children: Reac
       <div className="flex min-h-screen items-center justify-center" style={{ background: '#FAF8F5' }}>
         <div style={{ textAlign: 'center' }}>
           <p style={{ fontSize: 18, fontWeight: 600, color: '#2D2A26' }}>This venue could not be found</p>
-          <a href="https://ledra.co.za" style={{ fontSize: 14, color: '#2A9D8F', marginTop: 12, display: 'inline-block' }}>
-            Go to ledra.co.za
+          <a href="https://vaalcruising.co.za" style={{ fontSize: 14, color: '#2A9D8F', marginTop: 12, display: 'inline-block' }}>
+            Go to vaalcruising.co.za
           </a>
         </div>
       </div>

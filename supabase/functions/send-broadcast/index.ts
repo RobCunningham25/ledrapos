@@ -126,7 +126,7 @@ Deno.serve(async (req) => {
       return json(500, { error: "Failed to resolve recipients" });
     }
 
-    const allRecipients = (candidates as Array<{ id: string; email: string; status: string }>) || [];
+    const allRecipients = (candidates as Array<{ id: string; email: string; status: string; recipient_type: string }>) || [];
     const sendable = allRecipients.filter((r) => r.status === "pending");
     const totalCount = allRecipients.length;
     const sendableCount = sendable.length;
@@ -213,6 +213,7 @@ Deno.serve(async (req) => {
       member_id: r.id,
       email: r.email || "",
       status: r.status,
+      recipient_type: r.recipient_type || "member",
     }));
 
     const { error: recipientInsertError } = await supabase

@@ -1,7 +1,7 @@
 // unsubscribe — Public endpoint hit from the unsubscribe link in broadcast emails.
 //
 // GET  /functions/v1/unsubscribe?token=<uuid> — flips members.email_opt_out, then
-//                                               302-redirects to ${SITE_URL}/unsubscribed
+//                                               302-redirects to ${PUBLIC_BASE_URL}/unsubscribed
 //                                               where the Vite app renders the confirmation.
 // POST /functions/v1/unsubscribe?token=<uuid> — same flip, returns 200 with empty body for
 //                                               one-click List-Unsubscribe-Post per RFC 8058.
@@ -24,7 +24,7 @@ const corsHeaders = {
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-const DEFAULT_SITE_URL = "https://pos.ledra.co.za";
+const DEFAULT_SITE_URL = "https://portal.vaalcruising.co.za";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -57,6 +57,7 @@ Deno.serve(async (req) => {
   const isValidFormat = UUID_RE.test(token);
 
   let venueName: string | null = null;
+  let portalDomain: string | null = null;
   let alreadyOptedOut = false;
   let updated = false;
 
@@ -69,13 +70,14 @@ Deno.serve(async (req) => {
 
       const { data: member } = await supabase
         .from("members")
-        .select("id, venue_id, email_opt_out, venues(name)")
+        .select("id, venue_id, email_opt_out, venues(name, portal_domain)")
         .eq("unsubscribe_token", token)
         .maybeSingle();
 
       if (member) {
-        const joined = member as { venues?: { name?: string | null } | null };
+        const joined = member as { venues?: { name?: string | null; portal_domain?: string | null } | null };
         venueName = joined.venues?.name ?? null;
+        portalDomain = joined.venues?.portal_domain ?? null;
         alreadyOptedOut = member.email_opt_out === true;
 
         if (!alreadyOptedOut) {
@@ -111,12 +113,14 @@ Deno.serve(async (req) => {
   }
 
   const status = updated ? "updated" : alreadyOptedOut ? "already" : "invalid";
-  const siteUrl = (Deno.env.get("SITE_URL") || DEFAULT_SITE_URL).replace(/\/+$/, "");
+  const baseUrl = portalDomain
+    ? `https://${portalDomain}`
+    : DEFAULT_SITE_URL;
   const params = new URLSearchParams({ status });
   if (venueName) params.set("venue", venueName);
 
   return new Response(null, {
     status: 302,
-    headers: { Location: `${siteUrl}/unsubscribed?${params.toString()}` },
+    headers: { Location: `${baseUrl}/unsubscribed?${params.toString()}` },
   });
 });

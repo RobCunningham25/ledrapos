@@ -19,8 +19,8 @@ const NotFound = () => {
             Return to Home
           </a>
         ) : (
-          <a href="https://ledra.co.za" className="text-primary underline hover:text-primary/90">
-            Go to ledra.co.za
+          <a href="https://vaalcruising.co.za" className="text-primary underline hover:text-primary/90">
+            Go to vaalcruising.co.za
           </a>
         )}
       </div>

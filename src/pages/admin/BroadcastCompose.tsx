@@ -19,7 +19,9 @@ interface VenueInfo {
   name: string;
   address: string | null;
   contact_email: string | null;
+  contact_phone: string | null;
   broadcast_from_email: string | null;
+  logo_url: string | null;
 }
 
 interface MemberOption {
@@ -28,6 +30,7 @@ interface MemberOption {
   last_name: string;
   email: string | null;
   email_opt_out: boolean;
+  partner_email: string | null;
 }
 
 type RecipientMode = 'all' | 'specific';
@@ -38,6 +41,13 @@ function classify(m: MemberOption): Classification {
   if (!m.email) return 'no_email_skipped';
   if (m.email_opt_out) return 'opted_out_skipped';
   return 'pending';
+}
+
+// Partners with their own distinct email get the broadcast too (unless the
+// household is opted out). Mirrors select_broadcast_recipients server-side.
+function hasPartnerRecipient(m: MemberOption): boolean {
+  if (!m.partner_email || m.email_opt_out) return false;
+  return m.partner_email.trim().toLowerCase() !== (m.email || '').trim().toLowerCase();
 }
 
 interface AttachmentEntry {
@@ -119,12 +129,12 @@ export default function BroadcastCompose() {
       const [venueRes, membersRes, templatesRes, todayRes] = await Promise.all([
         supabase
           .from('venues')
-          .select('id, name, address, contact_email, broadcast_from_email')
+          .select('id, name, address, contact_email, contact_phone, broadcast_from_email, logo_url')
           .eq('id', venueId)
           .maybeSingle(),
         supabase
           .from('members')
-          .select('id, first_name, last_name, email, email_opt_out')
+          .select('id, first_name, last_name, email, email_opt_out, partner_email')
           .eq('venue_id', venueId)
           .eq('is_active', true)
           .order('last_name', { ascending: true }),
@@ -155,14 +165,17 @@ export default function BroadcastCompose() {
   }, [recipientMode, members, selectedIds]);
 
   const stats = useMemo(() => {
-    let sendable = 0, noEmail = 0, optedOut = 0;
+    let sendable = 0, noEmail = 0, optedOut = 0, partners = 0;
     for (const m of targetedMembers) {
       const c = classify(m);
       if (c === 'pending') sendable++;
       else if (c === 'no_email_skipped') noEmail++;
       else if (c === 'opted_out_skipped') optedOut++;
+      if (hasPartnerRecipient(m)) partners++;
     }
-    return { sendable, noEmail, optedOut, total: targetedMembers.length };
+    // sendable counts emails, not members — each partner email is its own send
+    // against the daily Resend quota.
+    return { sendable: sendable + partners, partners, noEmail, optedOut, total: targetedMembers.length };
   }, [targetedMembers]);
 
   const filteredMembers = useMemo(() => {
@@ -353,6 +366,8 @@ export default function BroadcastCompose() {
       bodyHtml,
       venueName: venue.name,
       venueAddress: venue.address,
+      logoUrl: venue.logo_url,
+      contactPhone: venue.contact_phone,
       unsubscribeUrl: 'https://pos.ledra.co.za/unsubscribed?status=updated&venue=Preview',
     });
     return wrapped.html;
@@ -462,7 +477,7 @@ export default function BroadcastCompose() {
               style={{ background: '#2A9D8F', color: '#FFFFFF', fontWeight: 600 }}
             >
               {sending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Send className="h-4 w-4 mr-2" />}
-              {sending ? 'Sending...' : `Send to ${stats.sendable} member${stats.sendable === 1 ? '' : 's'}`}
+              {sending ? 'Sending...' : `Send to ${stats.sendable} recipient${stats.sendable === 1 ? '' : 's'}`}
             </Button>
             <Button
               type="button"
@@ -511,11 +526,12 @@ export default function BroadcastCompose() {
                 </div>
                 <div className="text-xs text-muted-foreground mt-0.5">
                   {recipientMode === 'all'
-                    ? `active member${stats.sendable === 1 ? '' : 's'} with email, not opted-out`
-                    : `selected member${stats.sendable === 1 ? '' : 's'} will receive this`}
+                    ? `email${stats.sendable === 1 ? '' : 's'} to active members with email, not opted-out`
+                    : `email${stats.sendable === 1 ? '' : 's'} will be sent for the selected members`}
                 </div>
-                {(stats.noEmail > 0 || stats.optedOut > 0) && (
+                {(stats.noEmail > 0 || stats.optedOut > 0 || stats.partners > 0) && (
                   <div className="mt-3 pt-3 border-t border-border space-y-1 text-xs text-muted-foreground">
+                    {stats.partners > 0 && <div>includes {stats.partners} partner email{stats.partners === 1 ? '' : 's'}</div>}
                     {stats.noEmail > 0 && <div>{stats.noEmail} skipped — no email</div>}
                     {stats.optedOut > 0 && <div>{stats.optedOut} skipped — opted out</div>}
                   </div>
@@ -710,7 +726,7 @@ export default function BroadcastCompose() {
             <AlertDialogDescription asChild>
               <div className="space-y-2">
                 <div>
-                  Sending <strong>"{subject}"</strong> to <strong>{stats.sendable}</strong> member{stats.sendable === 1 ? '' : 's'}.
+                  Sending <strong>"{subject}"</strong> to <strong>{stats.sendable}</strong> recipient{stats.sendable === 1 ? '' : 's'}{stats.partners > 0 ? ` (including ${stats.partners} partner email${stats.partners === 1 ? '' : 's'})` : ''}.
                 </div>
                 {attachments.length > 0 && (
                   <div className="text-sm text-muted-foreground">

@@ -26,7 +26,16 @@ interface MemberRow {
   first_name: string | null;
   whatsapp_number: string | null;
   phone: string | null;
+  partner_phone: string | null;
   whatsapp_opt_in: boolean;
+}
+
+// How the inbound number was matched. Partner matches get full conversational
+// access (AI assistant, tab buttons) but must never mutate the member's own
+// opt-in state or whatsapp_number.
+interface MemberMatch {
+  member: MemberRow;
+  matchedVia: "member" | "partner";
 }
 
 function twiml(status: number, body = ""): Response {
@@ -42,26 +51,39 @@ function twiml(status: number, body = ""): Response {
 async function findMember(
   supabase: SupabaseClient,
   fromE164: string,
-): Promise<MemberRow | null> {
+): Promise<MemberMatch | null> {
+  const SELECT = "id, venue_id, first_name, whatsapp_number, phone, partner_phone, whatsapp_opt_in";
+
   // 1. Match on whatsapp_number first.
   const { data: byWa } = await supabase
     .from("members")
-    .select("id, venue_id, first_name, whatsapp_number, phone, whatsapp_opt_in")
+    .select(SELECT)
     .eq("whatsapp_number", fromE164)
     .limit(1);
 
-  if (byWa && byWa.length > 0) return byWa[0] as MemberRow;
+  if (byWa && byWa.length > 0) {
+    return { member: byWa[0] as unknown as MemberRow, matchedVia: "member" };
+  }
 
   // 2. Fall back to normalised phone match. We pull a candidate set and normalise
   //    in code because phone numbers in members.phone are stored unnormalised.
   const { data: candidates } = await supabase
     .from("members")
-    .select("id, venue_id, first_name, whatsapp_number, phone, whatsapp_opt_in")
-    .not("phone", "is", null);
+    .select(SELECT)
+    .or("phone.not.is.null,partner_phone.not.is.null");
 
-  for (const m of (candidates as MemberRow[]) || []) {
-    const norm = normaliseE164(m.phone);
-    if (norm === fromE164) return m;
+  const rows = (candidates as unknown as MemberRow[]) || [];
+  for (const m of rows) {
+    if (m.phone && normaliseE164(m.phone) === fromE164) {
+      return { member: m, matchedVia: "member" };
+    }
+  }
+
+  // 3. Finally, match against the partner's cellphone so partners can chat too.
+  for (const m of rows) {
+    if (m.partner_phone && normaliseE164(m.partner_phone) === fromE164) {
+      return { member: m, matchedVia: "partner" };
+    }
   }
 
   return null;
@@ -157,7 +179,9 @@ Deno.serve(async (req) => {
     return twiml(200);
   }
 
-  const member = await findMember(supabase, fromE164);
+  const match = await findMember(supabase, fromE164);
+  const member = match?.member ?? null;
+  const isPartner = match?.matchedVia === "partner";
 
   // Look up venue: prefer the member's, otherwise match the To-address against
   // venues.whatsapp_business_number.
@@ -199,7 +223,8 @@ Deno.serve(async (req) => {
     const updates: Record<string, unknown> = {
       whatsapp_last_inbound_at: new Date().toISOString(),
     };
-    if (!member.whatsapp_number) {
+    // Never let a partner's number become the member's WhatsApp number.
+    if (!member.whatsapp_number && !isPartner) {
       updates.whatsapp_number = fromE164;
     }
     await supabase.from("members").update(updates).eq("id", member.id);
@@ -213,7 +238,10 @@ Deno.serve(async (req) => {
   const isOptOut = buttonPayload === "optin_no"
     || /^(no|stop|unsub|unsubscribe)\b/.test(lower);
 
-  if (member && isOptInYes) {
+  // Opt-in/opt-out only applies to the member's own number — a partner texting
+  // YES/STOP must not flip the member's subscription (we never proactively
+  // message the partner's number, so there is nothing for them to opt out of).
+  if (member && !isPartner && isOptInYes) {
     await supabase.from("members").update({
       whatsapp_opt_in: true,
       whatsapp_opt_in_at: new Date().toISOString(),
@@ -232,7 +260,7 @@ Deno.serve(async (req) => {
     return twiml(200);
   }
 
-  if (member && isOptOut) {
+  if (member && !isPartner && isOptOut) {
     await supabase.from("members").update({
       whatsapp_opt_in: false,
       whatsapp_opt_out_at: new Date().toISOString(),
@@ -267,11 +295,13 @@ Deno.serve(async (req) => {
     if (buttonPayload === "tab_use_portal") {
       const { data: venue } = await supabase
         .from("venues")
-        .select("slug")
+        .select("slug, portal_domain")
         .eq("id", venueId)
         .maybeSingle();
-      const siteUrl = (Deno.env.get("SITE_URL") || "https://pos.ledra.co.za").replace(/\/+$/, "");
-      const portalUrl = venue?.slug ? `${siteUrl}/${venue.slug}/portal` : siteUrl;
+      const siteUrl = (Deno.env.get("SITE_URL") || "https://booking.vaalcruising.co.za").replace(/\/+$/, "");
+      const portalUrl = venue?.portal_domain
+        ? `https://${venue.portal_domain}`
+        : venue?.slug ? `${siteUrl}/${venue.slug}/portal` : siteUrl;
       await sendSessionReply(
         venueId,
         member.id,
@@ -405,6 +435,7 @@ Deno.serve(async (req) => {
             member_id: member.id,
             inbound_body: body,
             inbound_message_sid: messageSid,
+            reply_to_e164: fromE164,
           }),
         }).catch((err) => {
           console.error(

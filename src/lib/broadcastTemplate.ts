@@ -21,6 +21,8 @@ export interface BroadcastFooterContext {
 interface WrapInput extends BroadcastFooterContext {
   subject: string;
   bodyHtml: string;
+  logoUrl?: string | null;
+  contactPhone?: string | null;
 }
 
 interface WrapOutput {
@@ -32,34 +34,63 @@ export function wrapWithFooter(input: WrapInput): WrapOutput {
   const safeVenue = escapeHtml(input.venueName);
   const safeSubject = escapeHtml(input.subject);
   const safeUnsub = escapeHtml(input.unsubscribeUrl);
-  const addressLine = input.venueAddress
-    ? `<p style="margin:0 0 6px 0;color:#5A6B7A;font-size:12px;line-height:1.5;">${escapeHtml(input.venueAddress)}</p>`
-    : "";
+
+  const logoBlock = input.logoUrl
+    ? `<img src="${escapeHtml(input.logoUrl)}" alt="${safeVenue}" style="max-height:64px;max-width:180px;display:block;margin:0 auto 14px;object-fit:contain;" />`
+    : '';
+
+  const headerPhone = input.contactPhone
+    ? `<div style="color:#2A9D8F;font-size:13px;margin-top:6px;letter-spacing:0.01em;">${escapeHtml(input.contactPhone)}</div>`
+    : '';
+
+  const footerAddress = input.venueAddress
+    ? `<p style="margin:0 0 4px;color:#5A6B7A;font-size:12px;line-height:1.5;">${escapeHtml(input.venueAddress)}</p>`
+    : '';
+
+  const footerPhone = input.contactPhone
+    ? `<p style="margin:0 0 4px;color:#5A6B7A;font-size:12px;">${escapeHtml(input.contactPhone)}</p>`
+    : '';
 
   const html = `<!doctype html>
 <html>
 <head><meta charset="utf-8"><title>${safeSubject}</title></head>
 <body style="margin:0;padding:0;background:#FAF8F5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#1B3A4B;">
   <div style="max-width:600px;margin:0 auto;padding:32px 20px;">
-    <div style="background:#FFFFFF;border:1px solid #E2E8F0;border-radius:8px;padding:32px;box-shadow:0 1px 3px rgba(0,0,0,0.06);">
-      <div style="font-size:15px;line-height:1.6;color:#334155;">
+    <div style="background:#FFFFFF;border:1px solid #E2E8F0;border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.06);">
+
+      <div style="background:#1B3A4B;padding:28px 32px 24px;text-align:center;border-bottom:3px solid #2A9D8F;">
+        ${logoBlock}
+        <div style="color:#FAF8F5;font-size:20px;font-weight:700;letter-spacing:0.02em;">${safeVenue}</div>
+        ${headerPhone}
+      </div>
+
+      <div style="padding:32px;font-size:15px;line-height:1.7;color:#334155;">
 ${input.bodyHtml}
       </div>
-      <hr style="border:0;border-top:1px solid #E2E8F0;margin:28px 0 18px 0;" />
-      <p style="margin:0 0 6px 0;color:#5A6B7A;font-size:12px;line-height:1.5;">You're receiving this because you're a member of ${safeVenue}.</p>
-      ${addressLine}
-      <p style="margin:8px 0 0 0;color:#5A6B7A;font-size:12px;line-height:1.5;">
-        <a href="${safeUnsub}" style="color:#2A9D8F;text-decoration:underline;">Unsubscribe from ${safeVenue} emails</a>
-      </p>
+
+      <div style="background:#F7F9FC;border-top:1px solid #E2E8F0;padding:20px 32px;text-align:center;">
+        <p style="margin:0 0 4px;color:#5A6B7A;font-size:12px;line-height:1.5;">You're receiving this because you're a member of ${safeVenue}.</p>
+        ${footerAddress}
+        ${footerPhone}
+        <p style="margin:8px 0 0;font-size:12px;">
+          <a href="${safeUnsub}" style="color:#2A9D8F;text-decoration:underline;">Unsubscribe from ${safeVenue} emails</a>
+        </p>
+      </div>
+
     </div>
   </div>
 </body>
 </html>`;
 
-  const text = htmlToPlainText(input.bodyHtml) +
+  const text =
+    `[ ${input.venueName} ]` +
+    (input.contactPhone ? `\n${input.contactPhone}` : '') +
+    `\n${'─'.repeat(40)}\n\n` +
+    htmlToPlainText(input.bodyHtml) +
     "\n\n--\n" +
     `You're receiving this because you're a member of ${input.venueName}.\n` +
     (input.venueAddress ? `${input.venueAddress}\n` : "") +
+    (input.contactPhone ? `${input.contactPhone}\n` : "") +
     `\nUnsubscribe: ${input.unsubscribeUrl}\n`;
 
   return { html, text };
