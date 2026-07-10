@@ -7,6 +7,7 @@ import BroadcastEditor from '@/components/admin/BroadcastEditor';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { supabase } from '@/integrations/supabase/client';
@@ -109,6 +110,9 @@ export default function BroadcastCompose() {
   const [recipientMode, setRecipientMode] = useState<RecipientMode>('all');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [memberSearch, setMemberSearch] = useState('');
+  // Partner emails double the send count, which can blow the Resend daily
+  // quota on a full-club broadcast — so including them is a per-send choice.
+  const [includePartners, setIncludePartners] = useState(false);
 
   const [templates, setTemplates] = useState<EmailTemplate[]>([]);
   const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
@@ -165,18 +169,19 @@ export default function BroadcastCompose() {
   }, [recipientMode, members, selectedIds]);
 
   const stats = useMemo(() => {
-    let sendable = 0, noEmail = 0, optedOut = 0, partners = 0;
+    let sendable = 0, noEmail = 0, optedOut = 0, availablePartners = 0;
     for (const m of targetedMembers) {
       const c = classify(m);
       if (c === 'pending') sendable++;
       else if (c === 'no_email_skipped') noEmail++;
       else if (c === 'opted_out_skipped') optedOut++;
-      if (hasPartnerRecipient(m)) partners++;
+      if (hasPartnerRecipient(m)) availablePartners++;
     }
     // sendable counts emails, not members — each partner email is its own send
-    // against the daily Resend quota.
-    return { sendable: sendable + partners, partners, noEmail, optedOut, total: targetedMembers.length };
-  }, [targetedMembers]);
+    // against the daily Resend quota, so partners only count when included.
+    const partners = includePartners ? availablePartners : 0;
+    return { sendable: sendable + partners, partners, availablePartners, noEmail, optedOut, total: targetedMembers.length };
+  }, [targetedMembers, includePartners]);
 
   const filteredMembers = useMemo(() => {
     const q = memberSearch.trim().toLowerCase();
@@ -308,9 +313,10 @@ export default function BroadcastCompose() {
     setSending(true);
 
     try {
-      const recipientFilter = recipientMode === 'specific'
+      const recipientFilter: Record<string, unknown> = recipientMode === 'specific'
         ? { member_ids: Array.from(selectedIds) }
         : {};
+      if (includePartners) recipientFilter.include_partners = true;
 
       const res = await supabase.functions.invoke('send-broadcast', {
         body: {
@@ -515,6 +521,19 @@ export default function BroadcastCompose() {
               >
                 Pick specific
               </button>
+            </div>
+
+            {/* Partner toggle — each partner email is an extra send against the daily quota */}
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <div className="text-xs font-medium text-foreground">Also send to partner emails</div>
+                <div className="text-[11px] text-muted-foreground">
+                  {stats.availablePartners > 0
+                    ? `+${stats.availablePartners} extra email${stats.availablePartners === 1 ? '' : 's'} against the daily quota`
+                    : 'No partners with their own email in this selection'}
+                </div>
+              </div>
+              <Switch checked={includePartners} onCheckedChange={setIncludePartners} disabled={stats.availablePartners === 0} />
             </div>
 
             {loading ? (
