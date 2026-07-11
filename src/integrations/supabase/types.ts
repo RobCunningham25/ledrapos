@@ -1973,6 +1973,10 @@ export type Database = {
         }
         Returns: Json
       }
+      remove_tab_item: {
+        Args: { p_qty?: number; p_tab_item_id: string; p_venue_id: string }
+        Returns: Json
+      }
       search_venue_knowledge: {
         Args: { p_limit?: number; p_query: string; p_venue_id: string }
         Returns: {

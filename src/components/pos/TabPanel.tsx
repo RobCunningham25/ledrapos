@@ -15,7 +15,7 @@ export default function TabPanel() {
   const {
     activeMember, activeTab, activeTabItems, localCart, isCashCustomer, cashCustomerName,
     isCommitting, commitError, updateCartQty, removeFromCart, commitCart,
-    clearActiveTab, loadTabItems, triggerOpenTabsRefetch,
+    removeTabItem, clearActiveTab, loadTabItems, triggerOpenTabsRefetch,
   } = useCart();
   const { venueId } = useVenue();
 
@@ -38,6 +38,13 @@ export default function TabPanel() {
   const memberName = activeMember
     ? `${activeMember.partnerFirstName ? `${activeMember.firstName} & ${activeMember.partnerFirstName}` : activeMember.firstName} ${activeMember.lastName}`
     : cashCustomerName || 'Cash Customer';
+
+  const handleRemoveCommitted = async (tabItemId: string, qty?: number) => {
+    const result = await removeTabItem(tabItemId, qty);
+    if (!result.success && result.error) {
+      toast.error(result.error);
+    }
+  };
 
   const handleCommit = async () => {
     const result = await commitCart();
@@ -102,7 +109,15 @@ export default function TabPanel() {
             </div>
             {activeTabItems.map(item => (
               <div key={item.id} className="flex items-center gap-2 py-2 border-b border-border min-h-[44px]">
-                <Badge variant="secondary" className="text-xs px-2 py-0.5 shrink-0">{item.qty}</Badge>
+                <div className="flex items-center gap-1 shrink-0">
+                  <button
+                    onClick={() => handleRemoveCommitted(item.id, 1)}
+                    className="w-8 h-8 rounded border border-border flex items-center justify-center hover:bg-accent active:bg-accent transition-colors"
+                  >
+                    <Minus className="h-3 w-3" />
+                  </button>
+                  <Badge variant="secondary" className="text-xs px-2 py-0.5 shrink-0">{item.qty}</Badge>
+                </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-foreground truncate">{item.product_name}</p>
                   {item.product_size && (
@@ -112,6 +127,12 @@ export default function TabPanel() {
                 <span className="text-sm font-semibold text-foreground shrink-0">
                   {formatCents(item.line_total_cents)}
                 </span>
+                <button
+                  onClick={() => handleRemoveCommitted(item.id)}
+                  className="w-8 h-8 rounded flex items-center justify-center text-muted-foreground hover:text-destructive active:text-destructive transition-colors"
+                >
+                  <X className="h-4 w-4" />
+                </button>
               </div>
             ))}
           </div>

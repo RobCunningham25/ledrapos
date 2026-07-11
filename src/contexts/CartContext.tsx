@@ -59,6 +59,7 @@ interface CartContextType {
   removeFromCart: (productId: string) => void;
   updateCartQty: (productId: string, qty: number) => void;
   commitCart: () => Promise<{ success: boolean; error?: string; memberName?: string }>;
+  removeTabItem: (tabItemId: string, qty?: number) => Promise<{ success: boolean; error?: string }>;
   clearActiveTab: () => void;
   loadTabItems: () => Promise<void>;
   triggerOpenTabsRefetch: () => void;
@@ -234,6 +235,31 @@ export function CartProvider({ children }: { children: ReactNode }) {
     return { success: true, memberName };
   }, [localCart, activeMember, isCashCustomer, cashCustomerName, venueId]);
 
+  const removeTabItem = useCallback(async (tabItemId: string, qty?: number): Promise<{ success: boolean; error?: string }> => {
+    if (!activeTab) return { success: false, error: 'No open tab selected' };
+
+    const { data, error } = await supabase.rpc('remove_tab_item', {
+      p_venue_id: venueId,
+      p_tab_item_id: tabItemId,
+      p_qty: qty ?? null,
+    });
+
+    if (error) {
+      return { success: false, error: error.message || 'Failed to remove item' };
+    }
+
+    const result = data as { tab_deleted?: boolean } | null;
+    if (result?.tab_deleted) {
+      setActiveTab(null);
+      setActiveTabItems([]);
+    } else {
+      await loadTabItems();
+    }
+    setOpenTabsRefetchTrigger(prev => prev + 1);
+
+    return { success: true };
+  }, [activeTab, venueId, loadTabItems]);
+
   const clearActiveTab = useCallback(() => {
     setActiveMember(null);
     setActiveTab(null);
@@ -266,6 +292,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       removeFromCart,
       updateCartQty,
       commitCart,
+      removeTabItem,
       clearActiveTab,
       loadTabItems,
       triggerOpenTabsRefetch,
