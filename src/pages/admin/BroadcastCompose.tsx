@@ -631,7 +631,7 @@ export default function BroadcastCompose() {
           <div className="rounded-lg border border-border bg-card p-4">
             <div className="text-sm font-semibold text-foreground mb-2">Daily quota</div>
             <div className="text-sm">
-              <span className="font-medium" style={{ color: wouldExceedQuota ? '#991B1B' : '#0F172A' }}>
+              <span className="font-medium" style={{ color: deferredCount > 0 ? '#92400E' : '#0F172A' }}>
                 {todaySent}
               </span>
               <span className="text-muted-foreground"> / {DAILY_QUOTA} sent today</span>
@@ -641,13 +641,13 @@ export default function BroadcastCompose() {
                 className="h-full transition-all"
                 style={{
                   width: `${Math.min((todaySent / DAILY_QUOTA) * 100, 100)}%`,
-                  background: wouldExceedQuota ? '#DC2626' : '#2A9D8F',
+                  background: deferredCount > 0 ? '#D97706' : '#2A9D8F',
                 }}
               />
             </div>
             <div className="text-xs text-muted-foreground mt-2">
               {remainingQuota} send{remainingQuota === 1 ? '' : 's'} left today
-              <span className="block">(Resend free tier resets at UTC midnight)</span>
+              <span className="block">(resets 02:00 SA time — overflow queues automatically)</span>
             </div>
             {deferredCount > 0 && (
               <div className="mt-3 flex items-start gap-2 text-xs" style={{ color: '#92400E' }}>
