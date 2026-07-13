@@ -1,7 +1,9 @@
 // send-broadcast — Admin-triggered: creates a broadcast row, enqueues recipient rows,
 // then invokes process-broadcast-batch synchronously to actually send. Designed for the
-// Resend free tier (100 emails/day, 10/sec) — refuses sends that would push us past
-// 95 emails sent in the current UTC day to leave a small buffer for invites.
+// Resend free tier (100 emails/day, 10/sec). Sends that exceed the remaining daily
+// quota are NOT refused: the worker sends what fits under 95/day and leaves the rest
+// pending; the pg_cron drainer finishes them after the quota resets at midnight UTC
+// (02:00 SAST).
 //
 // Inputs (POST JSON):
 //   venue_id          UUID — must match the calling admin's venue_id
@@ -19,7 +21,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
 
 const DAILY_QUOTA_THRESHOLD = 95; // Resend free tier is 100/day; reserve 5 for invites.
-const INLINE_SEND_CAP = 100;       // larger broadcasts must wait for the scheduled worker.
+const ENQUEUE_CAP = 500;           // sanity ceiling on recipients per broadcast.
 
 interface BroadcastRequest {
   venue_id: string;
@@ -138,14 +140,16 @@ Deno.serve(async (req) => {
       });
     }
 
-    if (sendableCount > INLINE_SEND_CAP) {
+    if (sendableCount > ENQUEUE_CAP) {
       return json(400, {
         error:
-          `MVP supports up to ${INLINE_SEND_CAP} recipients per send (would have sent ${sendableCount}). Narrow the recipient filter.`,
+          `Broadcasts support up to ${ENQUEUE_CAP} recipients per send (would have sent ${sendableCount}). Narrow the recipient filter.`,
       });
     }
 
-    // ===== Daily quota check (Resend free tier) =====
+    // ===== Daily quota (Resend free tier) — informational only =====
+    // Sends beyond the remaining quota are enqueued anyway; the worker sends what
+    // fits today and the cron drainer finishes the rest after the UTC reset.
     const todayStart = new Date();
     todayStart.setUTCHours(0, 0, 0, 0);
 
@@ -162,15 +166,8 @@ Deno.serve(async (req) => {
     }
 
     const todayCount = todaySent ?? 0;
-    if (todayCount + sendableCount > DAILY_QUOTA_THRESHOLD) {
-      return json(429, {
-        error: "Daily email quota would be exceeded",
-        today_sent: todayCount,
-        would_send: sendableCount,
-        threshold: DAILY_QUOTA_THRESHOLD,
-        message: `Already sent ${todayCount} today. Sending ${sendableCount} more would exceed the ${DAILY_QUOTA_THRESHOLD}/day limit. Try again after UTC midnight.`,
-      });
-    }
+    const quotaRemaining = Math.max(0, DAILY_QUOTA_THRESHOLD - todayCount);
+    const willDefer = Math.max(0, sendableCount - quotaRemaining);
 
     // ===== Schedule: scheduled_for in the future leaves status='queued' =====
     const scheduledFor = body.scheduled_for ? new Date(body.scheduled_for) : null;
@@ -264,6 +261,8 @@ Deno.serve(async (req) => {
       total_recipients: totalCount,
       sendable: sendableCount,
       skipped: skippedTotal,
+      quota_remaining_before: quotaRemaining,
+      deferred_estimate: willDefer,
       worker_status: workerResp.status,
       worker_result: workerResult,
     });

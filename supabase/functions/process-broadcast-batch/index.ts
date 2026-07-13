@@ -1,7 +1,14 @@
 // process-broadcast-batch — Worker that drives the actual Resend calls for a queued
-// broadcast. Called by send-broadcast (synchronous, immediate sends) and later by
-// pg_cron / a scheduled-send worker. Throttles to ~8 emails/sec to stay under the
-// Resend free-tier 10/sec cap. Pre-loads + base64-encodes attachments once per run.
+// broadcast. Called by send-broadcast (synchronous, immediate sends) and by the
+// pg_cron drainer (every 10 min), which finishes broadcasts that spilled past the
+// daily quota and picks up scheduled sends. Throttles to ~8 emails/sec to stay
+// under the Resend free-tier 10/sec cap. Pre-loads + base64-encodes attachments
+// once per run.
+//
+// Quota-aware: sends at most (95 - already sent this UTC day) emails per run and
+// leaves the rest pending with the broadcast in status 'sending'. The Resend
+// daily limit resets at midnight UTC (02:00 SAST); the cron drainer completes
+// the remainder on its first tick after that.
 //
 // Inputs (POST JSON):
 //   broadcast_id  UUID
@@ -21,6 +28,7 @@ import {
 const THROTTLE_MS = 120; // ~8 req/sec, under Resend free tier 10/sec cap.
 const DEFAULT_BATCH_SIZE = 25;
 const RESEND_API_URL = "https://api.resend.com/emails";
+const DAILY_QUOTA_THRESHOLD = 95; // Resend free tier is 100/day; reserve 5 for invites.
 
 interface WorkerRequest {
   broadcast_id: string;
@@ -136,6 +144,33 @@ Deno.serve(async (req) => {
   }
   const fromHeader = `${venue.name} <${fromEmail}>`;
 
+  // ===== Remaining daily quota (per UTC day — Resend resets at midnight UTC) =====
+  const todayStart = new Date();
+  todayStart.setUTCHours(0, 0, 0, 0);
+  const { count: todaySent, error: quotaError } = await supabase
+    .from("broadcast_recipients")
+    .select("id, email_broadcasts!inner(venue_id)", { count: "exact", head: true })
+    .eq("status", "sent")
+    .eq("email_broadcasts.venue_id", broadcast.venue_id)
+    .gte("sent_at", todayStart.toISOString());
+
+  if (quotaError) {
+    console.error("quota check failed:", quotaError.message);
+    return json(500, { error: "Failed to check daily quota" });
+  }
+  const quotaRemaining = Math.max(0, DAILY_QUOTA_THRESHOLD - (todaySent ?? 0));
+
+  if (quotaRemaining === 0) {
+    // Nothing can go out today — leave everything pending for the cron drainer.
+    return json(200, {
+      broadcast_id: broadcast.id,
+      final_status: broadcast.status,
+      this_run: { sent: 0, failed: 0 },
+      deferred: true,
+      message: "Daily quota exhausted; remaining recipients will send after 00:00 UTC (02:00 SAST)",
+    });
+  }
+
   // ===== Mark broadcast as sending if not already =====
   if (broadcast.status === "queued") {
     await supabase
@@ -186,9 +221,13 @@ Deno.serve(async (req) => {
   let lastCallAt = 0;
 
   while (true) {
+    // Never claim more than the remaining daily quota allows.
+    const claimLimit = Math.min(batchSize, quotaRemaining - totalSent);
+    if (claimLimit <= 0) break;
+
     const { data: claimedRaw, error: claimError } = await supabase.rpc(
       "claim_broadcast_batch",
-      { p_broadcast_id: broadcast.id, p_limit: batchSize },
+      { p_broadcast_id: broadcast.id, p_limit: claimLimit },
     );
 
     if (claimError) {
@@ -290,8 +329,8 @@ Deno.serve(async (req) => {
       }
     }
 
-    // If we got fewer than batchSize, the pending pool is drained.
-    if (claimed.length < batchSize) break;
+    // If we got fewer than we asked for, the pending pool is drained.
+    if (claimed.length < claimLimit) break;
   }
 
   // ===== Finalise broadcast status =====
@@ -333,5 +372,8 @@ Deno.serve(async (req) => {
     final_status: finalStatus,
     this_run: { sent: totalSent, failed: totalFailed },
     totals: { sent: sentCount, failed: failedCount, pending: pendingCount, skipped: skippedCount },
+    ...(pendingCount > 0
+      ? { deferred: true, message: `${pendingCount} recipient(s) deferred to stay within the daily quota; they will send automatically after 00:00 UTC (02:00 SAST)` }
+      : {}),
   });
 });

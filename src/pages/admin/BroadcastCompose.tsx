@@ -207,8 +207,11 @@ export default function BroadcastCompose() {
     [attachments],
   );
 
-  const wouldExceedQuota = todaySent + stats.sendable > QUOTA_THRESHOLD;
   const remainingQuota = Math.max(QUOTA_THRESHOLD - todaySent, 0);
+  // Resend's daily limit resets at midnight UTC (02:00 SAST). Anything past the
+  // remaining quota is queued and auto-sent by the cron drainer after the reset.
+  const sendNowCount = Math.min(stats.sendable, remainingQuota);
+  const deferredCount = Math.max(0, stats.sendable - remainingQuota);
 
   // ===== Attachment upload =====
   const handleFiles = async (files: FileList | File[]) => {
@@ -293,7 +296,6 @@ export default function BroadcastCompose() {
     if (stripped.length === 0) return 'Body is empty';
     if (recipientMode === 'specific' && selectedIds.size === 0) return 'Select at least one member';
     if (stats.sendable === 0) return 'No eligible recipients (all skipped or none selected)';
-    if (wouldExceedQuota) return `Daily quota would be exceeded (${todaySent} sent today, ${stats.sendable} would be sent, limit ${QUOTA_THRESHOLD}).`;
     if (!venue.broadcast_from_email) return 'No sender email configured for this venue. Set venues.broadcast_from_email in Supabase.';
     if (!venue.address) return 'Venue address is required for the email footer (POPIA compliance). Set venues.address.';
     return null;
@@ -344,13 +346,17 @@ export default function BroadcastCompose() {
       }
 
       const broadcastId = res.data?.broadcast_id;
-      const sentInRun = res.data?.totals?.sent ?? 0;
-      const failedInRun = res.data?.totals?.failed ?? 0;
+      const totals = res.data?.worker_result?.totals ?? res.data?.totals ?? {};
+      const sentInRun = totals.sent ?? 0;
+      const failedInRun = totals.failed ?? 0;
+      const pendingInRun = totals.pending ?? 0;
 
       if (failedInRun > 0) {
         toast.warning(`Sent ${sentInRun}, failed ${failedInRun}. Check the broadcast detail.`);
+      } else if (pendingInRun > 0) {
+        toast.success(`Sent ${sentInRun} now — ${pendingInRun} queued to send automatically after 02:00 (SA time)`);
       } else {
-        toast.success(`Broadcast sent to ${sentInRun} member${sentInRun === 1 ? '' : 's'}`);
+        toast.success(`Broadcast sent to ${sentInRun} recipient${sentInRun === 1 ? '' : 's'}`);
       }
 
       if (broadcastId) {
@@ -479,7 +485,7 @@ export default function BroadcastCompose() {
             <Button
               type="button"
               onClick={handleSendClick}
-              disabled={loading || sending || stats.sendable === 0 || wouldExceedQuota}
+              disabled={loading || sending || stats.sendable === 0}
               style={{ background: '#2A9D8F', color: '#FFFFFF', fontWeight: 600 }}
             >
               {sending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Send className="h-4 w-4 mr-2" />}
@@ -643,10 +649,13 @@ export default function BroadcastCompose() {
               {remainingQuota} send{remainingQuota === 1 ? '' : 's'} left today
               <span className="block">(Resend free tier resets at UTC midnight)</span>
             </div>
-            {wouldExceedQuota && (
-              <div className="mt-3 flex items-start gap-2 text-xs" style={{ color: '#991B1B' }}>
+            {deferredCount > 0 && (
+              <div className="mt-3 flex items-start gap-2 text-xs" style={{ color: '#92400E' }}>
                 <AlertTriangle size={14} className="shrink-0 mt-0.5" />
-                <span>This send ({stats.sendable}) plus today's total ({todaySent}) would exceed the {QUOTA_THRESHOLD} threshold. Try again tomorrow.</span>
+                <span>
+                  This send exceeds today's remaining quota of {remainingQuota}: {sendNowCount} will go out now,
+                  and {deferredCount} will queue and send automatically after 02:00 (SA time), when the daily limit resets.
+                </span>
               </div>
             )}
           </div>
@@ -758,7 +767,9 @@ export default function BroadcastCompose() {
                   </div>
                 )}
                 <div className="text-sm text-muted-foreground pt-1 border-t border-border mt-2">
-                  This will use {stats.sendable} of your remaining {remainingQuota} daily Resend quota.
+                  {deferredCount > 0
+                    ? `${sendNowCount} will send now (remaining daily quota: ${remainingQuota}); ${deferredCount} will queue and send automatically after 02:00 SA time.`
+                    : `This will use ${stats.sendable} of your remaining ${remainingQuota} daily Resend quota.`}
                 </div>
               </div>
             </AlertDialogDescription>
