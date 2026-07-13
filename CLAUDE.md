@@ -115,7 +115,9 @@ Dashboard cards use: white background, `1px solid #E2E8F0` border, `8px` radius,
   History / Credit History / Details / Sites+Boats tabs); user management
 - **Member portal:** Responsive nautical design; OpenWeather Vaal Dam widget; Bar Tab view;
   My Details; Club Events calendar with recurring event support; Bookings (Yoco + EFT); visitor
-  booking at `/booking/:code`
+  booking at `/booking/:code`; Club Account card (Sage balance snapshot from
+  `member_club_balances`); searchable Constitution page (62 sections in `venue_knowledge`
+  category `'constitution'`, FTS on `search_tsv`, TOC order via `sort_order`)
 - **Auth:** PIN auth (bartenders), email auth (admins), RLS across 20+ tables
 - **Branding:** 21-column venue schema; dynamic CSS variable theming per slug
 - **Email (Phase 12 partial):** Resend integration scoped — Edge Functions `send-monthly-report`,

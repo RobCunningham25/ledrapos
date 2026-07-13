@@ -41,6 +41,7 @@ import PortalDashboard from "./pages/portal/PortalDashboard.tsx";
 import PortalCalendar from "./pages/portal/PortalCalendar.tsx";
 import PortalMyDetails from "./pages/portal/PortalMyDetails.tsx";
 import PortalBookings from "./pages/portal/PortalBookings.tsx";
+import PortalConstitution from "./pages/portal/PortalConstitution.tsx";
 import PortalPaymentResult from "./pages/portal/PortalPaymentResult.tsx";
 import PublicBookingPage from "./pages/PublicBookingPage.tsx";
 import Unsubscribed from "./pages/Unsubscribed.tsx";
@@ -96,6 +97,7 @@ const App = () => (
                     <Route path="calendar" element={<PortalCalendar />} />
                     <Route path="my-details" element={<PortalMyDetails />} />
                     <Route path="bookings" element={<PortalBookings />} />
+                    <Route path="constitution" element={<PortalConstitution />} />
                     <Route path="payment-result" element={<PortalPaymentResult />} />
                   </Route>
                 </Route>
@@ -178,6 +180,7 @@ const App = () => (
                       <Route path="calendar" element={<PortalCalendar />} />
                       <Route path="my-details" element={<PortalMyDetails />} />
                       <Route path="bookings" element={<PortalBookings />} />
+                      <Route path="constitution" element={<PortalConstitution />} />
                       <Route path="payment-result" element={<PortalPaymentResult />} />
                     </Route>
                   </Route>

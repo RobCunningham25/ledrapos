@@ -3,7 +3,7 @@ import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { usePortalAuth } from '@/contexts/PortalAuthContext';
 import { usePortalTheme } from '@/contexts/PortalThemeContext';
 import { supabase } from '@/integrations/supabase/client';
-import { Home, Calendar, User, BedDouble, LogOut } from 'lucide-react';
+import { Home, Calendar, User, BedDouble, BookOpen, LogOut } from 'lucide-react';
 import { useVenueNav } from '@/hooks/useVenueNav';
 
 function usePortalTabs() {
@@ -13,6 +13,7 @@ function usePortalTabs() {
     { label: 'Calendar', icon: Calendar, path: portalPath('calendar'), key: 'portal_tab_calendar' },
     { label: 'My Details', icon: User, path: portalPath('my-details'), key: 'portal_tab_my_details' },
     { label: 'Bookings', icon: BedDouble, path: portalPath('bookings'), key: 'portal_tab_bookings' },
+    { label: 'Constitution', icon: BookOpen, path: portalPath('constitution'), key: 'portal_tab_constitution' },
   ];
 }
 
@@ -27,6 +28,7 @@ export default function PortalLayout() {
     portal_tab_calendar: true,
     portal_tab_my_details: true,
     portal_tab_bookings: true,
+    portal_tab_constitution: true,
   });
 
   useEffect(() => {
@@ -35,13 +37,14 @@ export default function PortalLayout() {
       .from('venue_settings')
       .select('key, value')
       .eq('venue_id', member.venue_id)
-      .in('key', ['portal_tab_calendar', 'portal_tab_my_details', 'portal_tab_bookings'])
+      .in('key', ['portal_tab_calendar', 'portal_tab_my_details', 'portal_tab_bookings', 'portal_tab_constitution'])
       .then(({ data }) => {
         if (data) {
           const result: Record<string, boolean> = {
             portal_tab_calendar: true,
             portal_tab_my_details: true,
             portal_tab_bookings: true,
+            portal_tab_constitution: true,
           };
           for (const row of data) {
             result[row.key] = row.value !== 'false';

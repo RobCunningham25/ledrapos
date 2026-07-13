@@ -1707,6 +1707,7 @@ export type Database = {
           keywords: string
           priority: number
           search_tsv: unknown
+          sort_order: number | null
           source: string | null
           tags: string[]
           title: string
@@ -1723,6 +1724,7 @@ export type Database = {
           keywords?: string
           priority?: number
           search_tsv?: unknown
+          sort_order?: number | null
           source?: string | null
           tags?: string[]
           title: string
@@ -1739,6 +1741,7 @@ export type Database = {
           keywords?: string
           priority?: number
           search_tsv?: unknown
+          sort_order?: number | null
           source?: string | null
           tags?: string[]
           title?: string
