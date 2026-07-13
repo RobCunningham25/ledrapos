@@ -493,6 +493,47 @@ export type Database = {
           },
         ]
       }
+      club_balance_imports: {
+        Row: {
+          as_of_date: string
+          id: string
+          imported_at: string
+          matched_count: number
+          row_count: number
+          source: string
+          unmatched_names: Json
+          venue_id: string
+        }
+        Insert: {
+          as_of_date: string
+          id?: string
+          imported_at?: string
+          matched_count?: number
+          row_count?: number
+          source?: string
+          unmatched_names?: Json
+          venue_id: string
+        }
+        Update: {
+          as_of_date?: string
+          id?: string
+          imported_at?: string
+          matched_count?: number
+          row_count?: number
+          source?: string
+          unmatched_names?: Json
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "club_balance_imports_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       club_events: {
         Row: {
           created_at: string | null
@@ -894,6 +935,64 @@ export type Database = {
           },
           {
             foreignKeyName: "member_children_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      member_club_balances: {
+        Row: {
+          aging: Json | null
+          as_of_date: string
+          created_at: string | null
+          id: string
+          import_id: string
+          member_id: string
+          sage_customer_name: string
+          total_due_cents: number
+          venue_id: string
+        }
+        Insert: {
+          aging?: Json | null
+          as_of_date: string
+          created_at?: string | null
+          id?: string
+          import_id: string
+          member_id: string
+          sage_customer_name: string
+          total_due_cents: number
+          venue_id: string
+        }
+        Update: {
+          aging?: Json | null
+          as_of_date?: string
+          created_at?: string | null
+          id?: string
+          import_id?: string
+          member_id?: string
+          sage_customer_name?: string
+          total_due_cents?: number
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "member_club_balances_import_id_fkey"
+            columns: ["import_id"]
+            isOneToOne: false
+            referencedRelation: "club_balance_imports"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "member_club_balances_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "member_club_balances_venue_id_fkey"
             columns: ["venue_id"]
             isOneToOne: false
             referencedRelation: "venues"
@@ -1401,6 +1500,45 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "pos_users_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sage_customer_map: {
+        Row: {
+          created_at: string | null
+          id: string
+          member_id: string | null
+          sage_customer_name: string
+          venue_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          member_id?: string | null
+          sage_customer_name: string
+          venue_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          member_id?: string | null
+          sage_customer_name?: string
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sage_customer_map_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sage_customer_map_venue_id_fkey"
             columns: ["venue_id"]
             isOneToOne: false
             referencedRelation: "venues"

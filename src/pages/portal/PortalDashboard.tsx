@@ -10,6 +10,7 @@ import { formatCents } from '@/utils/currency';
 import { Calendar, BedDouble } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import CreditLoadSheet from '@/components/portal/CreditLoadSheet';
+import ClubAccountCard from '@/components/portal/ClubAccountCard';
 import { supabase } from '@/integrations/supabase/client';
 import { expandAllOccurrences, type EventSeries, type MonthlyMode, type Recurrence } from '@/utils/eventOccurrences';
 
@@ -399,6 +400,7 @@ export default function PortalDashboard() {
       {/* Cards grid */}
       <div className="grid grid-cols-1 lg:grid-cols-[1.2fr_1fr] gap-5">
         <CreditTabCard memberId={memberId} venueId={venueId} />
+        <ClubAccountCard memberId={memberId} venueId={venueId} />
         <UpcomingEventsCard venueId={venueId} />
         <UpcomingBookingsCard venueId={venueId} memberId={memberId} />
       </div>
