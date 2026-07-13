@@ -288,9 +288,9 @@ export default function MemberDrawer({ isOpen, onClose, venueId, member, onSucce
     if (!validate()) return;
     setSaving(true);
 
-    // Compose WhatsApp opt-out fields. Admin can flip an opted-in member to opted-out
-    // here (e.g. someone phoned in to unsubscribe); we don't allow manually opting
-    // someone in — that has to come from the member themselves via the webhook.
+    // Compose WhatsApp opt-out fields. Consent is opt-OUT: admins can flip a
+    // subscribed member to opted-out here (e.g. someone phoned in to unsubscribe),
+    // and clearing an opt-out re-subscribes the member immediately.
     const wasOptedIn = !!member?.whatsapp_opt_in;
     const flipToOptOut = form.whatsapp_manual_opt_out && wasOptedIn;
     const clearOptOut = !form.whatsapp_manual_opt_out && !!member?.whatsapp_opt_out_at && !member?.whatsapp_opt_in;
@@ -317,6 +317,9 @@ export default function MemberDrawer({ isOpen, onClose, venueId, member, onSucce
       record.whatsapp_opt_in = false;
       record.whatsapp_opt_out_at = new Date().toISOString();
     } else if (clearOptOut) {
+      record.whatsapp_opt_in = true;
+      record.whatsapp_opt_in_at = new Date().toISOString();
+      record.whatsapp_opt_in_method = 'admin_cleared';
       record.whatsapp_opt_out_at = null;
     }
 
@@ -544,7 +547,7 @@ export default function MemberDrawer({ isOpen, onClose, venueId, member, onSucce
             <Label style={{ fontSize: 14, fontWeight: 600, color: '#1A202C' }}>WhatsApp</Label>
             {field('WhatsApp number', 'whatsapp_number', {
               placeholder: '+27 82 123 4567',
-              helper: 'Used for tab reminders and opt-in messages. Defaults to phone.',
+              helper: 'Used for tab reminders and club updates. Defaults to phone.',
             })}
 
             {isEdit && member && (
@@ -554,10 +557,7 @@ export default function MemberDrawer({ isOpen, onClose, venueId, member, onSucce
                     background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 6,
                     padding: '10px 12px', fontSize: 13, color: '#166534'
                   }}>
-                    <strong>✓ Opted in</strong>
-                    {member.whatsapp_opt_in_at && (
-                      <span> on {new Date(member.whatsapp_opt_in_at).toLocaleString('en-ZA')}</span>
-                    )}
+                    <strong>✓ Subscribed</strong> — members receive WhatsApp messages unless they reply STOP
                     {member.whatsapp_opt_in_method && <span> ({member.whatsapp_opt_in_method})</span>}
                     <div className="flex items-center justify-between" style={{ marginTop: 8 }}>
                       <span style={{ fontSize: 13 }}>Manually opt this member out</span>
@@ -587,13 +587,13 @@ export default function MemberDrawer({ isOpen, onClose, venueId, member, onSucce
                     </div>
                     {!form.whatsapp_manual_opt_out && (
                       <p style={{ fontSize: 12, color: '#92400E', marginTop: 6 }}>
-                        Clearing the opt-out lets you re-send an opt-in invite. The member must still tap Yes.
+                        Clearing the opt-out re-subscribes this member immediately — only do this if they asked for it.
                       </p>
                     )}
                   </div>
                 ) : (
                   <p style={{ fontSize: 13, color: '#718096', marginTop: 6 }}>
-                    Not opted in yet. Use the "Send opt-in" button on the Members page.
+                    Subscribed by default — members receive WhatsApp messages unless they reply STOP.
                   </p>
                 )}
               </div>

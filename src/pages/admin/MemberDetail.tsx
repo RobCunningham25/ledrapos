@@ -969,7 +969,7 @@ export default function MemberDetail() {
                                   : <MessageCircle size={14} />}
                               </button>
                             ) : (
-                              <span title="Member has not opted in to WhatsApp" style={{ color: '#A0AEC0', fontSize: 12 }}>—</span>
+                              <span title="Member has opted out of WhatsApp" style={{ color: '#A0AEC0', fontSize: 12 }}>—</span>
                             )
                           ) : null}
                         </td>

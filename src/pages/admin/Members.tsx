@@ -34,6 +34,7 @@ interface Member {
   whatsapp_opt_in_at: string | null;
   whatsapp_opt_in_method: string | null;
   whatsapp_opt_out_at: string | null;
+  whatsapp_notice_sent_at: string | null;
 }
 
 import { MEMBERSHIP_TYPE_COLORS, MEMBERSHIP_TYPES, getMembershipLabel } from '@/constants/membershipTypes';
@@ -118,26 +119,28 @@ export default function Members() {
         if (ctx && typeof ctx.json === 'function') {
           try { const body = await ctx.json(); if (body?.error) detail = body.error; } catch { /* not json */ }
         }
-        toast.error(detail || res.error.message || 'Failed to send WhatsApp opt-in');
+        toast.error(detail || res.error.message || 'Failed to send WhatsApp notice');
       } else if (res.data?.error) {
         toast.error(res.data.error);
       } else if (res.data?.status === 'sent') {
-        toast.success(`Opt-in sent to ${member.first_name} ${member.last_name}`);
+        toast.success(`WhatsApp notice sent to ${member.first_name} ${member.last_name}`);
         await fetchMembers();
       } else {
         toast.error(res.data?.error || 'Send did not complete');
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to send WhatsApp opt-in');
+      toast.error(err instanceof Error ? err.message : 'Failed to send WhatsApp notice');
     }
     setWaInvitingId(null);
   };
 
-  const eligibleForBulkOptIn = useMemo(
+  // Opt-out model: members are subscribed by default. The notice is the one-time
+  // "we'll message you here — reply STOP to opt out" heads-up.
+  const eligibleForBulkNotice = useMemo(
     () => members.filter(m =>
       m.is_active
-      && !m.whatsapp_opt_in
       && !m.whatsapp_opt_out_at
+      && !m.whatsapp_notice_sent_at
       && (m.whatsapp_number || m.phone)
     ),
     [members]
@@ -159,7 +162,7 @@ export default function Members() {
         toast.error(detail || res.error.message || 'Bulk send failed');
       } else if (res.data?.success) {
         const { sent = 0, skipped = 0, failed = 0 } = res.data;
-        toast.success(`Sent ${sent} opt-in invites${skipped ? `, skipped ${skipped}` : ''}${failed ? `, failed ${failed}` : ''}`);
+        toast.success(`Sent ${sent} WhatsApp notices${skipped ? `, skipped ${skipped}` : ''}${failed ? `, failed ${failed}` : ''}`);
         await fetchMembers();
       } else {
         toast.error(res.data?.error || 'Bulk send did not complete');
@@ -198,15 +201,15 @@ export default function Members() {
       <div className="flex items-center gap-2">
         <Button
           onClick={() => setBulkWaConfirmOpen(true)}
-          disabled={bulkWaSending || eligibleForBulkOptIn.length === 0}
+          disabled={bulkWaSending || eligibleForBulkNotice.length === 0}
           variant="outline"
           style={{ height: 40, fontWeight: 500, borderRadius: 6 }}
-          title={eligibleForBulkOptIn.length === 0
-            ? 'No members are eligible — everyone is already opted in or has no phone number'
-            : `Send WhatsApp opt-in to ${eligibleForBulkOptIn.length} eligible member${eligibleForBulkOptIn.length === 1 ? '' : 's'}`}
+          title={eligibleForBulkNotice.length === 0
+            ? 'No members are eligible — everyone has received the notice, opted out, or has no phone number'
+            : `Send the WhatsApp welcome notice to ${eligibleForBulkNotice.length} member${eligibleForBulkNotice.length === 1 ? '' : 's'}`}
         >
           {bulkWaSending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Send className="h-4 w-4 mr-2" />}
-          {bulkWaSending ? 'Sending...' : `Bulk WhatsApp opt-in (${eligibleForBulkOptIn.length})`}
+          {bulkWaSending ? 'Sending...' : `WhatsApp notice (${eligibleForBulkNotice.length})`}
         </Button>
         <Button onClick={openAddDrawer} style={{ height: 40, background: '#2E5FA3', color: '#FFFFFF', fontWeight: 600, borderRadius: 6 }}>
           <Plus className="h-4 w-4 mr-2" />
@@ -356,17 +359,7 @@ export default function Members() {
                     )}
                   </td>
                   <td className="px-4 py-3">
-                    {m.whatsapp_opt_in ? (
-                      <span
-                        className="inline-flex items-center gap-1"
-                        title={m.whatsapp_opt_in_at
-                          ? `Opted in ${new Date(m.whatsapp_opt_in_at).toLocaleString('en-ZA')}${m.whatsapp_opt_in_method ? ` (${m.whatsapp_opt_in_method})` : ''}`
-                          : 'Opted in'}
-                        style={{ fontSize: 13, fontWeight: 500, color: '#1E8449' }}
-                      >
-                        <Check size={14} /> Opted in
-                      </span>
-                    ) : m.whatsapp_opt_out_at ? (
+                    {m.whatsapp_opt_out_at ? (
                       <span
                         title={`Opted out ${new Date(m.whatsapp_opt_out_at).toLocaleString('en-ZA')}`}
                         style={{ fontSize: 13, fontWeight: 500, color: '#C0392B' }}
@@ -374,21 +367,34 @@ export default function Members() {
                         Opted out
                       </span>
                     ) : (m.whatsapp_number || m.phone) ? (
-                      <button
-                        disabled={waInvitingId === m.id}
-                        onClick={() => handleWhatsAppOptIn(m)}
-                        className="inline-flex items-center gap-1 text-sm font-medium transition-colors"
-                        style={{
-                          padding: '4px 10px', border: '1px solid #25D366', color: '#25D366',
-                          background: 'transparent', borderRadius: 6, cursor: waInvitingId === m.id ? 'not-allowed' : 'pointer',
-                        }}
-                        onMouseEnter={e => { if (waInvitingId !== m.id) { e.currentTarget.style.background = '#25D366'; e.currentTarget.style.color = '#FFFFFF'; } }}
-                        onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#25D366'; }}
-                        title="Send WhatsApp opt-in invite"
-                      >
-                        {waInvitingId === m.id ? <Loader2 size={14} className="animate-spin" /> : <MessageCircle size={14} />}
-                        {waInvitingId === m.id ? 'Sending...' : 'Send opt-in'}
-                      </button>
+                      <div className="inline-flex items-center gap-2">
+                        <span
+                          className="inline-flex items-center gap-1"
+                          title={m.whatsapp_notice_sent_at
+                            ? `Welcome notice sent ${new Date(m.whatsapp_notice_sent_at).toLocaleString('en-ZA')}`
+                            : 'Subscribed by default — welcome notice not sent yet'}
+                          style={{ fontSize: 13, fontWeight: 500, color: '#1E8449' }}
+                        >
+                          <Check size={14} /> Subscribed
+                        </span>
+                        {!m.whatsapp_notice_sent_at && (
+                          <button
+                            disabled={waInvitingId === m.id}
+                            onClick={() => handleWhatsAppOptIn(m)}
+                            title="Send the welcome notice (what we send + how to opt out)"
+                            className="inline-flex items-center gap-1 text-xs font-medium transition-colors"
+                            style={{
+                              padding: '2px 8px', border: '1px solid #CBD5E0', color: '#4A5568',
+                              background: 'transparent', borderRadius: 6, cursor: waInvitingId === m.id ? 'not-allowed' : 'pointer',
+                            }}
+                            onMouseEnter={e => { if (waInvitingId !== m.id) { e.currentTarget.style.background = '#F0FDF4'; e.currentTarget.style.color = '#1E8449'; e.currentTarget.style.borderColor = '#25D366'; } }}
+                            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#4A5568'; e.currentTarget.style.borderColor = '#CBD5E0'; }}
+                          >
+                            {waInvitingId === m.id ? <Loader2 size={12} className="animate-spin" /> : <MessageCircle size={12} />}
+                            {waInvitingId === m.id ? 'Sending...' : 'Send notice'}
+                          </button>
+                        )}
+                      </div>
                     ) : (
                       <span style={{ color: '#A0AEC0', fontSize: 13 }} title="Add a phone number to enable WhatsApp">—</span>
                     )}
@@ -464,17 +470,18 @@ export default function Members() {
       <AlertDialog open={bulkWaConfirmOpen} onOpenChange={setBulkWaConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Send WhatsApp opt-in to {eligibleForBulkOptIn.length} member{eligibleForBulkOptIn.length === 1 ? '' : 's'}?</AlertDialogTitle>
+            <AlertDialogTitle>Send the WhatsApp notice to {eligibleForBulkNotice.length} member{eligibleForBulkNotice.length === 1 ? '' : 's'}?</AlertDialogTitle>
             <AlertDialogDescription>
-              Each member will receive a single WhatsApp message asking them to opt in. They can tap Yes or No to confirm.
-              Members who have already opted in or out, or who don't have a phone number on file, are skipped.
-              This costs roughly R{(eligibleForBulkOptIn.length * 0.5).toFixed(2)}–R{(eligibleForBulkOptIn.length * 1.5).toFixed(2)} in Twilio fees.
+              Each member will receive a single WhatsApp message explaining what the club sends
+              (tab reminders and club updates) and that they can reply STOP at any time to opt out.
+              Members who already received the notice, have opted out, or have no phone number on file are skipped.
+              This costs roughly R{(eligibleForBulkNotice.length * 0.5).toFixed(2)}–R{(eligibleForBulkNotice.length * 1.5).toFixed(2)} in Twilio fees.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleBulkWhatsAppOptIn} style={{ background: '#25D366', color: '#FFFFFF' }}>
-              Send {eligibleForBulkOptIn.length} opt-in invite{eligibleForBulkOptIn.length === 1 ? '' : 's'}
+              Send {eligibleForBulkNotice.length} notice{eligibleForBulkNotice.length === 1 ? '' : 's'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -1,8 +1,9 @@
 // whatsapp-webhook — Receives Twilio inbound message webhooks. Validates the
 // X-Twilio-Signature header, records every inbound in whatsapp_messages, opens the
-// 24-hour customer-service window on the member, and routes opt-in / opt-out
-// keywords + button payloads. Phase 4 will extend this with a keyword intent router
-// for tab-balance and event queries.
+// 24-hour customer-service window on the member, and routes STOP/START consent
+// keywords + button payloads. Consent is opt-OUT: members are subscribed by
+// default; STOP (exact-match keywords) opts them out, START/YES re-subscribes.
+// Anything else falls through to the tab buttons or the AI assistant.
 //
 // Twilio sends form-encoded POST. Key fields: From, To, Body, ButtonText,
 // ButtonPayload, ProfileName, MessageSid, NumMedia, etc.
@@ -230,18 +231,44 @@ Deno.serve(async (req) => {
     await supabase.from("members").update(updates).eq("id", member.id);
   }
 
-  // ===== Opt-in / opt-out routing =====
-  // Quick-reply payloads are authoritative; fall back to text matching.
-  const lower = body.toLowerCase();
-  const isOptInYes = buttonPayload === "optin_yes"
-    || /^(yes|y|opt\s*in|optin)\b/.test(lower);
+  // ===== Opt-out / re-subscribe routing =====
+  // Consent is opt-OUT: every member is subscribed unless they say stop.
+  // Keywords match the ENTIRE message (exact, case-insensitive) — the earlier
+  // prefix match would have opted members out for chatting "stop by the bar..."
+  // or "no worries". "NO" is deliberately not an opt-out keyword: it's far too
+  // common in normal conversation, especially in replies to the AI assistant.
+  const lower = body.toLowerCase().replace(/[.!?]+$/, "").trim();
   const isOptOut = buttonPayload === "optin_no"
-    || /^(no|stop|unsub|unsubscribe)\b/.test(lower);
+    || ["stop", "stopall", "stop all", "unsub", "unsubscribe", "opt out", "optout"].includes(lower);
+  // Re-subscribe keywords only act on members who are currently opted out —
+  // otherwise a plain "yes" (e.g. answering the AI assistant) must fall through
+  // to the conversation router below. The old opt-in template's Yes button
+  // stays authoritative either way.
+  const isResubscribe = buttonPayload === "optin_yes"
+    || (member && !member.whatsapp_opt_in
+        && ["start", "unstop", "yes", "opt in", "optin"].includes(lower));
 
-  // Opt-in/opt-out only applies to the member's own number — a partner texting
-  // YES/STOP must not flip the member's subscription (we never proactively
-  // message the partner's number, so there is nothing for them to opt out of).
-  if (member && !isPartner && isOptInYes) {
+  // Opt-out/re-subscribe only applies to the member's own number — a partner
+  // texting STOP/START must not flip the member's subscription (we never
+  // proactively message the partner's number, so there is nothing for them to
+  // opt out of).
+  if (member && !isPartner && isOptOut) {
+    await supabase.from("members").update({
+      whatsapp_opt_in: false,
+      whatsapp_opt_out_at: new Date().toISOString(),
+    }).eq("id", member.id);
+
+    await sendSessionReply(
+      venueId,
+      member.id,
+      fromE164,
+      "You've been opted out of WhatsApp messages from the club. We won't send any more. Reply START if you change your mind.",
+      "optout_reply",
+    );
+    return twiml(200);
+  }
+
+  if (member && !isPartner && isResubscribe) {
     await supabase.from("members").update({
       whatsapp_opt_in: true,
       whatsapp_opt_in_at: new Date().toISOString(),
@@ -254,24 +281,8 @@ Deno.serve(async (req) => {
       venueId,
       member.id,
       fromE164,
-      `${greeting} You're opted in. You'll get bar-tab reminders and club updates here. Reply STOP any time to opt out.`,
+      `${greeting} You're subscribed again. You'll get bar-tab reminders and club updates here. Reply STOP any time to opt out.`,
       "optin_reply",
-    );
-    return twiml(200);
-  }
-
-  if (member && !isPartner && isOptOut) {
-    await supabase.from("members").update({
-      whatsapp_opt_in: false,
-      whatsapp_opt_out_at: new Date().toISOString(),
-    }).eq("id", member.id);
-
-    await sendSessionReply(
-      venueId,
-      member.id,
-      fromE164,
-      "You've been opted out of WhatsApp messages. We won't send any more. Reply YES if you change your mind.",
-      "optout_reply",
     );
     return twiml(200);
   }

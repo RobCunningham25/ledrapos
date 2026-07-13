@@ -29,7 +29,7 @@ for database, RLS, Edge Functions, Auth, and Storage.
 | Table | Purpose |
 |---|---|
 | `venues` | One row per tenant; includes 21 branding/config columns, `slug`, `logo_url`, `broadcast_from_email` (per-tenant verified Resend sender) |
-| `members` | Club members; `venue_id`, `membership_number`, `email_opt_out`, `unsubscribe_token` (per-member, used in broadcast unsubscribe links), plus WhatsApp opt-in fields: `whatsapp_number`, `whatsapp_opt_in`, `whatsapp_opt_in_at`, `whatsapp_opt_in_method`, `whatsapp_opt_out_at`, `whatsapp_last_inbound_at` (drives the 24h session-window check) |
+| `members` | Club members; `venue_id`, `membership_number`, `email_opt_out`, `unsubscribe_token` (per-member, used in broadcast unsubscribe links), plus WhatsApp fields: `whatsapp_number`, `whatsapp_opt_in` (**opt-OUT consent model** — TRUE by default, FALSE only alongside an explicit `whatsapp_opt_out_at`; STOP opts out, START re-subscribes), `whatsapp_opt_in_at`, `whatsapp_opt_in_method` (`assumed` = subscribed by the opt-out model), `whatsapp_opt_out_at`, `whatsapp_notice_sent_at` (one-time "reply STOP to opt out" courtesy notice), `whatsapp_last_inbound_at` (drives the 24h session-window check) |
 | `products` | Product catalogue; `venue_id`, `category`, `price`, `purchase_price` (cost-per-shot) |
 | `tabs` | Open/closed bar tabs; written on first cart commit, not on tab open |
 | `tab_items` | Line items on a tab |
@@ -150,10 +150,14 @@ Dashboard cards use: white background, `1px solid #E2E8F0` border, `8px` radius,
 - **Broadcast bounce/complaint handling:** No `resend-webhook` Edge Function yet. Hard bounces
   and spam complaints aren't auto-flipping `members.email_opt_out`.
 - **WhatsApp WA-1 through WA-5:** Phased build in progress (see `.claude/plans/`). Phase 0
-  (foundation: schema, `send-whatsapp` function, audit table) and Phase 1 (opt-in flow with
+  (foundation: schema, `send-whatsapp` function, audit table) and Phase 1 (consent flow with
   quick-reply buttons) land first. Phases 2–4 cover individual + bulk tab reminders with
   interactive Yoco link, plus an inbound keyword router. WhatsApp number `+27 16 004 0192`.
   Twilio is configured as a Tech Provider sub-account; templates submitted to Meta separately.
+  **Consent flipped to opt-OUT on 2026-07-13**: members are subscribed by default; the
+  `send-whatsapp-optin-invite` function now sends the one-time "reply STOP" welcome notice
+  (`vca_whatsapp_notice_v1` → `TWILIO_TEMPLATE_NOTICE_SID`, falls back to the old opt-in
+  template until approved).
 - **Phase 11D:** Sundowner Bay Yacht Club demo tenant (deferred to sales phase)
 - **Phase 11F-2:** Bar inventory import
 - **EFT expiry cron:** Server-side enforcement deferred (currently visual-only)
@@ -256,3 +260,6 @@ the `supabase/`, `src/`, and `package.json` all live at this level).
 - `WHATSAPP_WORKER_TOKEN` — shared secret guarding `send-whatsapp` from browser access
 - `TWILIO_TEMPLATE_OPTIN_SID` / `TWILIO_TEMPLATE_TAB_REMINDER_SID` /
   `TWILIO_TEMPLATE_GENERIC_SID` — Meta-approved Content Template SIDs (HX...)
+- `TWILIO_TEMPLATE_NOTICE_SID` — `vca_whatsapp_notice_v1`, the opt-out-model welcome notice
+  ("we'll send tab reminders + club updates here; reply STOP to opt out"). Until set,
+  `send-whatsapp-optin-invite` falls back to `TWILIO_TEMPLATE_OPTIN_SID`

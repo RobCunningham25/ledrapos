@@ -141,7 +141,7 @@ Deno.serve(async (req) => {
     if (memberError || !member) return json(404, { error: "Member not found" });
     if (!member.whatsapp_opt_in) {
       return json(403, {
-        error: `${member.first_name ?? "Member"} has not opted in to WhatsApp. Send the opt-in invite first.`,
+        error: `${member.first_name ?? "Member"} has opted out of WhatsApp messages.`,
       });
     }
 

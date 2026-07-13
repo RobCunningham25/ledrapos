@@ -1,10 +1,17 @@
-// send-whatsapp-optin-invite — Admin-triggered. Sends the approved opt-in
-// Content Template (vca_optin_v1 → TWILIO_TEMPLATE_OPTIN_SID) to either a single
-// member or every eligible member in a venue.
+// send-whatsapp-optin-invite — Admin-triggered. Consent is opt-OUT, so this no
+// longer *asks* members to opt in: it sends the one-time courtesy notice
+// ("this is VCA — we'll send tab reminders and club updates here; reply STOP to
+// opt out") to a single member or every eligible member in a venue, and stamps
+// members.whatsapp_notice_sent_at. Function keeps its historical name so the
+// deployed URL and admin UI invocations don't churn.
 //
-// Eligibility for bulk = member has a non-null phone, is active, is not already
-// opted in, has not been opted out, has not already received an invite in the
-// last 24h (avoid spamming if the admin double-clicks).
+// Template: vca_whatsapp_notice_v1 → TWILIO_TEMPLATE_NOTICE_SID. Falls back to
+// the old opt-in template (TWILIO_TEMPLATE_OPTIN_SID) until the notice template
+// is approved — its Yes/No buttons still route correctly in the webhook.
+//
+// Eligibility for bulk = member has a non-null phone, is active, has not opted
+// out, has not already received the notice (or the old opt-in invite), and was
+// not messaged one in the last 24h (avoid spamming if the admin double-clicks).
 //
 // Inputs (POST JSON):
 //   { venue_id, member_id }                       — per-row send
@@ -34,6 +41,7 @@ interface MemberRow {
   whatsapp_number: string | null;
   whatsapp_opt_in: boolean;
   whatsapp_opt_out_at: string | null;
+  whatsapp_notice_sent_at: string | null;
   is_active: boolean;
 }
 
@@ -63,7 +71,7 @@ async function recentlyInvited(
     .from("whatsapp_messages")
     .select("id", { count: "exact", head: true })
     .eq("member_id", memberId)
-    .eq("related_kind", "optin_invite")
+    .in("related_kind", ["optin_invite", "wa_notice"])
     .in("status", ["queued", "sent", "delivered", "read"])
     .gte("created_at", since);
   return (count ?? 0) > 0;
@@ -105,7 +113,7 @@ async function sendInviteFor(
       to_e164: toE164,
       template_sid: templateSid,
       template_variables: { "1": member.first_name || "there" },
-      related_kind: "optin_invite",
+      related_kind: "wa_notice",
     }),
   });
 
@@ -117,6 +125,11 @@ async function sendInviteFor(
       error: result?.error || `send-whatsapp ${resp.status}`,
     };
   }
+
+  await supabase.from("members")
+    .update({ whatsapp_notice_sent_at: new Date().toISOString() })
+    .eq("id", member.id);
+
   return { member_id: member.id, status: "sent" };
 }
 
@@ -163,10 +176,11 @@ Deno.serve(async (req) => {
       return json(403, { error: "Cross-venue action not allowed" });
     }
 
-    const templateSid = Deno.env.get("TWILIO_TEMPLATE_OPTIN_SID");
+    const templateSid = Deno.env.get("TWILIO_TEMPLATE_NOTICE_SID")
+      || Deno.env.get("TWILIO_TEMPLATE_OPTIN_SID");
     if (!templateSid) {
       return json(500, {
-        error: "TWILIO_TEMPLATE_OPTIN_SID not configured — submit + approve vca_optin_v1 in Twilio first",
+        error: "TWILIO_TEMPLATE_NOTICE_SID not configured — submit + approve vca_whatsapp_notice_v1 in Twilio first",
       });
     }
     const workerToken = Deno.env.get("WHATSAPP_WORKER_TOKEN");
@@ -181,14 +195,14 @@ Deno.serve(async (req) => {
 
       const { data: member, error: memberError } = await supabase
         .from("members")
-        .select("id, first_name, phone, whatsapp_number, whatsapp_opt_in, whatsapp_opt_out_at, is_active, venue_id")
+        .select("id, first_name, phone, whatsapp_number, whatsapp_opt_in, whatsapp_opt_out_at, whatsapp_notice_sent_at, is_active, venue_id")
         .eq("id", body.member_id)
         .eq("venue_id", body.venue_id)
         .maybeSingle<MemberRow & { venue_id: string }>();
 
       if (memberError || !member) return json(404, { error: "Member not found" });
-      if (member.whatsapp_opt_in) {
-        return json(409, { error: "Member is already opted in" });
+      if (member.whatsapp_opt_out_at) {
+        return json(409, { error: "Member has opted out of WhatsApp — clear the opt-out in their profile first" });
       }
 
       const outcome = await sendInviteFor(
@@ -209,11 +223,11 @@ Deno.serve(async (req) => {
     // ===== Bulk eligible =====
     const { data: candidates, error: candidatesError } = await supabase
       .from("members")
-      .select("id, first_name, phone, whatsapp_number, whatsapp_opt_in, whatsapp_opt_out_at, is_active")
+      .select("id, first_name, phone, whatsapp_number, whatsapp_opt_in, whatsapp_opt_out_at, whatsapp_notice_sent_at, is_active")
       .eq("venue_id", body.venue_id)
       .eq("is_active", true)
-      .eq("whatsapp_opt_in", false)
       .is("whatsapp_opt_out_at", null)
+      .is("whatsapp_notice_sent_at", null)
       .not("phone", "is", null);
 
     if (candidatesError) {
