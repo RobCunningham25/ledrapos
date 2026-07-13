@@ -21,6 +21,20 @@ export function VenueProvider({ slug, children }: { slug: string; children: Reac
   const [error, setError] = useState(false);
 
   useEffect(() => {
+    if (!venue) return;
+    document.title = venue.name;
+    if (venue.logo_url) {
+      let link = document.querySelector<HTMLLinkElement>("link[rel='icon']");
+      if (!link) {
+        link = document.createElement('link');
+        link.rel = 'icon';
+        document.head.appendChild(link);
+      }
+      link.href = venue.logo_url;
+    }
+  }, [venue]);
+
+  useEffect(() => {
     setLoading(true);
     setError(false);
     setVenue(null);
