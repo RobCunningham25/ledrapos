@@ -4,6 +4,7 @@ import { LayoutDashboard, Package, Users, CalendarDays, BedDouble, BarChart3, Se
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useAdminAuth } from '@/contexts/AdminAuthContext';
+import { useVenue } from '@/contexts/VenueContext';
 import { useVenueNav } from '@/hooks/useVenueNav';
 
 interface AdminLayoutProps {
@@ -31,6 +32,7 @@ export default function AdminLayout({ children, title, action }: AdminLayoutProp
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { adminUser, signOut } = useAdminAuth();
+  const { venue, venueName } = useVenue();
   const { adminPath } = useVenueNav();
 
   const navItems = navKeys.map(item => ({ ...item, path: adminPath(item.sub) }));
@@ -40,7 +42,10 @@ export default function AdminLayout({ children, title, action }: AdminLayoutProp
   const sidebar = (
     <div className="flex h-full flex-col">
       <div className="px-6 py-5 border-b border-border">
-        <h1 className="text-lg font-bold text-primary">LedraPOS</h1>
+        {venue?.logo_url && (
+          <img src={venue.logo_url} alt={venueName} className="h-12 object-contain mb-2" />
+        )}
+        <h1 className="text-base font-bold text-primary leading-snug">{venueName}</h1>
         <p className="text-xs text-muted-foreground mt-0.5">Admin Panel</p>
       </div>
       <nav className="flex-1 py-4 space-y-1 px-3">
