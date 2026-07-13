@@ -18,6 +18,10 @@ supabase/.temp/
 # Local Supabase access token (never commit)
 .env.supabase
 
+# Claude Code local state — worktrees hold a full repo copy incl. .env
+.claude/worktrees/
+.claude/settings.local.json
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
