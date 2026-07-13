@@ -2,7 +2,8 @@ import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { usePortalAuth } from '@/contexts/PortalAuthContext';
 import { supabase } from '@/integrations/supabase/client';
-import { Search, BookOpen, ChevronDown, X } from 'lucide-react';
+import { Search, BookOpen, ChevronDown, X, Download } from 'lucide-react';
+import constitutionPdf from '@/assets/VCA Constitution 2026.pdf';
 
 interface Section {
   id: string;
@@ -117,6 +118,17 @@ export default function PortalConstitution() {
       {source && (
         <p style={{ fontSize: 14, color: 'var(--portal-text-muted)', margin: '4px 0 0' }}>{source}</p>
       )}
+      <a
+        href={constitutionPdf}
+        download="VCA Constitution 2026.pdf"
+        style={{
+          display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 8,
+          fontSize: 14, fontWeight: 500, color: 'var(--portal-accent)', textDecoration: 'none',
+        }}
+      >
+        <Download size={16} />
+        Download PDF
+      </a>
 
       {/* Search */}
       <div style={{ position: 'relative', margin: '16px 0 20px' }}>
