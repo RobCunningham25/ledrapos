@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Navigate, Outlet } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
+import { signOutSafely } from '@/lib/signOutSafely';
 import { useVenueNav } from '@/hooks/useVenueNav';
 
 export default function PortalProtectedRoute() {
@@ -24,7 +25,7 @@ export default function PortalProtectedRoute() {
       if (member) {
         setStatus('authenticated');
       } else {
-        await supabase.auth.signOut();
+        await signOutSafely();
         setStatus('unauthenticated');
       }
     });

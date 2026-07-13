@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
+import { signOutSafely } from '@/lib/signOutSafely';
 import { useVenueNav } from '@/hooks/useVenueNav';
 import type { Session } from '@supabase/supabase-js';
 
@@ -77,7 +78,7 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
   }, [resolveAdmin]);
 
   const signOut = useCallback(async () => {
-    await supabase.auth.signOut();
+    await signOutSafely();
     setAdminUser(null);
     setSession(null);
     navigate(adminLoginPath, { replace: true });
