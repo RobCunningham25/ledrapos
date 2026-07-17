@@ -95,11 +95,11 @@ export default function MyBookingsList({ venueId, memberId }: Props) {
     <div style={{ marginBottom: 32 }}>
       <h2 style={{ fontSize: 20, fontWeight: 600, color: 'var(--portal-primary)', marginBottom: 16 }}>My Bookings</h2>
       {bookings.map((b: any) => {
-        const link = b.booking_site_link?.[0];
-        const siteName = link?.booking_sites?.name || '—';
-        const siteType = link?.booking_sites?.site_type;
+        const links = b.booking_site_link || [];
+        const siteName = links.map((l: any) => l.booking_sites?.name).filter(Boolean).join(', ') || '—';
+        const siteType = links[0]?.booking_sites?.site_type;
         const isDayVisitor = siteType === 'day_visitor';
-        const nights = link?.nights || 0;
+        const nights = links[0]?.nights || 0;
         const isVisuallyExpired = b.status === 'PENDING' && b.expires_at && new Date(b.expires_at) < new Date();
         const displayStatus = isVisuallyExpired ? 'EXPIRED' : b.status;
         const statusStyle = STATUS_STYLES[displayStatus] || STATUS_STYLES.PENDING;

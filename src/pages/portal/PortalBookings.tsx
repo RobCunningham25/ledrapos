@@ -30,7 +30,7 @@ export default function PortalBookings() {
   const [step, setStep] = useState(1);
   const [siteType, setSiteType] = useState<'caravan' | 'camping' | 'day_visitor' | null>(null);
   const [sites, setSites] = useState<BookingSite[]>([]);
-  const [selectedSiteId, setSelectedSiteId] = useState<string | null>(null);
+  const [selectedSiteIds, setSelectedSiteIds] = useState<string[]>([]);
   const [checkIn, setCheckIn] = useState('');
   const [checkOut, setCheckOut] = useState('');
   const [numGuests, setNumGuests] = useState(1);
@@ -45,7 +45,7 @@ export default function PortalBookings() {
   const [showEFT, setShowEFT] = useState(false);
 
   const venueId = member?.venue_id || '';
-  const selectedSite = useMemo(() => sites.find(s => s.id === selectedSiteId), [sites, selectedSiteId]);
+  const selectedSites = useMemo(() => sites.filter(s => selectedSiteIds.includes(s.id)), [sites, selectedSiteIds]);
 
   const isDayVisitor = siteType === 'day_visitor';
   const nights = useMemo(() => {
@@ -54,13 +54,16 @@ export default function PortalBookings() {
     return Math.max(0, differenceInCalendarDays(new Date(checkOut), new Date(checkIn)));
   }, [checkIn, checkOut, isDayVisitor]);
 
-  const perNight = useMemo(() => selectedSite ? getPerNightPrice(selectedSite, numGuests) : 0, [selectedSite, numGuests]);
+  const perNight = useMemo(
+    () => selectedSites.reduce((sum, s) => sum + getPerNightPrice(s, numGuests), 0),
+    [selectedSites, numGuests]
+  );
   const totalCents = isDayVisitor ? 0 : nights * perNight;
 
   const handleTypeSelect = useCallback((type: 'caravan' | 'camping' | 'day_visitor', typeSites: BookingSite[]) => {
     setSiteType(type);
     setSites(typeSites);
-    setSelectedSiteId(null);
+    setSelectedSiteIds([]);
     setCheckIn(''); setCheckOut('');
     setNumGuests(1);
     setStep(2);
@@ -87,7 +90,7 @@ export default function PortalBookings() {
   }, []);
 
   const handleConfirm = useCallback(async () => {
-    if (!member || !selectedSiteId || !selectedSite) return;
+    if (!member || selectedSites.length === 0) return;
 
     const bookingCode = generateBookingCode(venue?.booking_code_prefix || 'VCA');
     const isFree = totalCents === 0;
@@ -116,14 +119,19 @@ export default function PortalBookings() {
       return;
     }
 
-    const { error: linkError } = await supabase.from('booking_site_link').insert({
-      venue_id: venueId,
-      booking_id: booking.id,
-      site_id: selectedSiteId,
-      nights,
-      price_per_night_cents: perNight,
-      subtotal_cents: totalCents,
-    });
+    const { error: linkError } = await supabase.from('booking_site_link').insert(
+      selectedSites.map(site => {
+        const sitePerNight = getPerNightPrice(site, numGuests);
+        return {
+          venue_id: venueId,
+          booking_id: booking.id,
+          site_id: site.id,
+          nights,
+          price_per_night_cents: sitePerNight,
+          subtotal_cents: nights * sitePerNight,
+        };
+      })
+    );
 
     if (linkError) {
       toast.error('Booking created but site link failed');
@@ -134,7 +142,7 @@ export default function PortalBookings() {
     queryClient.invalidateQueries({ queryKey: ['portal-upcoming-bookings'] });
     setConfirmedCode(bookingCode);
     setConfirmedBookingId(booking.id);
-  }, [member, selectedSiteId, selectedSite, venueId, guestName, guestEmail, guestPhone, checkIn, checkOut, isDayVisitor, numGuests, totalCents, notes, nights, perNight, queryClient, bookingFor]);
+  }, [member, selectedSites, venueId, guestName, guestEmail, guestPhone, checkIn, checkOut, isDayVisitor, numGuests, totalCents, notes, nights, queryClient, bookingFor]);
 
   const handleSelectPayment = useCallback(async (method: 'card' | 'eft') => {
     if (!confirmedBookingId || !member) return;
@@ -222,8 +230,8 @@ export default function PortalBookings() {
           {step === 2 && siteType && (
             <BookingDatesStep
               venueId={venueId} siteType={siteType} sites={sites}
-              selectedSiteId={selectedSiteId} checkIn={checkIn} checkOut={checkOut} numGuests={numGuests}
-              onSiteSelect={setSelectedSiteId} onCheckInChange={setCheckIn} onCheckOutChange={setCheckOut}
+              selectedSiteIds={selectedSiteIds} checkIn={checkIn} checkOut={checkOut} numGuests={numGuests}
+              onSitesChange={setSelectedSiteIds} onCheckInChange={setCheckIn} onCheckOutChange={setCheckOut}
               onGuestsChange={setNumGuests} onNext={() => setStep(3)} onBack={() => setStep(1)}
             />
           )}
@@ -237,12 +245,13 @@ export default function PortalBookings() {
             />
           )}
 
-          {step === 4 && selectedSite && (
+          {step === 4 && selectedSites.length > 0 && (
             <BookingReviewStep
-              siteType={siteType!} siteName={selectedSite.name}
+              siteType={siteType!}
+              sites={selectedSites.map(s => ({ name: s.name, perNightCents: getPerNightPrice(s, numGuests) }))}
               checkIn={checkIn} checkOut={isDayVisitor ? checkIn : checkOut}
               nights={nights} numGuests={numGuests}
-              perNightCents={perNight} totalCents={totalCents}
+              totalCents={totalCents}
               guestName={guestName} guestEmail={guestEmail} guestPhone={guestPhone}
               membershipNumber={member.membership_number} notes={notes}
               bookingFor={bookingFor} memberName={`${member.first_name} ${member.last_name}`}

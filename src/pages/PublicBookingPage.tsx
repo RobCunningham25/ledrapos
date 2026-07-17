@@ -207,11 +207,11 @@ export default function PublicBookingPage() {
     );
   }
 
-  const link = booking.booking_site_link?.[0];
-  const siteName = link?.booking_sites?.name || '—';
-  const siteType = link?.booking_sites?.site_type;
+  const links = booking.booking_site_link || [];
+  const siteName = links.map((l: any) => l.booking_sites?.name).filter(Boolean).join(', ') || '—';
+  const siteType = links[0]?.booking_sites?.site_type;
   const isDayVisitor = siteType === 'day_visitor';
-  const nights = link?.nights || 0;
+  const nights = links[0]?.nights || 0;
   const isVisuallyExpired = booking.status === 'PENDING' && booking.expires_at && new Date(booking.expires_at) < new Date();
   const displayStatus = isVisuallyExpired ? 'EXPIRED' : booking.status;
   const canPay = booking.status === 'PENDING' && booking.total_price_cents > 0 && !isVisuallyExpired;

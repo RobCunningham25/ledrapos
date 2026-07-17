@@ -252,9 +252,9 @@ function UpcomingBookingsCard({ venueId, memberId }: { venueId: string; memberId
       ) : (
         <div>
           {bookings.map((b: any, i: number) => {
-            const link = b.booking_site_link?.[0];
-            const siteName = link?.booking_sites?.name || '—';
-            const siteType = link?.booking_sites?.site_type;
+            const links = b.booking_site_link || [];
+            const siteName = links.map((l: any) => l.booking_sites?.name).filter(Boolean).join(', ') || '—';
+            const siteType = links[0]?.booking_sites?.site_type;
             const isDayVisitor = siteType === 'day_visitor';
             const pill = STATUS_PILL[b.status] || STATUS_PILL.PENDING;
             return (

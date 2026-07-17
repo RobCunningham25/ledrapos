@@ -1,9 +1,12 @@
-// expire-bookings — Flips PENDING EFT bookings past their expires_at to EXPIRED.
+// expire-bookings — Flips overdue PENDING bookings to EXPIRED so they stop
+// blocking site availability. Two cases:
+//   * EFT bookings past their expires_at (24h deadline set at payment choice)
+//   * Abandoned bookings where no payment method was ever chosen, 48h after
+//     creation (covers members who bail at the payment step and visitors who
+//     never open their /booking/:code link)
 //
-// SCHEDULING OPTIONS (configure separately):
-// 1. Supabase pg_cron: schedule every 15 min to POST this function URL
-// 2. External cron (cron-job.org, Vercel cron, GitHub Actions): POST every 15 min
-// 3. Manual: use "Process Expired" button in admin panel
+// Scheduled by pg_cron every 15 min (migration 20260717090000); also invoked
+// manually via the "Process Expired" button in the admin panel.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -24,14 +27,17 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    // Find all PENDING EFT bookings past their expiry
+    // Find PENDING bookings that are overdue: EFT past its expires_at, or
+    // no payment method chosen within 48h of creation.
+    const nowIso = new Date().toISOString();
+    const abandonedCutoff = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
     const { data: expired, error: queryError } = await supabase
       .from("bookings")
       .select("id, booking_code, venue_id")
       .eq("status", "PENDING")
-      .eq("payment_method", "eft")
-      .not("expires_at", "is", null)
-      .lt("expires_at", new Date().toISOString());
+      .or(
+        `and(payment_method.eq.eft,expires_at.lt.${nowIso}),and(payment_method.is.null,created_at.lt.${abandonedCutoff})`
+      );
 
     if (queryError) {
       console.error("Query error:", queryError.message);

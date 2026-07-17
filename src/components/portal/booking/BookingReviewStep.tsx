@@ -4,9 +4,10 @@ import { formatCents } from '@/utils/currency';
 import { format } from 'date-fns';
 
 interface Props {
-  siteType: 'caravan' | 'camping' | 'day_visitor'; siteName: string;
+  siteType: 'caravan' | 'camping' | 'day_visitor';
+  sites: { name: string; perNightCents: number }[];
   checkIn: string; checkOut: string; nights: number; numGuests: number;
-  perNightCents: number; totalCents: number;
+  totalCents: number;
   guestName: string; guestEmail: string; guestPhone: string;
   membershipNumber: string; notes: string;
   bookingFor?: 'self' | 'visitor'; memberName?: string;
@@ -35,7 +36,7 @@ function SectionHeader({ title, onEdit }: { title: string; onEdit?: () => void }
 }
 
 export default function BookingReviewStep(props: Props) {
-  const { siteType, siteName, checkIn, checkOut, nights, numGuests, perNightCents, totalCents,
+  const { siteType, sites, checkIn, checkOut, nights, numGuests, totalCents,
     guestName, guestEmail, guestPhone, membershipNumber, notes,
     bookingFor = 'self', memberName,
     onBack, onEditStep, onConfirm } = props;
@@ -57,7 +58,7 @@ export default function BookingReviewStep(props: Props) {
       <div style={{ background: 'var(--portal-card-bg)', border: `1px solid var(--portal-card-border)`, borderRadius: 'var(--portal-card-radius)', boxShadow: 'var(--portal-card-shadow)', padding: 24 }}>
         <SectionHeader title="Stay Details" onEdit={() => onEditStep(2)} />
         <Row label="Type" value={<span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Icon size={16} />{TYPE_LABELS[siteType]}</span>} />
-        {siteType === 'caravan' && <Row label="Site" value={siteName} />}
+        {siteType === 'caravan' && <Row label={sites.length === 1 ? 'Site' : 'Sites'} value={sites.map(s => s.name).join(', ')} />}
         <Row label="Check-in" value={fmtDate(checkIn)} />
         {!isDayVisitor && <Row label="Check-out" value={fmtDate(checkOut)} />}
         <Row label={isDayVisitor ? 'Duration' : 'Nights'} value={isDayVisitor ? '1 day' : `${nights}`} />
@@ -76,9 +77,15 @@ export default function BookingReviewStep(props: Props) {
         <div style={{ borderBottom: `1px solid var(--portal-card-border)`, margin: '16px 0' }} />
 
         <SectionHeader title="Pricing" />
-        <div style={{ fontSize: 14, color: 'var(--portal-text-primary)' }}>
-          {isDayVisitor ? 'Day Visitor: Free' : `${siteName}: ${nights} night${nights !== 1 ? 's' : ''} × ${formatCents(perNightCents)} = ${formatCents(totalCents)}`}
-        </div>
+        {isDayVisitor ? (
+          <div style={{ fontSize: 14, color: 'var(--portal-text-primary)' }}>Day Visitor: Free</div>
+        ) : (
+          sites.map(s => (
+            <div key={s.name} style={{ fontSize: 14, color: 'var(--portal-text-primary)', marginBottom: 4 }}>
+              {s.name}: {nights} night{nights !== 1 ? 's' : ''} × {formatCents(s.perNightCents)} = {formatCents(nights * s.perNightCents)}
+            </div>
+          ))
+        )}
 
         <div style={{ borderBottom: `2px solid var(--portal-card-border)`, margin: '16px 0' }} />
 
