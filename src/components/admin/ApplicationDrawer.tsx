@@ -5,6 +5,7 @@ import { format } from 'date-fns';
 import { X, Loader2, Printer, Bell, Check, UserPlus, ExternalLink } from 'lucide-react';
 import { formatZAR, type MembershipCategory } from '@/utils/membershipFees';
 import { buildMemberNotificationEmail } from '@/utils/buildMemberNotificationEmail';
+import { useVenueNav } from '@/hooks/useVenueNav';
 import type { Application } from '@/pages/admin/Applications';
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -52,6 +53,7 @@ interface Props {
 }
 
 export default function ApplicationDrawer({ application: app, venueId, onClose, onRefresh, onCreateMember }: Props) {
+  const { adminPath } = useVenueNav();
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [notes, setNotes] = useState(app.reviewer_notes ?? '');
   const [notesChanged, setNotesChanged] = useState(false);
@@ -158,7 +160,7 @@ export default function ApplicationDrawer({ application: app, venueId, onClose, 
   };
 
   const openPrintNotice = () => {
-    window.open(`/vca/admin/applications/${app.id}/notice`, '_blank', 'noopener');
+    window.open(adminPath(`applications/${app.id}/notice`), '_blank', 'noopener');
   };
 
   const fees = app.calculated_fees;
