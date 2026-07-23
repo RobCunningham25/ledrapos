@@ -36,6 +36,7 @@ interface Member {
   is_active: boolean;
   auth_user_id: string | null;
   created_at: string | null;
+  updated_at: string | null;
   last_sign_in_at: string | null;
   whatsapp_number?: string | null;
   whatsapp_opt_in?: boolean;
@@ -641,6 +642,15 @@ export default function MemberDetail() {
               title={member.last_sign_in_at ? new Date(member.last_sign_in_at).toLocaleString('en-ZA') : undefined}
             >
               {member.last_sign_in_at ? formatRelativeTime(member.last_sign_in_at) : '—'}
+            </p>
+          </div>
+          <div>
+            <p style={{ fontSize: 13, color: '#718096', fontWeight: 500 }}>Last updated</p>
+            <p
+              style={{ fontSize: 15, fontWeight: 500, color: '#1A202C' }}
+              title={member.updated_at ? new Date(member.updated_at).toLocaleString('en-ZA') : undefined}
+            >
+              {member.updated_at ? formatRelativeTime(member.updated_at) : '—'}
             </p>
           </div>
           <div>

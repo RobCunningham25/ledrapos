@@ -1156,8 +1156,10 @@ export type Database = {
           partner_phone: string | null
           phone: string | null
           unsubscribe_token: string
+          updated_at: string
           venue_id: string
           whatsapp_last_inbound_at: string | null
+          whatsapp_notice_sent_at: string | null
           whatsapp_number: string | null
           whatsapp_opt_in: boolean
           whatsapp_opt_in_at: string | null
@@ -1186,8 +1188,10 @@ export type Database = {
           partner_phone?: string | null
           phone?: string | null
           unsubscribe_token?: string
+          updated_at?: string
           venue_id: string
           whatsapp_last_inbound_at?: string | null
+          whatsapp_notice_sent_at?: string | null
           whatsapp_number?: string | null
           whatsapp_opt_in?: boolean
           whatsapp_opt_in_at?: string | null
@@ -1216,8 +1220,10 @@ export type Database = {
           partner_phone?: string | null
           phone?: string | null
           unsubscribe_token?: string
+          updated_at?: string
           venue_id?: string
           whatsapp_last_inbound_at?: string | null
+          whatsapp_notice_sent_at?: string | null
           whatsapp_number?: string | null
           whatsapp_opt_in?: boolean
           whatsapp_opt_in_at?: string | null
@@ -2094,7 +2100,9 @@ export type Database = {
           partner_name: string
           partner_phone: string
           phone: string
+          updated_at: string
           venue_id: string
+          whatsapp_notice_sent_at: string
           whatsapp_number: string
           whatsapp_opt_in: boolean
           whatsapp_opt_in_at: string

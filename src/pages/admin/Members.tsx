@@ -29,6 +29,7 @@ interface Member {
   partner_first_name: string | null;
   partner_last_name: string | null;
   last_sign_in_at: string | null;
+  updated_at: string | null;
   whatsapp_number: string | null;
   whatsapp_opt_in: boolean;
   whatsapp_opt_in_at: string | null;
@@ -265,18 +266,19 @@ export default function Members() {
               <th className="text-left px-4 py-3 font-medium text-muted-foreground">Portal</th>
               <th className="text-left px-4 py-3 font-medium text-muted-foreground">WhatsApp</th>
               <th className="text-left px-4 py-3 font-medium text-muted-foreground">Last Login</th>
+              <th className="text-left px-4 py-3 font-medium text-muted-foreground">Last Updated</th>
               <th className="text-right px-4 py-3 font-medium text-muted-foreground">Actions</th>
             </tr>
           </thead>
           <tbody>
             {loading && [1, 2, 3].map(i => (
               <tr key={i} className="border-b border-border">
-                <td className="px-4 py-3" colSpan={9}><Skeleton className="h-5 w-full" /></td>
+                <td className="px-4 py-3" colSpan={10}><Skeleton className="h-5 w-full" /></td>
               </tr>
             ))}
             {!loading && filteredMembers.length === 0 && (
               <tr>
-                <td className="px-4 py-8 text-center text-muted-foreground" colSpan={9}>No members found</td>
+                <td className="px-4 py-8 text-center text-muted-foreground" colSpan={10}>No members found</td>
               </tr>
             )}
             {filteredMembers.map(m => {
@@ -406,6 +408,18 @@ export default function Members() {
                         style={{ color: '#2D2A26' }}
                       >
                         {formatRelativeTime(m.last_sign_in_at)}
+                      </span>
+                    ) : (
+                      <span style={{ color: '#718096' }}>—</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3" style={{ fontSize: 13 }}>
+                    {m.updated_at ? (
+                      <span
+                        title={new Date(m.updated_at).toLocaleString('en-ZA')}
+                        style={{ color: '#2D2A26' }}
+                      >
+                        {formatRelativeTime(m.updated_at)}
                       </span>
                     ) : (
                       <span style={{ color: '#718096' }}>—</span>
