@@ -5,6 +5,7 @@ import { usePortalTheme } from '@/contexts/PortalThemeContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Home, Calendar, User, BedDouble, BookOpen, LogOut } from 'lucide-react';
 import { useVenueNav } from '@/hooks/useVenueNav';
+import PwaInstallPrompt from '@/components/portal/PwaInstallPrompt';
 
 function usePortalTabs() {
   const { portalPath } = useVenueNav();
@@ -64,6 +65,7 @@ export default function PortalLayout() {
 
   return (
     <div className="flex" style={{ minHeight: '100vh', background: 'var(--portal-page-bg)' }}>
+      <PwaInstallPrompt />
       {/* Desktop sidebar — hidden below lg */}
       <aside
         className="hidden lg:flex flex-col shrink-0"
@@ -158,15 +160,22 @@ export default function PortalLayout() {
           </div>
         </header>
 
-        {/* Content */}
-        <main className="flex-1 overflow-y-auto" style={{ padding: 16 }}>
+        {/* Content — extra bottom padding on mobile so content clears the fixed tab bar */}
+        <main
+          className="flex-1 overflow-y-auto p-4 pb-[calc(64px+env(safe-area-inset-bottom)+16px)] lg:pb-4"
+        >
           <Outlet />
         </main>
 
-        {/* Bottom tab bar — visible below lg */}
+        {/* Bottom tab bar — fixed to the viewport, visible below lg */}
         <nav
-          className="flex items-center shrink-0 lg:hidden"
+          className="flex items-center lg:hidden"
           style={{
+            position: 'fixed',
+            bottom: 0,
+            left: 0,
+            right: 0,
+            zIndex: 30,
             height: 64,
             background: 'var(--portal-card-bg)',
             borderTop: `1px solid var(--portal-card-border)`,
