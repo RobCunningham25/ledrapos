@@ -3,6 +3,7 @@ import { format, startOfWeek, endOfWeek } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
 import AdminLayout from '@/components/admin/AdminLayout';
 import BarTabRemindersCard from '@/components/admin/BarTabRemindersCard';
+import LivePaymentsCard from '@/components/admin/LivePaymentsCard';
 import OpenTabsDrawer from '@/components/admin/OpenTabsDrawer';
 import { useVenue } from '@/contexts/VenueContext';
 import { useVenueNav } from '@/hooks/useVenueNav';
@@ -67,6 +68,11 @@ export default function Dashboard() {
   return (
     <AdminLayout title="Dashboard">
       <div className="space-y-6">
+        <section>
+          <h3 style={sectionHeading}>Today</h3>
+          <LivePaymentsCard />
+        </section>
+
         <section>
           <h3 style={sectionHeading}>Needs Attention</h3>
           <div style={gridStyle}>
