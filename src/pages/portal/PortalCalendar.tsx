@@ -1,9 +1,10 @@
 import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { ChevronLeft, ChevronRight, MapPin, Repeat } from 'lucide-react';
+import { ChevronLeft, ChevronRight, MapPin, Repeat, CalendarPlus, Check, Copy } from 'lucide-react';
 import { usePortalAuth } from '@/contexts/PortalAuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { expandAllOccurrences, type EventSeries, type EventOccurrence, type MonthlyMode, type Recurrence } from '@/utils/eventOccurrences';
+import { downloadEventIcs } from '@/utils/ics';
 
 interface ClubEventRow {
   id: string;
@@ -103,6 +104,22 @@ export default function PortalCalendar() {
     },
     enabled: !!venueId,
     staleTime: 30_000,
+    refetchOnWindowFocus: false,
+  });
+
+  const { data: feedToken } = useQuery({
+    queryKey: ['portal-calendar-feed-token', venueId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('venues')
+        .select('calendar_feed_token')
+        .eq('id', venueId)
+        .maybeSingle();
+      if (error) throw error;
+      return (data?.calendar_feed_token as string | null) ?? null;
+    },
+    enabled: !!venueId,
+    staleTime: 5 * 60_000,
     refetchOnWindowFocus: false,
   });
 
@@ -275,6 +292,71 @@ export default function PortalCalendar() {
           </>
         )}
       </div>
+
+      {feedToken && <SubscribeCard token={feedToken} />}
+    </div>
+  );
+}
+
+function SubscribeCard({ token }: { token: string }) {
+  const [copied, setCopied] = useState(false);
+  const base = (import.meta.env.VITE_SUPABASE_URL as string) ?? '';
+  const httpsUrl = `${base}/functions/v1/calendar-feed?token=${token}`;
+  const webcalUrl = httpsUrl.replace(/^https?:\/\//, 'webcal://');
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(httpsUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Clipboard blocked (e.g. insecure context) — user can still long-press the link.
+    }
+  };
+
+  return (
+    <div style={{
+      marginTop: 32,
+      background: 'var(--portal-card-bg)', border: `1px solid var(--portal-card-border)`,
+      borderRadius: 'var(--portal-card-radius)', boxShadow: 'var(--portal-card-shadow)', padding: 20,
+    }}>
+      <h2 style={{ fontSize: 16, fontWeight: 600, color: 'var(--portal-primary)', margin: '0 0 6px' }}>
+        Add this calendar to your own
+      </h2>
+      <p style={{ fontSize: 14, color: 'var(--portal-text-secondary)', margin: '0 0 16px' }}>
+        Subscribe once and club events appear in Outlook, Google or Apple Calendar — new events and
+        changes sync automatically.
+      </p>
+
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+        <a
+          href={webcalUrl}
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: 8, textDecoration: 'none',
+            background: 'var(--portal-accent)', color: '#FFFFFF', borderRadius: 8,
+            padding: '10px 16px', fontSize: 14, fontWeight: 600,
+          }}
+        >
+          <CalendarPlus size={16} /> Subscribe
+        </a>
+        <button
+          onClick={copy}
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: 8, cursor: 'pointer',
+            background: 'var(--portal-card-bg)', color: 'var(--portal-primary)',
+            border: `1px solid var(--portal-card-border)`, borderRadius: 8,
+            padding: '10px 16px', fontSize: 14, fontWeight: 500,
+          }}
+        >
+          {copied ? <Check size={16} /> : <Copy size={16} />}
+          {copied ? 'Copied' : 'Copy link'}
+        </button>
+      </div>
+
+      <p style={{ fontSize: 12, color: 'var(--portal-text-muted)', margin: '14px 0 0', lineHeight: 1.5 }}>
+        In Outlook: <strong>Add calendar → Subscribe from web</strong>, then paste the copied link.
+        On iPhone the <strong>Subscribe</strong> button opens Apple Calendar directly.
+      </p>
     </div>
   );
 }
@@ -307,6 +389,25 @@ function EventCard({ event, showDate }: { event: EventOccurrence; showDate?: boo
       {event.description && (
         <p style={{ fontSize: 14, color: 'var(--portal-text-secondary)', marginTop: 8 }}>{event.description}</p>
       )}
+      <button
+        onClick={() => downloadEventIcs({
+          id: event.event_id,
+          occurrence_date: event.occurrence_date,
+          title: event.title,
+          description: event.description,
+          location: event.location,
+          start_time: event.start_time,
+          end_time: event.end_time,
+        })}
+        style={{
+          display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer',
+          marginTop: 12, background: 'transparent', color: 'var(--portal-accent)',
+          border: `1px solid var(--portal-card-border)`, borderRadius: 8,
+          padding: '6px 12px', fontSize: 13, fontWeight: 500,
+        }}
+      >
+        <CalendarPlus size={14} /> Add to calendar
+      </button>
     </div>
   );
 }

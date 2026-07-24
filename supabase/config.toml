@@ -56,3 +56,6 @@ verify_jwt = false
 
 [functions.request-password-reset]
 verify_jwt = false
+
+[functions.calendar-feed]
+verify_jwt = false

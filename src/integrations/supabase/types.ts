@@ -1811,6 +1811,7 @@ export type Database = {
           booking_code_prefix: string
           broadcast_from_email: string | null
           button_radius: string
+          calendar_feed_token: string
           card_background: string
           card_border: string
           card_radius: string
@@ -1848,6 +1849,7 @@ export type Database = {
           booking_code_prefix?: string
           broadcast_from_email?: string | null
           button_radius?: string
+          calendar_feed_token?: string
           card_background?: string
           card_border?: string
           card_radius?: string
@@ -1885,6 +1887,7 @@ export type Database = {
           booking_code_prefix?: string
           broadcast_from_email?: string | null
           button_radius?: string
+          calendar_feed_token?: string
           card_background?: string
           card_border?: string
           card_radius?: string
