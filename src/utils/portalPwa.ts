@@ -95,14 +95,19 @@ async function loadLogoImage(url: string): Promise<HTMLImageElement> {
   }
 }
 
-function drawInitials(ctx: CanvasRenderingContext2D, size: number, venueName: string) {
+function drawInitials(
+  ctx: CanvasRenderingContext2D,
+  size: number,
+  venueName: string,
+  color: string,
+) {
   const initials = venueName
     .split(/\s+/)
     .filter(Boolean)
     .slice(0, 3)
     .map((w) => w[0].toUpperCase())
     .join('') || 'C';
-  ctx.fillStyle = '#FFFFFF';
+  ctx.fillStyle = color;
   ctx.font = `700 ${Math.round(size / (initials.length >= 3 ? 3.2 : 2.6))}px system-ui, sans-serif`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
@@ -112,6 +117,7 @@ function drawInitials(ctx: CanvasRenderingContext2D, size: number, venueName: st
 async function buildIconDataUrl(
   logoUrl: string | null,
   backgroundColor: string,
+  initialsColor: string,
   venueName: string,
   size: number,
 ): Promise<string> {
@@ -141,7 +147,7 @@ async function buildIconDataUrl(
       // Cross-origin block, 404, unsupported format — fall through to initials
     }
   }
-  if (!drewLogo) drawInitials(ctx, size, venueName);
+  if (!drewLogo) drawInitials(ctx, size, venueName, initialsColor);
 
   return canvas.toDataURL('image/png');
 }
@@ -156,9 +162,13 @@ let currentManifestUrl: string | null = null;
 export async function injectPortalManifest(opts: PortalManifestOptions): Promise<void> {
   const startUrl = new URL(opts.startPath, window.location.origin).href;
 
+  // The app icon draws on white, not the navy theme colour: tenant flag logos
+  // have dark areas that vanish against navy. White keeps the full flag visible;
+  // the initials fallback flips to the theme colour so it stays legible on white.
+  const iconBackground = '#FFFFFF';
   const [icon192, icon512] = await Promise.all([
-    buildIconDataUrl(opts.logoUrl, opts.themeColor, opts.venueName, 192),
-    buildIconDataUrl(opts.logoUrl, opts.themeColor, opts.venueName, 512),
+    buildIconDataUrl(opts.logoUrl, iconBackground, opts.themeColor, opts.venueName, 192),
+    buildIconDataUrl(opts.logoUrl, iconBackground, opts.themeColor, opts.venueName, 512),
   ]);
 
   const manifest = {

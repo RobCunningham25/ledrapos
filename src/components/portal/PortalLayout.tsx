@@ -72,7 +72,11 @@ export default function PortalLayout() {
         style={{ width: 240, background: 'var(--portal-primary)', position: 'fixed', top: 0, left: 0, bottom: 0, zIndex: 30 }}
       >
         <div style={{ padding: '24px 20px 0', display: 'flex', alignItems: 'center', gap: 10 }}>
-          {T.logoUrl && <img src={T.logoUrl} alt="" style={{ maxHeight: 36, objectFit: 'contain' }} />}
+          {T.logoUrl && (
+            <span style={{ display: 'inline-flex', background: '#FFFFFF', borderRadius: 8, padding: 4 }}>
+              <img src={T.logoUrl} alt="" style={{ maxHeight: 36, objectFit: 'contain', display: 'block' }} />
+            </span>
+          )}
           <span style={{ fontWeight: 700, fontSize: 18, color: '#FFFFFF' }}>{T.venueName}</span>
         </div>
         <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', padding: '8px 20px 0', marginBottom: 32 }}>
@@ -136,7 +140,11 @@ export default function PortalLayout() {
           style={{ height: 64, background: 'var(--portal-primary)', padding: '0 20px' }}
         >
           <div className="flex items-center gap-2">
-            {T.logoUrl && <img src={T.logoUrl} alt="" className="lg:hidden" style={{ maxHeight: 28, objectFit: 'contain' }} />}
+            {T.logoUrl && (
+              <span className="lg:hidden" style={{ display: 'inline-flex', background: '#FFFFFF', borderRadius: 6, padding: 3 }}>
+                <img src={T.logoUrl} alt="" style={{ maxHeight: 28, objectFit: 'contain', display: 'block' }} />
+              </span>
+            )}
             <span className="hidden lg:inline" style={{ fontWeight: 600, fontSize: 16, color: '#FFFFFF' }}>
               {T.venueName}
             </span>
