@@ -53,6 +53,12 @@ interface ChildRow {
   dob: string;
 }
 
+interface BoatDraftRow {
+  id: string | null;
+  name: string;
+  reg: string;
+}
+
 interface FormState {
   first_name: string;
   last_name: string;
@@ -104,6 +110,9 @@ export default function MemberDrawer({ isOpen, onClose, venueId, member, onSucce
   const [kids, setKids] = useState<ChildRow[]>([]);
   const [newChildName, setNewChildName] = useState('');
   const [newChildDob, setNewChildDob] = useState('');
+  const [boats, setBoats] = useState<BoatDraftRow[]>([]);
+  const [newBoatName, setNewBoatName] = useState('');
+  const [newBoatReg, setNewBoatReg] = useState('');
 
   useEffect(() => {
     if (isOpen) {
@@ -172,16 +181,28 @@ export default function MemberDrawer({ isOpen, onClose, venueId, member, onSucce
           .then(({ data }) => {
             setKids(((data as { id: string; full_name: string; date_of_birth: string }[]) || []).map(r => ({ id: r.id, name: r.full_name, dob: r.date_of_birth })));
           });
+        supabase
+          .from('member_boats')
+          .select('id, boat_name, registration_number')
+          .eq('member_id', member.id)
+          .eq('venue_id', venueId)
+          .order('created_at')
+          .then(({ data }) => {
+            setBoats(((data as { id: string; boat_name: string; registration_number: string | null }[]) || []).map(r => ({ id: r.id, name: r.boat_name, reg: r.registration_number || '' })));
+          });
       } else {
         setForm(emptyForm);
         setSites([]);
         setSheds([]);
         setKids([]);
+        setBoats([]);
       }
       setNewSite('');
       setNewShed('');
       setNewChildName('');
       setNewChildDob('');
+      setNewBoatName('');
+      setNewBoatReg('');
       setErrors({});
     }
   }, [isOpen, member, venueId]);
@@ -269,6 +290,34 @@ export default function MemberDrawer({ isOpen, onClose, venueId, member, onSucce
     setKids(prev => prev.filter((_, i) => i !== index));
   };
 
+  const addBoat = async () => {
+    const name = newBoatName.trim();
+    if (!name) { toast.error('Boat name is required'); return; }
+    const reg = newBoatReg.trim();
+    if (isEdit && member) {
+      const { data, error } = await supabase
+        .from('member_boats')
+        .insert({ venue_id: venueId, member_id: member.id, boat_name: name, registration_number: reg || null })
+        .select('id')
+        .single();
+      if (error) { toast.error('Failed to add boat'); return; }
+      setBoats(prev => [...prev, { id: data.id, name, reg }]);
+    } else {
+      setBoats(prev => [...prev, { id: null, name, reg }]);
+    }
+    setNewBoatName('');
+    setNewBoatReg('');
+  };
+
+  const removeBoat = async (index: number) => {
+    const row = boats[index];
+    if (row.id) {
+      const { error } = await supabase.from('member_boats').delete().eq('id', row.id);
+      if (error) { toast.error('Failed to remove boat'); return; }
+    }
+    setBoats(prev => prev.filter((_, i) => i !== index));
+  };
+
   function validate(): boolean {
     const e: Partial<Record<keyof FormState, string>> = {};
     if (!form.first_name.trim()) e.first_name = 'First name is required';
@@ -338,13 +387,15 @@ export default function MemberDrawer({ isOpen, onClose, venueId, member, onSucce
         const pendingSites = sites.filter(s => !s.id).map(s => ({ venue_id: venueId, member_id: created.id, site_number: s.value }));
         const pendingSheds = sheds.filter(s => !s.id).map(s => ({ venue_id: venueId, member_id: created.id, shed_number: s.value }));
         const pendingKids = kids.filter(k => !k.id).map(k => ({ venue_id: venueId, member_id: created.id, full_name: k.name, date_of_birth: k.dob }));
-        const [siteRes, shedRes, kidRes] = await Promise.all([
+        const pendingBoats = boats.filter(b => !b.id).map(b => ({ venue_id: venueId, member_id: created.id, boat_name: b.name, registration_number: b.reg.trim() || null }));
+        const [siteRes, shedRes, kidRes, boatRes] = await Promise.all([
           pendingSites.length ? supabase.from('member_sites').insert(pendingSites) : Promise.resolve({ error: null }),
           pendingSheds.length ? supabase.from('member_boat_sheds').insert(pendingSheds) : Promise.resolve({ error: null }),
           pendingKids.length ? supabase.from('member_children').insert(pendingKids) : Promise.resolve({ error: null }),
+          pendingBoats.length ? supabase.from('member_boats').insert(pendingBoats) : Promise.resolve({ error: null }),
         ]);
-        if (siteRes.error || shedRes.error || kidRes.error) {
-          toast.error('Member saved, but some sites/sheds/children failed to save — edit the member to retry');
+        if (siteRes.error || shedRes.error || kidRes.error || boatRes.error) {
+          toast.error('Member saved, but some sites/sheds/children/boats failed to save — edit the member to retry');
         }
       }
     }
@@ -503,6 +554,38 @@ export default function MemberDrawer({ isOpen, onClose, venueId, member, onSucce
               />
               <Button type="button" onClick={addShed} style={{ height: 36, background: '#2E5FA3', color: '#FFFFFF', fontWeight: 500, borderRadius: 6, paddingLeft: 14, paddingRight: 14 }}>Add</Button>
             </div>
+            <Label style={{ fontSize: 14, fontWeight: 600, color: '#1A202C', display: 'block', marginTop: 16 }}>Boats</Label>
+            <div className="space-y-2 mt-2 mb-2">
+              {boats.length === 0 && <p style={{ fontSize: 12, color: '#718096' }}>No boats added</p>}
+              {boats.map((b, i) => (
+                <div key={b.id ?? `new-${i}`} className="flex items-center justify-between" style={{ border: '1px solid #E2E8F0', borderRadius: 6, padding: '8px 12px' }}>
+                  <div>
+                    <span style={{ fontSize: 13, fontWeight: 500, color: '#1A202C' }}>{b.name}</span>
+                    <p style={{ fontSize: 12, color: '#718096' }}>{b.reg || 'No registration'}</p>
+                  </div>
+                  <button type="button" onClick={() => removeBoat(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#718096', display: 'flex', alignItems: 'center' }}>
+                    <X size={14} />
+                  </button>
+                </div>
+              ))}
+            </div>
+            <div className="flex items-center gap-2">
+              <Input
+                placeholder="Boat name"
+                value={newBoatName}
+                onChange={e => setNewBoatName(e.target.value)}
+                style={{ height: 40, borderRadius: 6, fontSize: 14, flex: 1 }}
+              />
+              <Input
+                placeholder="Registration number"
+                value={newBoatReg}
+                onChange={e => setNewBoatReg(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addBoat(); } }}
+                style={{ height: 40, borderRadius: 6, fontSize: 14, flex: 1 }}
+              />
+              <Button type="button" onClick={addBoat} style={{ height: 36, background: '#2E5FA3', color: '#FFFFFF', fontWeight: 500, borderRadius: 6, paddingLeft: 14, paddingRight: 14 }}>Add</Button>
+            </div>
+
             <Label style={{ fontSize: 14, fontWeight: 600, color: '#1A202C', display: 'block', marginTop: 16 }}>Children</Label>
             <div className="space-y-2 mt-2 mb-2">
               {kids.length === 0 && <p style={{ fontSize: 12, color: '#718096' }}>No children added</p>}
@@ -538,7 +621,7 @@ export default function MemberDrawer({ isOpen, onClose, venueId, member, onSucce
             </div>
             <p style={{ fontSize: 12, color: '#718096', marginTop: 8 }}>
               Category comes from date of birth: Under 12 (included), Junior 12–18, Intermediate 19–30.
-              {isEdit && ' Site, shed, and child changes save immediately.'}
+              {isEdit && ' Site, shed, boat, and child changes save immediately.'}
             </p>
           </div>
 

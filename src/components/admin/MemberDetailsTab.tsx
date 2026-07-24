@@ -36,6 +36,10 @@ export default function MemberDetailsTab({ memberId, venueId, onMemberUpdated }:
   const [boats, setBoats] = useState<BoatRow[]>([]);
   const [newBoatName, setNewBoatName] = useState('');
   const [newBoatReg, setNewBoatReg] = useState('');
+  const [editingBoatId, setEditingBoatId] = useState<string | null>(null);
+  const [editBoatName, setEditBoatName] = useState('');
+  const [editBoatReg, setEditBoatReg] = useState('');
+  const [savingBoat, setSavingBoat] = useState(false);
   const [children, setChildren] = useState<ChildRow[]>([]);
   const [newChildName, setNewChildName] = useState('');
   const [newChildDob, setNewChildDob] = useState('');
@@ -111,33 +115,69 @@ export default function MemberDetailsTab({ memberId, venueId, onMemberUpdated }:
   };
 
   const addSite = async () => {
-    if (!newSite.trim()) return;
-    await supabase.from('member_sites').insert({ venue_id: venueId, member_id: memberId, site_number: newSite.trim() });
+    if (!newSite.trim()) { toast.error('Site number is required'); return; }
+    const { error } = await supabase.from('member_sites').insert({ venue_id: venueId, member_id: memberId, site_number: newSite.trim() });
+    if (error) { toast.error('Failed to add site'); return; }
     setNewSite(''); fetchSites(); toast.success('Site added');
   };
-  const removeSite = async (id: string) => { await supabase.from('member_sites').delete().eq('id', id); fetchSites(); };
+  const removeSite = async (id: string) => {
+    const { error } = await supabase.from('member_sites').delete().eq('id', id);
+    if (error) { toast.error('Failed to remove site'); return; }
+    fetchSites();
+  };
 
   const addShed = async () => {
-    if (!newShed.trim()) return;
-    await supabase.from('member_boat_sheds').insert({ venue_id: venueId, member_id: memberId, shed_number: newShed.trim() });
+    if (!newShed.trim()) { toast.error('Shed number is required'); return; }
+    const { error } = await supabase.from('member_boat_sheds').insert({ venue_id: venueId, member_id: memberId, shed_number: newShed.trim() });
+    if (error) { toast.error('Failed to add shed'); return; }
     setNewShed(''); fetchSheds(); toast.success('Shed added');
   };
-  const removeShed = async (id: string) => { await supabase.from('member_boat_sheds').delete().eq('id', id); fetchSheds(); };
+  const removeShed = async (id: string) => {
+    const { error } = await supabase.from('member_boat_sheds').delete().eq('id', id);
+    if (error) { toast.error('Failed to remove shed'); return; }
+    fetchSheds();
+  };
 
   const addBoat = async () => {
-    if (!newBoatName.trim()) return;
-    await supabase.from('member_boats').insert({ venue_id: venueId, member_id: memberId, boat_name: newBoatName.trim(), registration_number: newBoatReg.trim() || null });
+    if (!newBoatName.trim()) { toast.error('Boat name is required'); return; }
+    const { error } = await supabase.from('member_boats').insert({ venue_id: venueId, member_id: memberId, boat_name: newBoatName.trim(), registration_number: newBoatReg.trim() || null });
+    if (error) { toast.error('Failed to add boat'); return; }
     setNewBoatName(''); setNewBoatReg(''); fetchBoats(); toast.success('Boat added');
   };
-  const removeBoat = async (id: string) => { await supabase.from('member_boats').delete().eq('id', id); fetchBoats(); };
+  const startEditBoat = (b: BoatRow) => {
+    setEditingBoatId(b.id);
+    setEditBoatName(b.boat_name);
+    setEditBoatReg(b.registration_number || '');
+  };
+  const cancelEditBoat = () => { setEditingBoatId(null); setEditBoatName(''); setEditBoatReg(''); };
+  const saveBoatEdit = async (id: string) => {
+    if (!editBoatName.trim()) { toast.error('Boat name is required'); return; }
+    setSavingBoat(true);
+    const { error } = await supabase.from('member_boats')
+      .update({ boat_name: editBoatName.trim(), registration_number: editBoatReg.trim() || null })
+      .eq('id', id);
+    setSavingBoat(false);
+    if (error) { toast.error('Failed to save boat'); return; }
+    cancelEditBoat(); fetchBoats(); toast.success('Boat updated');
+  };
+  const removeBoat = async (id: string) => {
+    const { error } = await supabase.from('member_boats').delete().eq('id', id);
+    if (error) { toast.error('Failed to remove boat'); return; }
+    fetchBoats();
+  };
 
   const addChild = async () => {
     if (!newChildName.trim()) { toast.error('Child name is required'); return; }
     if (!newChildDob) { toast.error('Date of birth is required'); return; }
-    await supabase.from('member_children').insert({ venue_id: venueId, member_id: memberId, full_name: newChildName.trim(), date_of_birth: newChildDob });
+    const { error } = await supabase.from('member_children').insert({ venue_id: venueId, member_id: memberId, full_name: newChildName.trim(), date_of_birth: newChildDob });
+    if (error) { toast.error('Failed to add child'); return; }
     setNewChildName(''); setNewChildDob(''); fetchChildren(); toast.success('Child added');
   };
-  const removeChild = async (id: string) => { await supabase.from('member_children').delete().eq('id', id); fetchChildren(); };
+  const removeChild = async (id: string) => {
+    const { error } = await supabase.from('member_children').delete().eq('id', id);
+    if (error) { toast.error('Failed to remove child'); return; }
+    fetchChildren();
+  };
 
   const inputStyle = { height: 44, borderRadius: 6, fontSize: 14 };
   const labelStyle: React.CSSProperties = { fontSize: 13, fontWeight: 500, color: '#718096', marginBottom: 4, display: 'block' };
@@ -255,11 +295,30 @@ export default function MemberDetailsTab({ memberId, venueId, onMemberUpdated }:
         {boats.length === 0 && <p style={{ fontSize: 13, color: '#718096', marginBottom: 12 }}>No boats added</p>}
         <div className="space-y-2 mb-3">
           {boats.map(b => (
-            <div key={b.id} className="relative" style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 6, padding: 12 }}>
-              <p style={{ fontWeight: 500, color: '#1A202C' }}>{b.boat_name}</p>
-              <p style={{ fontSize: 13, color: '#718096' }}>{b.registration_number || 'No registration'}</p>
-              <button onClick={() => removeBoat(b.id)} className="absolute top-3 right-3" style={{ fontSize: 13, color: '#C0392B', background: 'none', border: 'none', cursor: 'pointer' }}>Remove</button>
-            </div>
+            editingBoatId === b.id ? (
+              <div key={b.id} style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 6, padding: 12 }}>
+                <div className="flex flex-col md:flex-row items-stretch md:items-center gap-2">
+                  <Input placeholder="Boat name" value={editBoatName} onChange={e => setEditBoatName(e.target.value)} style={{ ...inputStyle, flex: 1 }} />
+                  <Input placeholder="Registration number" value={editBoatReg} onChange={e => setEditBoatReg(e.target.value)} style={{ ...inputStyle, flex: 1 }} />
+                </div>
+                <div className="flex items-center gap-2 mt-2">
+                  <Button onClick={() => saveBoatEdit(b.id)} disabled={savingBoat} style={{ height: 36, background: '#2E5FA3', color: '#FFFFFF', fontWeight: 500, borderRadius: 6, paddingLeft: 14, paddingRight: 14 }}>
+                    {savingBoat && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                    Save
+                  </Button>
+                  <Button onClick={cancelEditBoat} variant="outline" style={{ height: 36, borderRadius: 6, paddingLeft: 14, paddingRight: 14 }}>Cancel</Button>
+                </div>
+              </div>
+            ) : (
+              <div key={b.id} className="relative" style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 6, padding: 12 }}>
+                <p style={{ fontWeight: 500, color: '#1A202C' }}>{b.boat_name}</p>
+                <p style={{ fontSize: 13, color: '#718096' }}>{b.registration_number || 'No registration'}</p>
+                <div className="absolute top-3 right-3 flex items-center gap-3">
+                  <button onClick={() => startEditBoat(b)} style={{ fontSize: 13, color: '#2E5FA3', background: 'none', border: 'none', cursor: 'pointer' }}>Edit</button>
+                  <button onClick={() => removeBoat(b.id)} style={{ fontSize: 13, color: '#C0392B', background: 'none', border: 'none', cursor: 'pointer' }}>Remove</button>
+                </div>
+              </div>
+            )
           ))}
         </div>
         <div className="flex flex-col md:flex-row items-stretch md:items-center gap-2">
