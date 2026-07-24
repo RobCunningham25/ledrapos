@@ -99,6 +99,7 @@ async function generateLinkAndSend(
   })
 
   if (linkError) {
+    console.error('[invite] generateLink error:', JSON.stringify(linkError), 'status=', (linkError as { status?: number }).status)
     return { error: `Supabase Auth error: ${linkError.message}` }
   }
 
@@ -161,10 +162,15 @@ Deno.serve(async (req) => {
     const siteUrl = (Deno.env.get('SITE_URL') ?? 'https://pos.ledra.co.za').replace(/\/$/, '')
     const fromEmail = Deno.env.get('INVITE_FROM_EMAIL') ?? 'info@vaalcruising.co.za'
 
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    )
+    // getUser (caller auth) + DB access stay on the legacy service_role key, which
+    // GoTrue accepts as an apikey. Only the Auth *admin* calls (generateLink,
+    // getUserById, listUsers, deleteUser) use the new asymmetric secret key, since
+    // the legacy key is intermittently rejected on GoTrue admin endpoints since the
+    // ES256 signing-key migration.
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
+    const secretKey = Deno.env.get('SB_SECRET_KEY')
+    const supabase = createClient(supabaseUrl, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
+    const supabaseAdmin = secretKey ? createClient(supabaseUrl, secretKey) : supabase
 
     const authHeader = req.headers.get('Authorization')
     if (!authHeader) {
@@ -227,12 +233,13 @@ Deno.serve(async (req) => {
     let existingAuthUser: { id: string; email?: string; email_confirmed_at?: string | null; last_sign_in_at?: string | null } | null = null
 
     if (member.auth_user_id) {
-      const { data: byId } = await supabase.auth.admin.getUserById(member.auth_user_id)
+      const { data: byId } = await supabaseAdmin.auth.admin.getUserById(member.auth_user_id)
       if (byId?.user) existingAuthUser = byId.user as typeof existingAuthUser
     }
 
     if (!existingAuthUser) {
-      const { data: usersData } = await supabase.auth.admin.listUsers({ perPage: 1000 })
+      const { data: usersData, error: listErr } = await supabaseAdmin.auth.admin.listUsers({ perPage: 1000 })
+      if (listErr) console.error('[invite] listUsers error:', JSON.stringify(listErr))
       if (usersData?.users) {
         existingAuthUser = (usersData.users.find(
           (u) => u.email?.toLowerCase() === email
@@ -244,8 +251,9 @@ Deno.serve(async (req) => {
 
     // New-invite path: member has no auth_user_id and no existing auth user with this email.
     if (!resend && !existingAuthUser) {
-      const result = await generateLinkAndSend(supabase, member, venue, siteUrl, resendApiKey, fromEmail)
+      const result = await generateLinkAndSend(supabaseAdmin, member, venue, siteUrl, resendApiKey, fromEmail)
       if (result.error || !result.user) {
+        console.error('[invite] new-invite failed:', result.error)
         return json(500, { error: result.error ?? 'Failed to send invite.' })
       }
 
@@ -290,7 +298,7 @@ Deno.serve(async (req) => {
     if (resend) {
       if (!existingAuthUser) {
         // Nothing to resend to — fall through to a fresh invite.
-        const result = await generateLinkAndSend(supabase, member, venue, siteUrl, resendApiKey, fromEmail)
+        const result = await generateLinkAndSend(supabaseAdmin, member, venue, siteUrl, resendApiKey, fromEmail)
         if (result.error || !result.user) {
           return json(500, { error: result.error ?? 'Failed to send invite.' })
         }
@@ -310,12 +318,12 @@ Deno.serve(async (req) => {
 
       // Delete the unconfirmed auth user and re-invite fresh. This regenerates the invite
       // token and triggers a fresh invite email.
-      const { error: delError } = await supabase.auth.admin.deleteUser(existingAuthUser.id)
+      const { error: delError } = await supabaseAdmin.auth.admin.deleteUser(existingAuthUser.id)
       if (delError) {
         return json(500, { error: `Failed to reset prior invite: ${delError.message}` })
       }
 
-      const result = await generateLinkAndSend(supabase, member, venue, siteUrl, resendApiKey, fromEmail)
+      const result = await generateLinkAndSend(supabaseAdmin, member, venue, siteUrl, resendApiKey, fromEmail)
       if (result.error || !result.user) {
         // The old user was deleted; clear the stale link so Invite works again.
         await supabase.from('members').update({ auth_user_id: null }).eq('id', member_id)
@@ -338,6 +346,7 @@ Deno.serve(async (req) => {
     return json(500, { error: 'Unhandled invite state.' })
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
+    console.error('[invite] crash:', message, err instanceof Error ? err.stack : '')
     return json(500, { error: `Invite function crashed: ${message}` })
   }
 })

@@ -11,10 +11,14 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    )
+    // getUser (caller auth) + DB access stay on the legacy service_role key, which
+    // GoTrue accepts as an apikey. Only the Auth *admin* call (inviteUserByEmail)
+    // uses the new asymmetric secret key, since the legacy key is intermittently
+    // rejected on GoTrue admin endpoints since the ES256 signing-key migration.
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
+    const secretKey = Deno.env.get('SB_SECRET_KEY')
+    const supabase = createClient(supabaseUrl, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
+    const supabaseAdmin = secretKey ? createClient(supabaseUrl, secretKey) : supabase
 
     // Verify the caller is a superadmin
     const authHeader = req.headers.get('Authorization')
@@ -98,7 +102,7 @@ Deno.serve(async (req) => {
     }
 
     // Send Supabase Auth invite
-    const { data: authData, error: inviteError } = await supabase.auth.admin.inviteUserByEmail(
+    const { data: authData, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(
       email,
       { data: { role: 'admin', venue_id } }
     )

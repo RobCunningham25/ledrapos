@@ -17,6 +17,9 @@ Deno.serve(async (req) => {
   }
 
   try {
+    // This function only verifies the caller (getUser) and reads/writes the DB —
+    // no GoTrue admin calls — so it stays entirely on the legacy service_role key,
+    // which GoTrue accepts as an apikey. (The new secret key breaks getUser.)
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!

@@ -82,7 +82,10 @@ Deno.serve(async (req) => {
 
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+      // Prefer the new asymmetric secret API key; the legacy HS256 service_role
+      // key is being rejected by GoTrue admin endpoints since the ES256 signing-key
+      // migration. Fall back to the legacy key if SB_SECRET_KEY isn't set yet.
+      (Deno.env.get('SB_SECRET_KEY') ?? Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'))!
     )
 
     const { email, venue_id } = await req.json()
