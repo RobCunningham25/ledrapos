@@ -58,9 +58,9 @@ export function wrapWithFooter(input: WrapInput): WrapOutput {
   <div style="max-width:600px;margin:0 auto;padding:32px 20px;">
     <div style="background:#FFFFFF;border:1px solid #E2E8F0;border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.06);">
 
-      <div style="background:#1B3A4B;padding:28px 32px 24px;text-align:center;border-bottom:3px solid #2A9D8F;">
+      <div style="background:#FFFFFF;padding:28px 32px 24px;text-align:center;border-bottom:3px solid #2A9D8F;">
         ${logoBlock}
-        <div style="color:#FAF8F5;font-size:20px;font-weight:700;letter-spacing:0.02em;">${safeVenue}</div>
+        <div style="color:#1B3A4B;font-size:20px;font-weight:700;letter-spacing:0.02em;">${safeVenue}</div>
         ${headerPhone}
       </div>
 

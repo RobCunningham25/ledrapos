@@ -160,8 +160,14 @@ Dashboard cards use: white background, `1px solid #E2E8F0` border, `8px` radius,
   template until approved).
 - **Phase 11D:** Sundowner Bay Yacht Club demo tenant (deferred to sales phase)
 - **Phase 11F-2:** Bar inventory import
-- **EFT expiry cron:** Server-side enforcement deferred (currently visual-only)
-- **PWA:** Parked for later
+- ~~**EFT expiry cron**~~ Done 2026-07-17: pg_cron job `expire-eft-bookings` invokes
+  `expire-bookings` every 15 min; also expires abandoned bookings (no payment method
+  chosen) 48h after creation
+- **PWA (POS/admin):** Parked for later. The **member portal is already a PWA** — per-venue
+  manifest built at runtime ([src/utils/portalPwa.ts](src/utils/portalPwa.ts), blob URL + canvas-generated
+  icons from `logo_url`), no-cache service worker at `public/sw.js`, one-time install banner
+  (`PwaInstallPrompt` in PortalLayout; localStorage-flagged per slug; native prompt on Android,
+  instructions on iOS)
 
 ---
 

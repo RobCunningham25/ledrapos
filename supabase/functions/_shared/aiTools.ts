@@ -75,6 +75,12 @@ export const TOOL_DEFINITIONS = [
     input_schema: { type: "object", properties: {}, required: [] },
   },
   {
+    name: "get_my_club_balance",
+    description:
+      "Look up the calling member's CLUB ACCOUNT statement balance — the annual subscriptions and levies they owe the club, per the latest statement imported from the club's accounting system. This is a DIFFERENT thing from the bar tab (get_my_tab) and from pre-paid bar credit (get_my_credit_balance): it is the member's formal club-fees account. Use this when the member asks 'what do I owe the club', 'what are my subs', 'my club account balance', 'do I owe any levies'. It returns a statement snapshot as at a date — it is NOT live — so always tell the member the as-of date and that any payment they've made since then may not be reflected yet. There is no payment link for club fees; never offer pay_my_tab_link for a club-account balance. Like the bar tab, this is private to the calling member and there is no way to look it up for anyone else.",
+    input_schema: { type: "object", properties: {}, required: [] },
+  },
+  {
     name: "get_my_bookings",
     description:
       "List the calling member's upcoming caravan / accommodation bookings. Optionally filter by status.",
@@ -450,6 +456,49 @@ async function tool_get_my_credit_balance(ctx: ToolContext): Promise<ToolResult>
   return {
     output: { status: "ok", credit_zar: centsToZar(balance) },
     logSummary: `get_my_credit_balance: R${centsToZar(balance).toFixed(2)}`,
+  };
+}
+
+async function tool_get_my_club_balance(ctx: ToolContext): Promise<ToolResult> {
+  // Latest statement snapshot for THIS member only. Only total_due_cents +
+  // as_of_date are exposed — the aging buckets carry Sage's unallocated-payment
+  // negatives, which confuse members (mirrors the portal ClubAccountCard).
+  const { data } = await ctx.supabase
+    .from("member_club_balances")
+    .select("total_due_cents, as_of_date")
+    .eq("venue_id", ctx.venueId)
+    .eq("member_id", ctx.memberId)
+    .order("as_of_date", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (!data) {
+    return {
+      output: {
+        status: "no_statement",
+        note: "No club-account statement has been imported for this member yet. Tell the member there's nothing on file and they can check with the club if they expected a statement.",
+      },
+      logSummary: "get_my_club_balance: none",
+    };
+  }
+
+  const cents = (data.total_due_cents as number) ?? 0;
+  const state = cents > 0 ? "owing" : cents < 0 ? "in_credit" : "settled";
+  const asOf = data.as_of_date as string;
+
+  return {
+    output: {
+      status: "ok",
+      state,
+      amount_zar: centsToZar(Math.abs(cents)),
+      as_of_date: asOf,
+      note: state === "owing"
+        ? "Amount owing to the club (subs and levies) as at as_of_date. This is a statement snapshot, NOT live — tell the member the as-of date and that any payment made after it won't show yet. There is NO payment link for club fees; do NOT offer pay_my_tab_link (that settles the bar tab only). If they want to pay or query it, they should contact the club."
+        : state === "in_credit"
+        ? "The member's club account is IN CREDIT by this amount as at as_of_date. Snapshot, not live — mention the as-of date."
+        : "Nothing owing on the club account as at as_of_date. Snapshot, not live — mention the as-of date.",
+    },
+    logSummary: `get_my_club_balance: ${state} R${centsToZar(Math.abs(cents)).toFixed(2)} as at ${asOf}`,
   };
 }
 
@@ -1125,6 +1174,8 @@ export async function runTool(
       return await tool_get_my_tab(ctx);
     case "get_my_credit_balance":
       return await tool_get_my_credit_balance(ctx);
+    case "get_my_club_balance":
+      return await tool_get_my_club_balance(ctx);
     case "get_my_bookings":
       return await tool_get_my_bookings(ctx, input as { status?: string });
     case "get_my_details":
