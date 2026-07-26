@@ -504,8 +504,43 @@ function MembersReport({ venueId, fromISO, toISO }: RangeProps) {
 // Report: Accommodation
 // ─────────────────────────────────────────────────────────────────────────────
 
+interface BookingDetailRow {
+  booking_code: string;
+  guest_name: string;
+  guest_email: string;
+  site: string;
+  check_in: string;
+  check_out: string;
+  nights: number;
+  num_guests: number;
+  status: string;
+  method: string;
+  total_price_cents: number;
+}
+
+function downloadCsv(filename: string, rows: BookingDetailRow[]) {
+  const headers = ['Code', 'Guest', 'Email', 'Site', 'Check-in', 'Check-out', 'Nights', 'Guests', 'Status', 'Method', 'Amount (ZAR)'];
+  const esc = (v: string | number) => {
+    const s = String(v ?? '');
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  const lines = [
+    headers.join(','),
+    ...rows.map((r) => [
+      r.booking_code, r.guest_name, r.guest_email, r.site, r.check_in, r.check_out,
+      r.nights, r.num_guests, r.status, r.method, (r.total_price_cents / 100).toFixed(2),
+    ].map(esc).join(',')),
+  ];
+  const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+}
+
 function AccommodationReport({ venueId, fromISO, toISO }: RangeProps) {
   const state = useReportData(async () => {
+    // Summary basis: bookings CREATED in the period (matches historical report).
     const { data, error } = await supabase
       .from('bookings')
       .select('status, payment_method, total_price_cents')
@@ -524,16 +559,50 @@ function AccommodationReport({ venueId, fromISO, toISO }: RangeProps) {
       const m = byMethod.get(method) ?? { count: 0, total: 0 }; m.count++; m.total += cents; byMethod.set(method, m);
       if (status === 'PAID') { paidCount++; paidTotal += cents; }
     }
+
+    // Detail basis: bookings whose STAY (check-in) falls in the period.
+    const fromDay = fromISO.slice(0, 10);
+    const toDay = toISO.slice(0, 10);
+    const { data: detailData, error: detailErr } = await supabase
+      .from('bookings')
+      .select('booking_code, guest_name, guest_email, check_in, check_out, num_guests, status, payment_method, total_price_cents, booking_site_link(nights, booking_sites(name))')
+      .eq('venue_id', venueId)
+      .gte('check_in', fromDay)
+      .lte('check_in', toDay)
+      .order('check_in', { ascending: true });
+    if (detailErr) throw detailErr;
+
+    const detail: BookingDetailRow[] = (detailData ?? []).map((b: any) => {
+      const links = b.booking_site_link ?? [];
+      return {
+        booking_code: b.booking_code,
+        guest_name: b.guest_name,
+        guest_email: b.guest_email ?? '',
+        site: links.map((l: any) => l.booking_sites?.name).filter(Boolean).join(', ') || '—',
+        check_in: b.check_in,
+        check_out: b.check_out,
+        nights: links[0]?.nights ?? 0,
+        num_guests: b.num_guests,
+        status: (b.status ?? '').toUpperCase(),
+        method: b.payment_method ? String(b.payment_method).toUpperCase() : '—',
+        total_price_cents: b.total_price_cents ?? 0,
+      };
+    });
+    const stayPaidRevenue = detail.filter((d) => d.status === 'PAID').reduce((s, d) => s + d.total_price_cents, 0);
+
     return {
       statuses: [...byStatus.entries()].map(([k, v]) => ({ k, ...v })).sort((a, b) => b.total - a.total),
       methods: [...byMethod.entries()].map(([k, v]) => ({ k, ...v })).sort((a, b) => b.total - a.total),
       paidCount, paidTotal, total: (data ?? []).length,
+      detail, stayPaidRevenue,
     };
   }, [venueId, fromISO, toISO]);
 
   if (state.status === 'loading') return <Loading />;
   if (state.status === 'error') return <ErrorNote />;
-  const { statuses, methods, paidCount, paidTotal, total } = state.data;
+  const { statuses, methods, paidCount, paidTotal, total, detail, stayPaidRevenue } = state.data;
+
+  const fmtDay = (d: string) => { try { return format(new Date(d + 'T12:00:00'), 'd MMM'); } catch { return d; } };
 
   return (
     <div className="space-y-6">
@@ -569,6 +638,40 @@ function AccommodationReport({ venueId, fromISO, toISO }: RangeProps) {
           ]}
           rows={methods}
           empty="No bookings in this period."
+        />
+      </div>
+
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <h3 className="text-lg font-semibold" style={{ color: INK }}>All bookings this period</h3>
+            <p className="text-[13px] italic mt-0.5" style={{ color: MUTED }}>
+              Every booking with a check-in in the period — {detail.length} booking{detail.length !== 1 ? 's' : ''} · revenue {formatCents(stayPaidRevenue)} (PAID).
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={detail.length === 0}
+            onClick={() => downloadCsv(`bookings_${fromISO.slice(0, 10)}_${toISO.slice(0, 10)}.csv`, detail)}
+          >
+            Export CSV
+          </Button>
+        </div>
+        <DataTable
+          columns={[
+            { key: 'code', label: 'Code', render: (r: BookingDetailRow) => <span className="font-mono text-[13px]">{r.booking_code}</span> },
+            { key: 'guest', label: 'Guest', render: (r: BookingDetailRow) => <span className="font-medium">{r.guest_name}</span> },
+            { key: 'site', label: 'Site', render: (r: BookingDetailRow) => r.site },
+            { key: 'dates', label: 'Stay', render: (r: BookingDetailRow) => r.check_in === r.check_out ? `${fmtDay(r.check_in)} · day` : `${fmtDay(r.check_in)}–${fmtDay(r.check_out)}` },
+            { key: 'n', label: 'Nights', align: 'right', render: (r: BookingDetailRow) => r.nights || '—' },
+            { key: 'g', label: 'Pax', align: 'right', render: (r: BookingDetailRow) => r.num_guests },
+            { key: 'st', label: 'Status', render: (r: BookingDetailRow) => <span className="font-medium">{r.status}</span> },
+            { key: 'm', label: 'Method', render: (r: BookingDetailRow) => r.method },
+            { key: 'amt', label: 'Amount', align: 'right', render: (r: BookingDetailRow) => r.total_price_cents === 0 ? 'Free' : formatCents(r.total_price_cents) },
+          ]}
+          rows={detail}
+          empty="No bookings with a check-in in this period."
         />
       </div>
     </div>

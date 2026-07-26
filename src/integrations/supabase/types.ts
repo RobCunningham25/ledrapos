@@ -275,8 +275,10 @@ export type Database = {
           cancelled_by: string | null
           check_in: string
           check_out: string
+          confirmation_email_sent_at: string | null
           created_at: string
           created_by_member_id: string | null
+          eft_watch_email_sent_at: string | null
           expires_at: string | null
           guest_email: string
           guest_name: string
@@ -297,8 +299,10 @@ export type Database = {
           cancelled_by?: string | null
           check_in: string
           check_out: string
+          confirmation_email_sent_at?: string | null
           created_at?: string
           created_by_member_id?: string | null
+          eft_watch_email_sent_at?: string | null
           expires_at?: string | null
           guest_email: string
           guest_name: string
@@ -319,8 +323,10 @@ export type Database = {
           cancelled_by?: string | null
           check_in?: string
           check_out?: string
+          confirmation_email_sent_at?: string | null
           created_at?: string
           created_by_member_id?: string | null
+          eft_watch_email_sent_at?: string | null
           expires_at?: string | null
           guest_email?: string
           guest_name?: string

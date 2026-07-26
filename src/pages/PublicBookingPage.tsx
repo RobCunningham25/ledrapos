@@ -158,6 +158,10 @@ export default function PublicBookingPage() {
         method: 'eft',
         status: 'pending',
       });
+      // Notify staff to watch for the EFT payment (info@ + finance@).
+      supabase.functions.invoke('send-booking-email', {
+        body: { booking_id: booking.id, kind: 'eft_pending' },
+      }).catch(() => {});
     }
 
     setEftConfirmed(true);

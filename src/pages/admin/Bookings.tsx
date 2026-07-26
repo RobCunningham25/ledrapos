@@ -309,6 +309,10 @@ export default function AdminBookings() {
       .eq('booking_id', eftConfirm.id)
       .eq('method', 'eft');
     await supabase.from('bookings').update({ status: 'PAID' }).eq('id', eftConfirm.id);
+    // Send guest confirmation + internal booked-&-paid notice (idempotent server-side).
+    supabase.functions.invoke('send-booking-email', {
+      body: { booking_id: eftConfirm.id, kind: 'paid_confirmation' },
+    }).catch(() => {});
     setEftLoading(false);
     toast.success(`Payment confirmed — booking ${eftConfirm.code} marked as PAID`);
     queryClient.invalidateQueries({ queryKey: ['admin-bookings'] });

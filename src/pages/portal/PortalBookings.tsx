@@ -184,6 +184,11 @@ export default function PortalBookings() {
         status: 'pending',
       });
 
+      // Notify staff to watch for the EFT payment (info@ + finance@).
+      supabase.functions.invoke('send-booking-email', {
+        body: { booking_id: confirmedBookingId, kind: 'eft_pending' },
+      }).catch(() => {});
+
       queryClient.invalidateQueries({ queryKey: ['portal-my-bookings'] });
       queryClient.invalidateQueries({ queryKey: ['portal-upcoming-bookings'] });
       setShowEFT(true);

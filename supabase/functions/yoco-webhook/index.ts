@@ -4,6 +4,7 @@
 // - SUPABASE_SERVICE_ROLE_KEY: Auto-available
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { sendBookingEmail } from "../_shared/bookingEmails.ts";
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
@@ -246,6 +247,16 @@ Deno.serve(async (req: Request) => {
           .from("bookings")
           .update({ status: "PAID" })
           .eq("id", bookingId);
+
+        // 3. Send guest confirmation + internal "booked & paid" notice.
+        //    Guarded by confirmation_email_sent_at so a webhook retry won't
+        //    double-send. Never let an email failure fail the webhook.
+        try {
+          const emailRes = await sendBookingEmail(supabase, bookingId, "paid_confirmation");
+          if (emailRes.error) console.error("Booking confirmation email:", emailRes.error);
+        } catch (mailErr) {
+          console.error("Booking confirmation email crashed:", mailErr);
+        }
       }
 
       // Mark completed

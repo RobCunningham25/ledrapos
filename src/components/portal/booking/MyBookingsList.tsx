@@ -63,6 +63,8 @@ export default function MyBookingsList({ venueId, memberId }: Props) {
     if (!member) return;
     await supabase.from('bookings').update({ payment_method: 'eft', expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() }).eq('id', b.id);
     await supabase.from('booking_payments').insert({ venue_id: member.venue_id, booking_id: b.id, amount_cents: b.total_price_cents, method: 'eft', status: 'pending' });
+    // Notify staff to watch for the EFT payment (info@ + finance@).
+    supabase.functions.invoke('send-booking-email', { body: { booking_id: b.id, kind: 'eft_pending' } }).catch(() => {});
     queryClient.invalidateQueries({ queryKey: ['portal-my-bookings'] });
     queryClient.invalidateQueries({ queryKey: ['portal-upcoming-bookings'] });
     setPayModalBooking(null);
