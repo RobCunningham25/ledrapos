@@ -1,4 +1,4 @@
-export type Json =
+﻿export type Json =
   | string
   | number
   | boolean
@@ -741,6 +741,66 @@ export type Database = {
           },
           {
             foreignKeyName: "event_exceptions_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      issue_reports: {
+        Row: {
+          admin_notes: string | null
+          attachment_paths: string[]
+          category: string
+          created_at: string
+          id: string
+          member_id: string | null
+          message: string
+          reporter_email: string | null
+          reporter_name: string | null
+          resolved_at: string | null
+          status: string
+          venue_id: string
+        }
+        Insert: {
+          admin_notes?: string | null
+          attachment_paths?: string[]
+          category?: string
+          created_at?: string
+          id?: string
+          member_id?: string | null
+          message: string
+          reporter_email?: string | null
+          reporter_name?: string | null
+          resolved_at?: string | null
+          status?: string
+          venue_id: string
+        }
+        Update: {
+          admin_notes?: string | null
+          attachment_paths?: string[]
+          category?: string
+          created_at?: string
+          id?: string
+          member_id?: string | null
+          message?: string
+          reporter_email?: string | null
+          reporter_name?: string | null
+          resolved_at?: string | null
+          status?: string
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "issue_reports_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "issue_reports_venue_id_fkey"
             columns: ["venue_id"]
             isOneToOne: false
             referencedRelation: "venues"

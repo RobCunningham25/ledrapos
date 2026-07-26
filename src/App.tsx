@@ -30,6 +30,7 @@ import WhatsAppAssistant from "./pages/admin/WhatsAppAssistant.tsx";
 import WhatsAppFollowups from "./pages/admin/WhatsAppFollowups.tsx";
 import Applications from "./pages/admin/Applications.tsx";
 import ApplicationNoticePage from "./pages/admin/ApplicationNoticePage.tsx";
+import Issues from "./pages/admin/Issues.tsx";
 import MembershipApplicationPage from "./pages/MembershipApplicationPage.tsx";
 import PortalLogin from "./pages/portal/PortalLogin.tsx";
 import AcceptInvite from "./pages/portal/AcceptInvite.tsx";
@@ -42,6 +43,7 @@ import PortalCalendar from "./pages/portal/PortalCalendar.tsx";
 import PortalMyDetails from "./pages/portal/PortalMyDetails.tsx";
 import PortalBookings from "./pages/portal/PortalBookings.tsx";
 import PortalConstitution from "./pages/portal/PortalConstitution.tsx";
+import PortalReportIssue from "./pages/portal/PortalReportIssue.tsx";
 import PortalPaymentResult from "./pages/portal/PortalPaymentResult.tsx";
 import PublicBookingPage from "./pages/PublicBookingPage.tsx";
 import Unsubscribed from "./pages/Unsubscribed.tsx";
@@ -98,6 +100,7 @@ const App = () => (
                     <Route path="my-details" element={<PortalMyDetails />} />
                     <Route path="bookings" element={<PortalBookings />} />
                     <Route path="constitution" element={<PortalConstitution />} />
+                    <Route path="report-issue" element={<PortalReportIssue />} />
                     <Route path="payment-result" element={<PortalPaymentResult />} />
                   </Route>
                 </Route>
@@ -122,6 +125,7 @@ const App = () => (
                   <Route path="whatsapp/followups" element={<WhatsAppFollowups />} />
                   <Route path="applications" element={<Applications />} />
                   <Route path="applications/:id/notice" element={<ApplicationNoticePage />} />
+                  <Route path="issues" element={<Issues />} />
                   <Route path="settings" element={<Settings />} />
                 </Route>
               </>}
@@ -161,6 +165,7 @@ const App = () => (
                     <Route path="whatsapp/followups" element={<WhatsAppFollowups />} />
                     <Route path="applications" element={<Applications />} />
                     <Route path="applications/:id/notice" element={<ApplicationNoticePage />} />
+                    <Route path="issues" element={<Issues />} />
                     <Route path="settings" element={<Settings />} />
                   </Route>
                   <Route path="apply" element={<MembershipApplicationPage />} />
@@ -181,6 +186,7 @@ const App = () => (
                       <Route path="my-details" element={<PortalMyDetails />} />
                       <Route path="bookings" element={<PortalBookings />} />
                       <Route path="constitution" element={<PortalConstitution />} />
+                      <Route path="report-issue" element={<PortalReportIssue />} />
                       <Route path="payment-result" element={<PortalPaymentResult />} />
                     </Route>
                   </Route>

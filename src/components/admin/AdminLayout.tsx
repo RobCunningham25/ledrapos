@@ -1,6 +1,6 @@
 import { ReactNode, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Package, Users, CalendarDays, BedDouble, BarChart3, Settings, Menu, X, LogOut, Mail, MessageCircle, AlertCircle, UserPlus } from 'lucide-react';
+import { LayoutDashboard, Package, Users, CalendarDays, BedDouble, BarChart3, Settings, Menu, X, LogOut, Mail, MessageCircle, AlertCircle, UserPlus, MessageSquareWarning } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useAdminAuth } from '@/contexts/AdminAuthContext';
@@ -18,6 +18,7 @@ const navKeys = [
   { label: 'Products', sub: 'products', icon: Package },
   { label: 'Members', sub: 'members', icon: Users },
   { label: 'Applications', sub: 'applications', icon: UserPlus },
+  { label: 'Issues', sub: 'issues', icon: MessageSquareWarning },
   { label: 'Events', sub: 'events', icon: CalendarDays },
   { label: 'Bookings', sub: 'bookings', icon: BedDouble },
   { label: 'Reports', sub: 'reports', icon: BarChart3 },
