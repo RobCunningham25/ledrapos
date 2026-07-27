@@ -28,6 +28,7 @@ export default function AdminUsersTab() {
   const [showInvite, setShowInvite] = useState(false);
   const [inviteName, setInviteName] = useState('');
   const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteRole, setInviteRole] = useState<'admin' | 'manager'>('admin');
   const [inviteError, setInviteError] = useState('');
   const [inviting, setInviting] = useState(false);
 
@@ -65,7 +66,7 @@ export default function AdminUsersTab() {
     setInviting(true);
     try {
       const { data, error } = await supabase.functions.invoke('invite-admin', {
-        body: { email: inviteEmail.trim(), name: inviteName.trim(), role: 'admin', venue_id: venueId },
+        body: { email: inviteEmail.trim(), name: inviteName.trim(), role: inviteRole, venue_id: venueId },
       });
 
       if (error) {
@@ -84,6 +85,7 @@ export default function AdminUsersTab() {
       setShowInvite(false);
       setInviteName('');
       setInviteEmail('');
+      setInviteRole('admin');
       loadAdmins();
     } catch {
       setInviteError('Failed to send invite');
@@ -230,8 +232,19 @@ export default function AdminUsersTab() {
             </div>
             <div>
               <label className="block text-sm font-medium mb-1" style={{ color: '#1A202C' }}>Role</label>
-              <Input value="Admin" disabled className="h-11 bg-gray-50" />
-              <p className="text-xs mt-1" style={{ color: '#718096' }}>Only admin role can be assigned through the UI.</p>
+              <select
+                value={inviteRole}
+                onChange={(e) => setInviteRole(e.target.value as 'admin' | 'manager')}
+                className="h-11 w-full rounded-md border border-input bg-background px-3 text-sm"
+              >
+                <option value="admin">Admin — full committee access</option>
+                <option value="manager">Club Manager — calendar, issues, jobs & leave only</option>
+              </select>
+              <p className="text-xs mt-1" style={{ color: '#718096' }}>
+                {inviteRole === 'manager'
+                  ? 'The manager sees only their facilities workspace — no bar, members or reports.'
+                  : 'Admins see the full committee panel.'}
+              </p>
             </div>
             {inviteError && <p className="text-sm font-medium" style={{ color: '#DC2626' }}>{inviteError}</p>}
           </div>

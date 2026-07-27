@@ -64,9 +64,10 @@ Deno.serve(async (req) => {
       })
     }
 
-    // Only allow creating 'admin' role via API
-    if (role && role !== 'admin') {
-      return new Response(JSON.stringify({ error: 'Only admin role can be created through the UI' }), {
+    // Allow creating 'admin' or 'manager' via the UI (never 'superadmin').
+    const inviteRole = role ?? 'admin'
+    if (inviteRole !== 'admin' && inviteRole !== 'manager') {
+      return new Response(JSON.stringify({ error: 'Only admin or manager roles can be created through the UI' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
@@ -90,7 +91,7 @@ Deno.serve(async (req) => {
     // Insert admin_users row first
     const { data: newAdmin, error: insertError } = await supabase
       .from('admin_users')
-      .insert({ venue_id, email, name, role: 'admin', is_active: true })
+      .insert({ venue_id, email, name, role: inviteRole, is_active: true })
       .select('id')
       .single()
 
@@ -104,7 +105,7 @@ Deno.serve(async (req) => {
     // Send Supabase Auth invite
     const { data: authData, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(
       email,
-      { data: { role: 'admin', venue_id } }
+      { data: { role: inviteRole, venue_id } }
     )
 
     if (inviteError) {

@@ -7,10 +7,12 @@ import LivePaymentsCard from '@/components/admin/LivePaymentsCard';
 import OpenTabsDrawer from '@/components/admin/OpenTabsDrawer';
 import { useVenue } from '@/contexts/VenueContext';
 import { useVenueNav } from '@/hooks/useVenueNav';
+import { useAdminAuth } from '@/contexts/AdminAuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { formatCents } from '@/utils/currency';
 import { Skeleton } from '@/components/ui/skeleton';
 import { expandAllOccurrences, type EventSeries, type MonthlyMode, type Recurrence } from '@/utils/eventOccurrences';
+import ManagerDashboard from './ManagerDashboard';
 
 const cardStyle: React.CSSProperties = {
   background: '#FFFFFF',
@@ -65,6 +67,14 @@ const errorText: React.CSSProperties = {
 };
 
 export default function Dashboard() {
+  const { adminUser } = useAdminAuth();
+
+  // The club manager has nothing to do with the bar — show a facilities-focused
+  // dashboard instead of the bar KPI cards.
+  if (adminUser?.role === 'manager') {
+    return <ManagerDashboard />;
+  }
+
   return (
     <AdminLayout title="Dashboard">
       <div className="space-y-6">

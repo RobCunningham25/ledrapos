@@ -2,10 +2,11 @@ import { useState, useEffect, useCallback } from 'react';
 import AdminLayout from '@/components/admin/AdminLayout';
 import { supabase } from '@/integrations/supabase/client';
 import { useVenue } from '@/contexts/VenueContext';
+import { useAdminAuth } from '@/contexts/AdminAuthContext';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
-import { MessageSquare, X, Loader2 } from 'lucide-react';
+import { MessageSquare, X, Loader2, Wrench } from 'lucide-react';
 
 interface IssueReport {
   id: string;
@@ -18,6 +19,9 @@ interface IssueReport {
   status: 'open' | 'in_progress' | 'resolved';
   admin_notes: string | null;
   resolved_at: string | null;
+  remedy: string | null;
+  remedied_by: string | null;
+  remedied_at: string | null;
 }
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -130,6 +134,11 @@ export default function Issues() {
                 </div>
               </div>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
+                {r.remedy && (
+                  <span title="Remedy recorded" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#065F46', background: '#D1FAE5', border: '1px solid #A7F3D0', padding: '2px 8px', borderRadius: 4, fontWeight: 600 }}>
+                    <Wrench size={11} /> Remedy
+                  </span>
+                )}
                 {r.attachment_paths?.length > 0 && (
                   <span style={{ fontSize: 11, color: '#2A9D8F', background: 'rgba(42,157,143,0.08)', padding: '2px 8px', borderRadius: 4, fontWeight: 600 }}>
                     {r.attachment_paths.length} photo{r.attachment_paths.length > 1 ? 's' : ''}
@@ -167,8 +176,10 @@ function IssueDrawer({ report, onClose, onRefresh }: {
   onClose: () => void;
   onRefresh: () => Promise<void>;
 }) {
+  const { adminUser } = useAdminAuth();
   const [photoUrls, setPhotoUrls] = useState<string[]>([]);
   const [notes, setNotes] = useState(report.admin_notes ?? '');
+  const [remedy, setRemedy] = useState(report.remedy ?? '');
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -186,6 +197,7 @@ function IssueDrawer({ report, onClose, onRefresh }: {
   }, [report.id, report.attachment_paths]);
 
   useEffect(() => { setNotes(report.admin_notes ?? ''); }, [report.id, report.admin_notes]);
+  useEffect(() => { setRemedy(report.remedy ?? ''); }, [report.id, report.remedy]);
 
   const updateStatus = async (status: IssueReport['status']) => {
     setSaving(true);
@@ -205,6 +217,23 @@ function IssueDrawer({ report, onClose, onRefresh }: {
     setSaving(false);
     if (error) { toast.error('Could not save notes.'); return; }
     toast.success('Notes saved.');
+    await onRefresh();
+  };
+
+  const saveRemedy = async () => {
+    setSaving(true);
+    const trimmed = remedy.trim();
+    const { error } = await supabase
+      .from('issue_reports')
+      .update({
+        remedy: trimmed || null,
+        remedied_by: trimmed ? adminUser?.id ?? null : null,
+        remedied_at: trimmed ? new Date().toISOString() : null,
+      })
+      .eq('id', report.id);
+    setSaving(false);
+    if (error) { toast.error('Could not save remedy.'); return; }
+    toast.success('Remedy saved.');
     await onRefresh();
   };
 
@@ -277,6 +306,34 @@ function IssueDrawer({ report, onClose, onRefresh }: {
               </button>
             ))}
           </div>
+        </div>
+
+        {/* Remedy / action taken */}
+        <div style={{ marginBottom: 24 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: '#64748B', marginBottom: 8 }}>Remedy / action taken</div>
+          <textarea
+            value={remedy}
+            onChange={(e) => setRemedy(e.target.value)}
+            rows={4}
+            placeholder="What was done to resolve this? (e.g. replaced tap washer on site 2)…"
+            style={{ width: '100%', fontSize: 14, padding: 12, borderRadius: 8, border: '1px solid #E2E8F0', resize: 'vertical', fontFamily: 'inherit' }}
+          />
+          {report.remedied_at && (
+            <div style={{ fontSize: 12, color: '#94A3B8', marginTop: 6 }}>
+              Last updated {format(new Date(report.remedied_at), 'd MMM yyyy, HH:mm')}
+            </div>
+          )}
+          <button
+            onClick={saveRemedy}
+            disabled={saving}
+            style={{
+              marginTop: 10, padding: '9px 18px', borderRadius: 6, fontSize: 14, fontWeight: 600,
+              border: 'none', background: '#2A9D8F', color: '#FFFFFF', cursor: 'pointer',
+              display: 'inline-flex', alignItems: 'center', gap: 8, opacity: saving ? 0.6 : 1,
+            }}
+          >
+            {saving && <Loader2 size={16} className="animate-spin" />} Save remedy
+          </button>
         </div>
 
         {/* Admin notes */}

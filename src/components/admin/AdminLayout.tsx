@@ -1,6 +1,6 @@
 import { ReactNode, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Package, Users, CalendarDays, BedDouble, BarChart3, Settings, Menu, X, LogOut, Mail, MessageCircle, AlertCircle, UserPlus, MessageSquareWarning } from 'lucide-react';
+import { LayoutDashboard, Package, Users, CalendarDays, BedDouble, BarChart3, Settings, Menu, X, LogOut, Mail, MessageCircle, AlertCircle, UserPlus, MessageSquareWarning, ClipboardList, CalendarClock, CalendarRange, type LucideIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useAdminAuth } from '@/contexts/AdminAuthContext';
@@ -13,13 +13,27 @@ interface AdminLayoutProps {
   action?: ReactNode;
 }
 
-const navKeys = [
-  { label: 'Dashboard', sub: '', icon: LayoutDashboard },
+// managerSees: item is also shown to the club-manager role.
+// managerOnly: item is shown ONLY to the manager (admins use the fuller equivalent —
+// e.g. the read-only Calendar for managers vs. the Events management page for admins).
+interface NavItem {
+  label: string;
+  sub: string;
+  icon: LucideIcon;
+  managerSees?: boolean;
+  managerOnly?: boolean;
+}
+
+const navKeys: NavItem[] = [
+  { label: 'Dashboard', sub: '', icon: LayoutDashboard, managerSees: true },
   { label: 'Products', sub: 'products', icon: Package },
   { label: 'Members', sub: 'members', icon: Users },
   { label: 'Applications', sub: 'applications', icon: UserPlus },
-  { label: 'Issues', sub: 'issues', icon: MessageSquareWarning },
+  { label: 'Issues', sub: 'issues', icon: MessageSquareWarning, managerSees: true },
+  { label: 'Calendar', sub: 'calendar', icon: CalendarRange, managerOnly: true },
   { label: 'Events', sub: 'events', icon: CalendarDays },
+  { label: 'Jobs', sub: 'jobs', icon: ClipboardList, managerSees: true },
+  { label: 'Leave', sub: 'leave', icon: CalendarClock, managerSees: true },
   { label: 'Bookings', sub: 'bookings', icon: BedDouble },
   { label: 'Reports', sub: 'reports', icon: BarChart3 },
   { label: 'Broadcasts', sub: 'broadcasts', icon: Mail },
@@ -36,7 +50,10 @@ export default function AdminLayout({ children, title, action }: AdminLayoutProp
   const { venue, venueName } = useVenue();
   const { adminPath } = useVenueNav();
 
-  const navItems = navKeys.map(item => ({ ...item, path: adminPath(item.sub) }));
+  const isManager = adminUser?.role === 'manager';
+  const navItems = navKeys
+    .filter((item) => (isManager ? item.managerSees || item.managerOnly : !item.managerOnly))
+    .map((item) => ({ ...item, path: adminPath(item.sub) }));
 
   const isActive = (path: string) => location.pathname === path;
 
@@ -47,7 +64,7 @@ export default function AdminLayout({ children, title, action }: AdminLayoutProp
           <img src={venue.logo_url} alt={venueName} className="h-12 object-contain mb-2" />
         )}
         <h1 className="text-base font-bold text-primary leading-snug">{venueName}</h1>
-        <p className="text-xs text-muted-foreground mt-0.5">Admin Panel</p>
+        <p className="text-xs text-muted-foreground mt-0.5">{isManager ? 'Manager Panel' : 'Admin Panel'}</p>
       </div>
       <nav className="flex-1 py-4 space-y-1 px-3">
         {navItems.map((item) => {

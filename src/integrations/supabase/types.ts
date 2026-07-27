@@ -1,4 +1,4 @@
-﻿export type Json =
+export type Json =
   | string
   | number
   | boolean
@@ -763,6 +763,9 @@ export type Database = {
           id: string
           member_id: string | null
           message: string
+          remedied_at: string | null
+          remedied_by: string | null
+          remedy: string | null
           reporter_email: string | null
           reporter_name: string | null
           resolved_at: string | null
@@ -777,6 +780,9 @@ export type Database = {
           id?: string
           member_id?: string | null
           message: string
+          remedied_at?: string | null
+          remedied_by?: string | null
+          remedy?: string | null
           reporter_email?: string | null
           reporter_name?: string | null
           resolved_at?: string | null
@@ -791,6 +797,9 @@ export type Database = {
           id?: string
           member_id?: string | null
           message?: string
+          remedied_at?: string | null
+          remedied_by?: string | null
+          remedy?: string | null
           reporter_email?: string | null
           reporter_name?: string | null
           resolved_at?: string | null
@@ -806,7 +815,78 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "issue_reports_remedied_by_fkey"
+            columns: ["remedied_by"]
+            isOneToOne: false
+            referencedRelation: "admin_users"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "issue_reports_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      leave_requests: {
+        Row: {
+          admin_user_id: string
+          created_at: string
+          end_date: string
+          id: string
+          reason: string | null
+          review_notes: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          start_date: string
+          status: string
+          venue_id: string
+        }
+        Insert: {
+          admin_user_id: string
+          created_at?: string
+          end_date: string
+          id?: string
+          reason?: string | null
+          review_notes?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          start_date: string
+          status?: string
+          venue_id: string
+        }
+        Update: {
+          admin_user_id?: string
+          created_at?: string
+          end_date?: string
+          id?: string
+          reason?: string | null
+          review_notes?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          start_date?: string
+          status?: string
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "leave_requests_admin_user_id_fkey"
+            columns: ["admin_user_id"]
+            isOneToOne: false
+            referencedRelation: "admin_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leave_requests_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "admin_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leave_requests_venue_id_fkey"
             columns: ["venue_id"]
             isOneToOne: false
             referencedRelation: "venues"
@@ -1611,6 +1691,73 @@ export type Database = {
           },
           {
             foreignKeyName: "sage_customer_map_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      staff_jobs: {
+        Row: {
+          assigned_by: string | null
+          assigned_to: string | null
+          completed_at: string | null
+          created_at: string
+          description: string | null
+          due_date: string | null
+          id: string
+          manager_notes: string | null
+          priority: string
+          status: string
+          title: string
+          venue_id: string
+        }
+        Insert: {
+          assigned_by?: string | null
+          assigned_to?: string | null
+          completed_at?: string | null
+          created_at?: string
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          manager_notes?: string | null
+          priority?: string
+          status?: string
+          title: string
+          venue_id: string
+        }
+        Update: {
+          assigned_by?: string | null
+          assigned_to?: string | null
+          completed_at?: string | null
+          created_at?: string
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          manager_notes?: string | null
+          priority?: string
+          status?: string
+          title?: string
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staff_jobs_assigned_by_fkey"
+            columns: ["assigned_by"]
+            isOneToOne: false
+            referencedRelation: "admin_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_jobs_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "admin_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_jobs_venue_id_fkey"
             columns: ["venue_id"]
             isOneToOne: false
             referencedRelation: "venues"

@@ -31,6 +31,10 @@ import WhatsAppFollowups from "./pages/admin/WhatsAppFollowups.tsx";
 import Applications from "./pages/admin/Applications.tsx";
 import ApplicationNoticePage from "./pages/admin/ApplicationNoticePage.tsx";
 import Issues from "./pages/admin/Issues.tsx";
+import AdminCalendar from "./pages/admin/AdminCalendar.tsx";
+import Jobs from "./pages/admin/Jobs.tsx";
+import Leave from "./pages/admin/Leave.tsx";
+import RequireRole from "./components/admin/RequireRole.tsx";
 import MembershipApplicationPage from "./pages/MembershipApplicationPage.tsx";
 import PortalLogin from "./pages/portal/PortalLogin.tsx";
 import AcceptInvite from "./pages/portal/AcceptInvite.tsx";
@@ -112,21 +116,26 @@ const App = () => (
                 <Route path="login" element={<AdminLogin />} />
                 <Route element={<AdminAuthProvider><AdminProtectedRoute /></AdminAuthProvider>}>
                   <Route index element={<AdminDashboard />} />
-                  <Route path="products" element={<Products />} />
-                  <Route path="members" element={<Members />} />
-                  <Route path="members/:id" element={<MemberDetail />} />
-                  <Route path="reports" element={<Reports />} />
-                  <Route path="events" element={<Events />} />
-                  <Route path="bookings" element={<AdminBookings />} />
-                  <Route path="broadcasts" element={<Broadcasts />} />
-                  <Route path="broadcasts/new" element={<BroadcastCompose />} />
-                  <Route path="broadcasts/:id" element={<BroadcastDetail />} />
-                  <Route path="whatsapp/assistant" element={<WhatsAppAssistant />} />
-                  <Route path="whatsapp/followups" element={<WhatsAppFollowups />} />
-                  <Route path="applications" element={<Applications />} />
-                  <Route path="applications/:id/notice" element={<ApplicationNoticePage />} />
+                  {/* Shared with the club-manager role */}
                   <Route path="issues" element={<Issues />} />
-                  <Route path="settings" element={<Settings />} />
+                  <Route path="calendar" element={<AdminCalendar />} />
+                  <Route path="jobs" element={<Jobs />} />
+                  <Route path="leave" element={<Leave />} />
+                  {/* Committee-only (admin / superadmin) */}
+                  <Route path="products" element={<RequireRole allow={['admin', 'superadmin']}><Products /></RequireRole>} />
+                  <Route path="members" element={<RequireRole allow={['admin', 'superadmin']}><Members /></RequireRole>} />
+                  <Route path="members/:id" element={<RequireRole allow={['admin', 'superadmin']}><MemberDetail /></RequireRole>} />
+                  <Route path="reports" element={<RequireRole allow={['admin', 'superadmin']}><Reports /></RequireRole>} />
+                  <Route path="events" element={<RequireRole allow={['admin', 'superadmin']}><Events /></RequireRole>} />
+                  <Route path="bookings" element={<RequireRole allow={['admin', 'superadmin']}><AdminBookings /></RequireRole>} />
+                  <Route path="broadcasts" element={<RequireRole allow={['admin', 'superadmin']}><Broadcasts /></RequireRole>} />
+                  <Route path="broadcasts/new" element={<RequireRole allow={['admin', 'superadmin']}><BroadcastCompose /></RequireRole>} />
+                  <Route path="broadcasts/:id" element={<RequireRole allow={['admin', 'superadmin']}><BroadcastDetail /></RequireRole>} />
+                  <Route path="whatsapp/assistant" element={<RequireRole allow={['admin', 'superadmin']}><WhatsAppAssistant /></RequireRole>} />
+                  <Route path="whatsapp/followups" element={<RequireRole allow={['admin', 'superadmin']}><WhatsAppFollowups /></RequireRole>} />
+                  <Route path="applications" element={<RequireRole allow={['admin', 'superadmin']}><Applications /></RequireRole>} />
+                  <Route path="applications/:id/notice" element={<RequireRole allow={['admin', 'superadmin']}><ApplicationNoticePage /></RequireRole>} />
+                  <Route path="settings" element={<RequireRole allow={['admin', 'superadmin']}><Settings /></RequireRole>} />
                 </Route>
               </>}
               {customDomainConfig.section === 'public' && <>
@@ -152,21 +161,26 @@ const App = () => (
                     </AdminAuthProvider>
                   }>
                     <Route index element={<AdminDashboard />} />
-                    <Route path="products" element={<Products />} />
-                    <Route path="members" element={<Members />} />
-                    <Route path="members/:id" element={<MemberDetail />} />
-                    <Route path="reports" element={<Reports />} />
-                    <Route path="events" element={<Events />} />
-                    <Route path="bookings" element={<AdminBookings />} />
-                    <Route path="broadcasts" element={<Broadcasts />} />
-                    <Route path="broadcasts/new" element={<BroadcastCompose />} />
-                    <Route path="broadcasts/:id" element={<BroadcastDetail />} />
-                    <Route path="whatsapp/assistant" element={<WhatsAppAssistant />} />
-                    <Route path="whatsapp/followups" element={<WhatsAppFollowups />} />
-                    <Route path="applications" element={<Applications />} />
-                    <Route path="applications/:id/notice" element={<ApplicationNoticePage />} />
+                    {/* Shared with the club-manager role */}
                     <Route path="issues" element={<Issues />} />
-                    <Route path="settings" element={<Settings />} />
+                    <Route path="calendar" element={<AdminCalendar />} />
+                    <Route path="jobs" element={<Jobs />} />
+                    <Route path="leave" element={<Leave />} />
+                    {/* Committee-only (admin / superadmin) */}
+                    <Route path="products" element={<RequireRole allow={['admin', 'superadmin']}><Products /></RequireRole>} />
+                    <Route path="members" element={<RequireRole allow={['admin', 'superadmin']}><Members /></RequireRole>} />
+                    <Route path="members/:id" element={<RequireRole allow={['admin', 'superadmin']}><MemberDetail /></RequireRole>} />
+                    <Route path="reports" element={<RequireRole allow={['admin', 'superadmin']}><Reports /></RequireRole>} />
+                    <Route path="events" element={<RequireRole allow={['admin', 'superadmin']}><Events /></RequireRole>} />
+                    <Route path="bookings" element={<RequireRole allow={['admin', 'superadmin']}><AdminBookings /></RequireRole>} />
+                    <Route path="broadcasts" element={<RequireRole allow={['admin', 'superadmin']}><Broadcasts /></RequireRole>} />
+                    <Route path="broadcasts/new" element={<RequireRole allow={['admin', 'superadmin']}><BroadcastCompose /></RequireRole>} />
+                    <Route path="broadcasts/:id" element={<RequireRole allow={['admin', 'superadmin']}><BroadcastDetail /></RequireRole>} />
+                    <Route path="whatsapp/assistant" element={<RequireRole allow={['admin', 'superadmin']}><WhatsAppAssistant /></RequireRole>} />
+                    <Route path="whatsapp/followups" element={<RequireRole allow={['admin', 'superadmin']}><WhatsAppFollowups /></RequireRole>} />
+                    <Route path="applications" element={<RequireRole allow={['admin', 'superadmin']}><Applications /></RequireRole>} />
+                    <Route path="applications/:id/notice" element={<RequireRole allow={['admin', 'superadmin']}><ApplicationNoticePage /></RequireRole>} />
+                    <Route path="settings" element={<RequireRole allow={['admin', 'superadmin']}><Settings /></RequireRole>} />
                   </Route>
                   <Route path="apply" element={<MembershipApplicationPage />} />
                   <Route path="portal/login" element={<PortalThemeProvider><PortalLogin /></PortalThemeProvider>} />
