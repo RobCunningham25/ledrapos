@@ -5,15 +5,76 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+const json = (status: number, body: unknown) =>
+  new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  })
+
+function escapeHtml(s: string) {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+function renderAdminInviteEmail(args: {
+  actionLink: string
+  venueName: string
+  name: string
+  role: string
+  contactEmail: string | null
+}) {
+  const safeName = escapeHtml(args.name.split(' ')[0] || 'there')
+  const safeVenue = escapeHtml(args.venueName)
+  const safeLink = escapeHtml(args.actionLink)
+  const roleLabel = args.role === 'manager' ? 'Club Manager' : 'Admin'
+  const roleBlurb = args.role === 'manager'
+    ? `You'll have access to the club calendar, reported issues, your assigned jobs and leave requests.`
+    : `You'll have full access to the ${safeVenue} admin panel.`
+  const contactLine = args.contactEmail
+    ? `<p style="margin:0 0 4px 0;color:#5A6B7A;font-size:13px;">Questions? Reply to this email or contact <a href="mailto:${escapeHtml(args.contactEmail)}" style="color:#2A9D8F;text-decoration:none;">${escapeHtml(args.contactEmail)}</a>.</p>`
+    : ''
+  return `<!doctype html>
+<html>
+<body style="margin:0;padding:0;background:#FAF8F5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#1B3A4B;">
+  <div style="max-width:560px;margin:0 auto;padding:32px 20px;">
+    <div style="background:#FFFFFF;border:1px solid #E2E8F0;border-radius:8px;padding:32px;box-shadow:0 1px 3px rgba(0,0,0,0.06);">
+      <h1 style="margin:0 0 16px 0;font-size:22px;font-weight:700;color:#1B3A4B;line-height:1.3;">You've been added to ${safeVenue}</h1>
+      <p style="margin:0 0 14px 0;font-size:15px;line-height:1.55;color:#334155;">Hi ${safeName},</p>
+      <p style="margin:0 0 20px 0;font-size:15px;line-height:1.55;color:#334155;">You've been set up as <strong>${roleLabel}</strong> for ${safeVenue}. ${roleBlurb} Click below to set your password and get started.</p>
+      <div style="text-align:center;margin:28px 0;">
+        <a href="${safeLink}" style="display:inline-block;background:#2E5FA3;color:#FFFFFF;text-decoration:none;font-weight:600;font-size:15px;padding:14px 28px;border-radius:6px;">Set your password</a>
+      </div>
+      <p style="margin:0 0 6px 0;font-size:13px;color:#5A6B7A;">If the button doesn't work, paste this link into your browser:</p>
+      <p style="margin:0 0 24px 0;font-size:12px;word-break:break-all;"><a href="${safeLink}" style="color:#2A9D8F;text-decoration:none;">${safeLink}</a></p>
+      <hr style="border:0;border-top:1px solid #E2E8F0;margin:20px 0;" />
+      <p style="margin:0 0 4px 0;color:#5A6B7A;font-size:13px;">&mdash; ${safeVenue}</p>
+      ${contactLine}
+    </div>
+  </div>
+</body>
+</html>`
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
   }
 
   try {
+    const resendApiKey = Deno.env.get('RESEND_API_KEY')
+    if (!resendApiKey) {
+      return json(500, { error: 'RESEND_API_KEY is not configured.' })
+    }
+    const siteUrl = (Deno.env.get('SITE_URL') ?? 'https://pos.ledra.co.za').replace(/\/$/, '')
+    const fromEmail = Deno.env.get('INVITE_FROM_EMAIL') ?? 'info@vaalcruising.co.za'
+
     // getUser (caller auth) + DB access stay on the legacy service_role key, which
-    // GoTrue accepts as an apikey. Only the Auth *admin* call (inviteUserByEmail)
-    // uses the new asymmetric secret key, since the legacy key is intermittently
+    // GoTrue accepts as an apikey. Only the Auth *admin* call (generateLink) uses
+    // the new asymmetric secret key, since the legacy key is intermittently
     // rejected on GoTrue admin endpoints since the ES256 signing-key migration.
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const secretKey = Deno.env.get('SB_SECRET_KEY')
@@ -23,10 +84,7 @@ Deno.serve(async (req) => {
     // Verify the caller is a superadmin
     const authHeader = req.headers.get('Authorization')
     if (!authHeader) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+      return json(401, { error: 'Unauthorized' })
     }
 
     const { data: { user }, error: authError } = await supabase.auth.getUser(
@@ -34,13 +92,9 @@ Deno.serve(async (req) => {
     )
 
     if (authError || !user) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+      return json(401, { error: 'Unauthorized' })
     }
 
-    // Check caller is superadmin
     const { data: callerAdmin } = await supabase
       .from('admin_users')
       .select('id, venue_id, role')
@@ -49,28 +103,30 @@ Deno.serve(async (req) => {
       .single()
 
     if (!callerAdmin || callerAdmin.role !== 'superadmin') {
-      return new Response(JSON.stringify({ error: 'Superadmin access required' }), {
-        status: 403,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+      return json(403, { error: 'Superadmin access required' })
     }
 
     const { email, name, role, venue_id } = await req.json()
 
     if (!email || !name || !venue_id) {
-      return new Response(JSON.stringify({ error: 'email, name, and venue_id are required' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+      return json(400, { error: 'email, name, and venue_id are required' })
     }
 
     // Allow creating 'admin' or 'manager' via the UI (never 'superadmin').
     const inviteRole = role ?? 'admin'
     if (inviteRole !== 'admin' && inviteRole !== 'manager') {
-      return new Response(JSON.stringify({ error: 'Only admin or manager roles can be created through the UI' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+      return json(400, { error: 'Only admin or manager roles can be created through the UI' })
+    }
+
+    // Venue for branding + redirect slug.
+    const { data: venue, error: venueError } = await supabase
+      .from('venues')
+      .select('slug, name, contact_email')
+      .eq('id', venue_id)
+      .single()
+
+    if (venueError || !venue) {
+      return json(404, { error: 'Venue not found for invite.' })
     }
 
     // Check if email already exists in admin_users for this venue
@@ -82,10 +138,7 @@ Deno.serve(async (req) => {
       .maybeSingle()
 
     if (existingAdmin) {
-      return new Response(JSON.stringify({ error: 'An admin with this email already exists for this venue' }), {
-        status: 409,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+      return json(409, { error: 'An admin with this email already exists for this venue' })
     }
 
     // Insert admin_users row first
@@ -96,55 +149,75 @@ Deno.serve(async (req) => {
       .single()
 
     if (insertError) {
-      return new Response(JSON.stringify({ error: 'Failed to create admin record: ' + insertError.message }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+      return json(500, { error: 'Failed to create admin record: ' + insertError.message })
     }
 
-    // Send Supabase Auth invite
-    const { data: authData, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(
+    // Generate a branded invite link that lands on the admin set-password page.
+    // A bare inviteUserByEmail() has no redirectTo, so it falls back to the Site
+    // URL root and the invite token is lost — hence generateLink + explicit
+    // redirectTo. The slug route on SITE_URL (pos.ledra.co.za) is allowlisted.
+    const redirectTo = `${siteUrl}/${venue.slug}/admin/set-password`
+
+    const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
+      type: 'invite',
       email,
-      { data: { role: inviteRole, venue_id } }
-    )
+      options: { redirectTo, data: { role: inviteRole, venue_id } },
+    })
 
-    if (inviteError) {
-      // If user already exists in auth, return helpful error but keep admin_users row
-      if (inviteError.message?.includes('already been registered') || inviteError.message?.includes('already exists')) {
-        return new Response(JSON.stringify({ 
-          error: 'This email is already registered. Please ask them to log in directly.',
-          admin_id: newAdmin.id 
-        }), {
-          status: 409,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        })
+    const actionLink = linkData?.properties?.action_link
+    const authUser = linkData?.user
+
+    if (linkError || !actionLink || !authUser) {
+      // Roll back the admin_users row so the invite can be retried cleanly.
+      await supabase.from('admin_users').delete().eq('id', newAdmin.id)
+      const msg = linkError?.message ?? 'Failed to generate invite link.'
+      if (msg.includes('already been registered') || msg.includes('already exists')) {
+        return json(409, { error: 'This email is already registered. Ask them to log in, or use “Forgot password” on the login page.' })
       }
-      return new Response(JSON.stringify({ error: inviteError.message || 'Failed to send invite' }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+      return json(500, { error: `Supabase Auth error: ${msg}` })
     }
 
-    // Update admin_users with auth_user_id
-    if (authData?.user) {
-      await supabase
-        .from('admin_users')
-        .update({ auth_user_id: authData.user.id })
-        .eq('id', newAdmin.id)
+    // Send the branded email via Resend (never Supabase's rate-limited SMTP).
+    const resendBody: Record<string, unknown> = {
+      from: `${venue.name} <${fromEmail}>`,
+      to: [email],
+      subject: `You've been added to ${venue.name}`,
+      html: renderAdminInviteEmail({
+        actionLink,
+        venueName: venue.name,
+        name,
+        role: inviteRole,
+        contactEmail: venue.contact_email,
+      }),
     }
+    if (venue.contact_email) resendBody.reply_to = venue.contact_email
 
-    return new Response(JSON.stringify({ 
-      success: true, 
-      admin_id: newAdmin.id,
-      auth_user_id: authData?.user?.id ?? null 
-    }), {
-      status: 200,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    const resendResp = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${resendApiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(resendBody),
     })
+
+    if (!resendResp.ok) {
+      let detail: string
+      try {
+        const body = await resendResp.json()
+        detail = body?.message || body?.name || JSON.stringify(body)
+      } catch {
+        detail = `HTTP ${resendResp.status}`
+      }
+      // Keep the admin_users row + auth user; the superadmin can Resend later.
+      await supabase.from('admin_users').update({ auth_user_id: authUser.id }).eq('id', newAdmin.id)
+      return json(500, { error: `Invite created but email failed to send: ${detail}` })
+    }
+
+    // Link the auth user to the admin_users row.
+    await supabase.from('admin_users').update({ auth_user_id: authUser.id }).eq('id', newAdmin.id)
+
+    return json(200, { success: true, admin_id: newAdmin.id, auth_user_id: authUser.id })
   } catch (err) {
-    return new Response(JSON.stringify({ error: 'Internal server error' }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    })
+    const message = err instanceof Error ? err.message : String(err)
+    console.error('[invite-admin] crash:', message)
+    return json(500, { error: 'Internal server error' })
   }
 })

@@ -14,6 +14,7 @@ import Index from "./pages/Index.tsx";
 import POS from "./pages/POS.tsx";
 import NotFound from "./pages/NotFound.tsx";
 import AdminLogin from "./pages/admin/AdminLogin.tsx";
+import AdminSetPassword from "./pages/admin/AdminSetPassword.tsx";
 import AdminProtectedRoute from "./components/admin/AdminProtectedRoute.tsx";
 import Products from "./pages/admin/Products.tsx";
 import AdminDashboard from "./pages/admin/Dashboard.tsx";
@@ -114,6 +115,7 @@ const App = () => (
               )}
               {customDomainConfig.section === 'admin' && <>
                 <Route path="login" element={<AdminLogin />} />
+                <Route path="set-password" element={<AdminSetPassword />} />
                 <Route element={<AdminAuthProvider><AdminProtectedRoute /></AdminAuthProvider>}>
                   <Route index element={<AdminDashboard />} />
                   {/* Shared with the club-manager role */}
@@ -155,6 +157,7 @@ const App = () => (
                   <Route index element={<Index />} />
                   <Route path="pos" element={<POS />} />
                   <Route path="admin/login" element={<AdminLogin />} />
+                  <Route path="admin/set-password" element={<AdminSetPassword />} />
                   <Route path="admin" element={
                     <AdminAuthProvider>
                       <AdminProtectedRoute />
