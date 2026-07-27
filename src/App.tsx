@@ -23,7 +23,7 @@ import MemberDetail from "./pages/admin/MemberDetail.tsx";
 import Reports from "./pages/admin/Reports.tsx";
 import Settings from "./pages/admin/Settings.tsx";
 import Events from "./pages/admin/Events.tsx";
-import AdminBookings from "./pages/admin/Bookings.tsx";
+import BookingsRoute from "./pages/admin/BookingsRoute.tsx";
 import Broadcasts from "./pages/admin/Broadcasts.tsx";
 import BroadcastCompose from "./pages/admin/BroadcastCompose.tsx";
 import BroadcastDetail from "./pages/admin/BroadcastDetail.tsx";
@@ -129,7 +129,7 @@ const App = () => (
                   <Route path="members/:id" element={<RequireRole allow={['admin', 'superadmin']}><MemberDetail /></RequireRole>} />
                   <Route path="reports" element={<RequireRole allow={['admin', 'superadmin']}><Reports /></RequireRole>} />
                   <Route path="events" element={<RequireRole allow={['admin', 'superadmin']}><Events /></RequireRole>} />
-                  <Route path="bookings" element={<RequireRole allow={['admin', 'superadmin']}><AdminBookings /></RequireRole>} />
+                  <Route path="bookings" element={<BookingsRoute />} />
                   <Route path="broadcasts" element={<RequireRole allow={['admin', 'superadmin']}><Broadcasts /></RequireRole>} />
                   <Route path="broadcasts/new" element={<RequireRole allow={['admin', 'superadmin']}><BroadcastCompose /></RequireRole>} />
                   <Route path="broadcasts/:id" element={<RequireRole allow={['admin', 'superadmin']}><BroadcastDetail /></RequireRole>} />
@@ -175,7 +175,7 @@ const App = () => (
                     <Route path="members/:id" element={<RequireRole allow={['admin', 'superadmin']}><MemberDetail /></RequireRole>} />
                     <Route path="reports" element={<RequireRole allow={['admin', 'superadmin']}><Reports /></RequireRole>} />
                     <Route path="events" element={<RequireRole allow={['admin', 'superadmin']}><Events /></RequireRole>} />
-                    <Route path="bookings" element={<RequireRole allow={['admin', 'superadmin']}><AdminBookings /></RequireRole>} />
+                    <Route path="bookings" element={<BookingsRoute />} />
                     <Route path="broadcasts" element={<RequireRole allow={['admin', 'superadmin']}><Broadcasts /></RequireRole>} />
                     <Route path="broadcasts/new" element={<RequireRole allow={['admin', 'superadmin']}><BroadcastCompose /></RequireRole>} />
                     <Route path="broadcasts/:id" element={<RequireRole allow={['admin', 'superadmin']}><BroadcastDetail /></RequireRole>} />

@@ -34,7 +34,7 @@ const navKeys: NavItem[] = [
   { label: 'Events', sub: 'events', icon: CalendarDays },
   { label: 'Jobs', sub: 'jobs', icon: ClipboardList, managerSees: true },
   { label: 'Leave', sub: 'leave', icon: CalendarClock, managerSees: true },
-  { label: 'Bookings', sub: 'bookings', icon: BedDouble },
+  { label: 'Bookings', sub: 'bookings', icon: BedDouble, managerSees: true },
   { label: 'Reports', sub: 'reports', icon: BarChart3 },
   { label: 'Broadcasts', sub: 'broadcasts', icon: Mail },
   { label: 'WhatsApp AI', sub: 'whatsapp/assistant', icon: MessageCircle },
