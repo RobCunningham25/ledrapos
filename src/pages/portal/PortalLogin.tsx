@@ -30,13 +30,16 @@ export default function PortalLogin() {
     const savedEmail = localStorage.getItem(REMEMBER_EMAIL_KEY);
     if (savedEmail) setEmail(savedEmail);
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        navigate(portalPath(), { replace: true });
-      } else {
-        setCheckingSession(false);
-      }
-    });
+    supabase.auth.getSession()
+      .then(({ data: { session } }) => {
+        if (session) {
+          navigate(portalPath(), { replace: true });
+        } else {
+          setCheckingSession(false);
+        }
+      })
+      // Never strand the user on "Loading..." if the session lookup fails.
+      .catch(() => setCheckingSession(false));
   }, [navigate]);
 
   const handleLogin = async (e: React.FormEvent) => {

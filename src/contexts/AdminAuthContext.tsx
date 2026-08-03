@@ -41,12 +41,23 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
 
     setSession(s);
 
-    const { data: admin } = await supabase
+    // Match on auth_user_id OR email: a seeded row may not be linked yet, and a
+    // row can be re-created under a second address for the same person. That can
+    // legitimately return two rows, so never use .maybeSingle() here — it returns
+    // null on multiple matches and would lock the user out entirely. Resolve the
+    // ambiguity instead: the auth_user_id match is authoritative, email is fallback.
+    const orFilter = s.user.email
+      ? `auth_user_id.eq.${s.user.id},email.eq.${s.user.email}`
+      : `auth_user_id.eq.${s.user.id}`;
+
+    const { data: matches } = await supabase
       .from('admin_users')
       .select('*')
-      .or(`auth_user_id.eq.${s.user.id},email.eq.${s.user.email}`)
-      .eq('is_active', true)
-      .maybeSingle();
+      .or(orFilter)
+      .eq('is_active', true);
+
+    const rows = (matches ?? []) as AdminUser[];
+    const admin = rows.find(r => r.auth_user_id === s.user.id) ?? rows[0] ?? null;
 
     if (admin) {
       // Link auth_user_id on first login if needed
@@ -57,7 +68,7 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
           .eq('id', admin.id);
         admin.auth_user_id = s.user.id;
       }
-      setAdminUser(admin as AdminUser);
+      setAdminUser(admin);
     } else {
       setAdminUser(null);
     }

@@ -9,26 +9,29 @@ export default function PortalProtectedRoute() {
   const { portalLoginPath } = useVenueNav();
 
   useEffect(() => {
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (!session) {
-        setStatus('unauthenticated');
-        return;
-      }
+    supabase.auth.getSession()
+      .then(async ({ data: { session } }) => {
+        if (!session) {
+          setStatus('unauthenticated');
+          return;
+        }
 
-      const { data: member } = await supabase
-        .from('members')
-        .select('id')
-        .eq('auth_user_id', session.user.id)
-        .eq('is_active', true)
-        .maybeSingle();
+        const { data: member } = await supabase
+          .from('members')
+          .select('id')
+          .eq('auth_user_id', session.user.id)
+          .eq('is_active', true)
+          .maybeSingle();
 
-      if (member) {
-        setStatus('authenticated');
-      } else {
-        await signOutSafely();
-        setStatus('unauthenticated');
-      }
-    });
+        if (member) {
+          setStatus('authenticated');
+        } else {
+          await signOutSafely();
+          setStatus('unauthenticated');
+        }
+      })
+      // Never leave the spinner up forever if the session lookup fails.
+      .catch(() => setStatus('unauthenticated'));
   }, []);
 
   if (status === 'loading') {

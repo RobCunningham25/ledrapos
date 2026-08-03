@@ -59,54 +59,52 @@ export function PortalAuthProvider({ children }: { children: ReactNode }) {
     navigate(portalLoginPath, { replace: true });
   }, [navigate, portalLoginPath]);
 
+  // Track the session only. supabase-js invokes this callback while it holds the
+  // auth lock, so awaiting any supabase call in here deadlocks the client — the
+  // member lookup never resolves and every later auth call (including signOut)
+  // blocks on the lock. Keep it synchronous; the member fetch runs in its own
+  // effect below. INITIAL_SESSION fires on subscribe, so no getSession() needed.
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, newSession) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, newSession) => {
       if (event === 'SIGNED_OUT' || !newSession) {
         setSession(null);
         setMember(null);
         setIsLoading(false);
         return;
       }
-
-      if (isSessionExpired(newSession)) {
-        await handleSignOut();
-        setIsLoading(false);
-        return;
-      }
-
       setSession(newSession);
-
-      if (newSession.user) {
-        const m = await fetchMember(newSession.user.id);
-        if (m) {
-          setMember(m);
-        } else {
-          await handleSignOut();
-        }
-      }
-      setIsLoading(false);
-    });
-
-    supabase.auth.getSession().then(async ({ data: { session: existing } }) => {
-      if (existing?.user) {
-        if (isSessionExpired(existing)) {
-          await handleSignOut();
-          return;
-        }
-        setSession(existing);
-        const m = await fetchMember(existing.user.id);
-        if (m) {
-          setMember(m);
-        } else {
-          await handleSignOut();
-          return;
-        }
-      }
-      setIsLoading(false);
     });
 
     return () => subscription.unsubscribe();
-  }, [fetchMember, handleSignOut]);
+  }, []);
+
+  const userId = session?.user?.id ?? null;
+
+  useEffect(() => {
+    if (!userId || !session) return;
+
+    if (isSessionExpired(session)) {
+      handleSignOut();
+      return;
+    }
+
+    let cancelled = false;
+    fetchMember(userId)
+      .then(m => {
+        if (cancelled) return;
+        setIsLoading(false);
+        if (m) setMember(m);
+        else handleSignOut();
+      })
+      .catch(() => {
+        if (!cancelled) setIsLoading(false);
+      });
+
+    return () => { cancelled = true; };
+    // `session` is intentionally excluded — refetching the member on every token
+    // refresh isn't needed; the user identity is what matters.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId, fetchMember, handleSignOut]);
 
   useEffect(() => {
     if (!session) return;
