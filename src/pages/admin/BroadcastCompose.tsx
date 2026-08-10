@@ -23,6 +23,8 @@ interface VenueInfo {
   contact_phone: string | null;
   broadcast_from_email: string | null;
   logo_url: string | null;
+  email_logo_url: string | null;
+  portal_domain: string | null;
 }
 
 interface MemberOption {
@@ -133,7 +135,7 @@ export default function BroadcastCompose() {
       const [venueRes, membersRes, templatesRes, todayRes] = await Promise.all([
         supabase
           .from('venues')
-          .select('id, name, address, contact_email, contact_phone, broadcast_from_email, logo_url')
+          .select('id, name, address, contact_email, contact_phone, broadcast_from_email, logo_url, email_logo_url, portal_domain')
           .eq('id', venueId)
           .maybeSingle(),
         supabase
@@ -374,12 +376,9 @@ export default function BroadcastCompose() {
   const previewHtml = useMemo(() => {
     if (!venue) return '';
     const wrapped = wrapWithFooter({
+      venue,
       subject: subject || '(no subject)',
       bodyHtml,
-      venueName: venue.name,
-      venueAddress: venue.address,
-      logoUrl: venue.logo_url,
-      contactPhone: venue.contact_phone,
       unsubscribeUrl: 'https://pos.ledra.co.za/unsubscribed?status=updated&venue=Preview',
     });
     return wrapped.html;

@@ -15,6 +15,16 @@ import {
   type EventSeries,
   expandAllOccurrences,
 } from "./eventOccurrences.ts";
+import {
+  emailButton,
+  emailHeading,
+  emailParagraph,
+  emailShell,
+  escapeHtml,
+  venueFooterLines,
+  VENUE_EMAIL_COLUMNS,
+  type EmailVenue,
+} from "./emailTemplate.ts";
 
 // ===== Anthropic tool definitions (passed verbatim to messages.create) =====
 
@@ -997,15 +1007,6 @@ function tool_book_caravan_link(
   };
 }
 
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
-
 /**
  * Best-effort: when an `urgent` escalation is created, email the venue's
  * configured recipient (Settings → "Report recipient email") so they don't
@@ -1030,9 +1031,9 @@ async function maybeSendUrgentEscalationEmail(
       .maybeSingle(),
     ctx.supabase
       .from("venues")
-      .select("name, contact_email, broadcast_from_email")
+      .select(VENUE_EMAIL_COLUMNS)
       .eq("id", ctx.venueId)
-      .maybeSingle(),
+      .maybeSingle<EmailVenue>(),
   ]);
 
   const recipient = (setting?.value as string | undefined)
@@ -1042,7 +1043,8 @@ async function maybeSendUrgentEscalationEmail(
   const fromEmail = (venue?.broadcast_from_email as string | undefined)
     ?? Deno.env.get("INVITE_FROM_EMAIL")
     ?? "noreply@ledra.co.za";
-  const venueName = (venue?.name as string | undefined) ?? "Club";
+  const emailVenue: EmailVenue = venue ?? { name: "Club" };
+  const venueName = emailVenue.name;
 
   const { data: member } = await ctx.supabase
     .from("members")
@@ -1061,15 +1063,28 @@ async function maybeSendUrgentEscalationEmail(
   const adminUrl = `${SITE_URL}/${ctx.venueSlug}/admin/whatsapp/followups`;
 
   const subject = `[${venueName}] Urgent WhatsApp follow-up: ${args.summary.slice(0, 80)}`;
-  const html = [
-    `<p><strong>An urgent follow-up has been logged from the WhatsApp assistant.</strong></p>`,
-    `<p><strong>Member:</strong> ${escapeHtml(memberName)} ${escapeHtml(memberRef)}${memberPhone ? ` &middot; ${escapeHtml(memberPhone)}` : ""}</p>`,
-    `<p><strong>Summary:</strong> ${escapeHtml(args.summary)}</p>`,
-    `<p><strong>Original message:</strong></p>`,
-    `<blockquote style="margin: 0 0 1em 0; padding: 0.5em 1em; border-left: 3px solid #D4A574; background: #FAF8F5;">${escapeHtml(ctx.inboundBody).replace(/\n/g, "<br>")}</blockquote>`,
-    `<p><a href="${adminUrl}">Open in admin →</a></p>`,
-    `<hr><p style="font-size: 12px; color: #999;">Sent automatically by ${escapeHtml(venueName)} WhatsApp AI assistant.</p>`,
-  ].join("");
+  const bodyHtml = [
+    emailHeading("Urgent WhatsApp follow-up"),
+    emailParagraph("An urgent follow-up has been logged from the WhatsApp assistant."),
+    emailParagraph(
+      `<strong>Member:</strong> ${escapeHtml(memberName)} ${escapeHtml(memberRef)}${memberPhone ? ` &middot; ${escapeHtml(memberPhone)}` : ""}`,
+    ),
+    emailParagraph(`<strong>Summary:</strong> ${escapeHtml(args.summary)}`),
+    emailParagraph("<strong>Original message:</strong>"),
+    `<blockquote style="margin:0 0 16px;padding:12px 16px;border-left:3px solid #D4A574;background:#FAF8F5;font-size:14px;line-height:1.6;color:#334155;">${escapeHtml(ctx.inboundBody).replace(/\n/g, "<br>")}</blockquote>`,
+    emailButton({ href: adminUrl, label: "Open in admin" }),
+  ].join("\n      ");
+
+  const html = emailShell({
+    venue: emailVenue,
+    title: "Urgent WhatsApp follow-up",
+    preheader: args.summary.slice(0, 120),
+    bodyHtml,
+    footerLines: [
+      ...venueFooterLines(emailVenue),
+      `Sent automatically by the ${escapeHtml(venueName)} WhatsApp AI assistant.`,
+    ],
+  });
 
   try {
     const res = await fetch("https://api.resend.com/emails", {

@@ -17,6 +17,7 @@ import {
   emailShell,
   sendResendEmail,
 } from "../_shared/bookingEmails.ts";
+import { VENUE_EMAIL_COLUMNS, venueFooterLines, type EmailVenue } from "../_shared/emailTemplate.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -95,17 +96,13 @@ Deno.serve(async (req) => {
 
     const { data: venue, error: vErr } = await supabase
       .from("venues")
-      .select("id, name, slug, logo_url, address, contact_email, contact_phone, broadcast_from_email")
+      .select(VENUE_EMAIL_COLUMNS)
       .eq("slug", VCA_SLUG)
-      .single();
+      .single<EmailVenue & { id: string }>();
     if (vErr || !venue) return respond({ error: `VCA venue not found: ${vErr?.message}` });
 
     const from = `${venue.name} <${venue.broadcast_from_email || Deno.env.get("INVITE_FROM_EMAIL") || RECIPIENTS.info}>`;
-    const footerLines = [
-      escapeHtml(venue.name),
-      ...(venue.address ? [escapeHtml(venue.address)] : []),
-      ...(venue.contact_phone ? [escapeHtml(venue.contact_phone)] : []),
-    ];
+    const footerLines = venueFooterLines(venue);
 
     const isFriday = dow === 5;
     const startDate = ymd(sast);
@@ -165,7 +162,7 @@ Deno.serve(async (req) => {
           : ""
       }`;
 
-    const html = emailShell({ venueName: venue.name, logoUrl: venue.logo_url, title, bodyHtml: body, footerLines });
+    const html = emailShell({ venue, title, bodyHtml: body, footerLines });
     const res = await sendResendEmail({ apiKey, from, to, cc, replyTo: venue.contact_email, subject, html });
 
     if (!res.ok) {

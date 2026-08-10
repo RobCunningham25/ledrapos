@@ -15,6 +15,17 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
+import {
+  emailButton,
+  emailContactLine,
+  emailHeading,
+  emailParagraph,
+  emailShell,
+  escapeHtml,
+  venueFooterLines,
+  VENUE_EMAIL_COLUMNS,
+  type EmailVenue,
+} from "../_shared/emailTemplate.ts";
 
 const THROTTLE_MS = 120;
 const RESEND_API_URL = "https://api.resend.com/emails";
@@ -30,15 +41,6 @@ function json(status: number, body: unknown): Response {
   });
 }
 
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
-
 function formatRand(cents: number): string {
   return (cents / 100).toFixed(2);
 }
@@ -49,37 +51,33 @@ async function sleep(ms: number): Promise<void> {
 
 function renderReminderEmail(args: {
   firstName: string;
-  venueName: string;
-  contactEmail: string | null;
+  venue: EmailVenue;
   amountRand: string;
   portalUrl: string;
 }): string {
   const safeName = escapeHtml(args.firstName);
-  const safeVenue = escapeHtml(args.venueName);
   const safeAmount = escapeHtml(args.amountRand);
-  const safeUrl = escapeHtml(args.portalUrl);
-  const contactLine = args.contactEmail
-    ? `<p style="margin:0 0 4px 0;color:#5A6B7A;font-size:13px;">Questions? Reply to this email or contact <a href="mailto:${escapeHtml(args.contactEmail)}" style="color:#2A9D8F;text-decoration:none;">${escapeHtml(args.contactEmail)}</a>.</p>`
-    : "";
-  return `<!doctype html>
-<html>
-<body style="margin:0;padding:0;background:#FAF8F5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#1B3A4B;">
-  <div style="max-width:560px;margin:0 auto;padding:32px 20px;">
-    <div style="background:#FFFFFF;border:1px solid #E2E8F0;border-radius:8px;padding:32px;box-shadow:0 1px 3px rgba(0,0,0,0.06);">
-      <h1 style="margin:0 0 16px 0;font-size:22px;font-weight:700;color:#1B3A4B;line-height:1.3;">Your ${safeVenue} bar tab</h1>
-      <p style="margin:0 0 14px 0;font-size:15px;line-height:1.55;color:#334155;">Hi ${safeName},</p>
-      <p style="margin:0 0 20px 0;font-size:15px;line-height:1.55;color:#334155;">A friendly reminder that your bar tab currently stands at <strong>R${safeAmount}</strong>.</p>
-      <p style="margin:0 0 20px 0;font-size:15px;line-height:1.55;color:#334155;">You can settle it from the member portal, or pop in next time you're at the club.</p>
-      <div style="text-align:center;margin:28px 0;">
-        <a href="${safeUrl}" style="display:inline-block;background:#2A9D8F;color:#FFFFFF;text-decoration:none;font-weight:600;font-size:15px;padding:14px 28px;border-radius:6px;">View &amp; pay in the portal</a>
-      </div>
-      <hr style="border:0;border-top:1px solid #E2E8F0;margin:20px 0;" />
-      <p style="margin:0 0 4px 0;color:#5A6B7A;font-size:13px;">&mdash; ${safeVenue}</p>
-      ${contactLine}
-    </div>
-  </div>
-</body>
-</html>`;
+
+  const bodyHtml = [
+    emailHeading(`Your ${args.venue.name} bar tab`),
+    emailParagraph(`Hi ${safeName},`),
+    emailParagraph(
+      `A friendly reminder that your bar tab currently stands at <strong>R${safeAmount}</strong>.`,
+    ),
+    emailParagraph(
+      "You can settle it from the member portal, or pop in next time you're at the club.",
+    ),
+    emailButton({ href: args.portalUrl, label: "View & pay in the portal" }),
+    emailContactLine(args.venue.contact_email),
+  ].join("\n      ");
+
+  return emailShell({
+    venue: args.venue,
+    title: `Your ${args.venue.name} bar tab`,
+    preheader: `Your bar tab currently stands at R${args.amountRand}.`,
+    bodyHtml,
+    footerLines: venueFooterLines(args.venue),
+  });
 }
 
 Deno.serve(async (req) => {
@@ -135,9 +133,9 @@ Deno.serve(async (req) => {
 
     const { data: venue } = await supabase
       .from("venues")
-      .select("id, name, slug, contact_email, broadcast_from_email, portal_domain")
+      .select(VENUE_EMAIL_COLUMNS)
       .eq("id", body.venue_id)
-      .maybeSingle();
+      .maybeSingle<EmailVenue & { id: string; slug: string }>();
     if (!venue) return json(404, { success: false, error: "Venue not found" });
 
     const fromEmail = venue.broadcast_from_email
@@ -237,8 +235,7 @@ Deno.serve(async (req) => {
 
       const html = renderReminderEmail({
         firstName: m.first_name || "there",
-        venueName: venue.name,
-        contactEmail: venue.contact_email,
+        venue,
         amountRand: formatRand(balance),
         portalUrl,
       });

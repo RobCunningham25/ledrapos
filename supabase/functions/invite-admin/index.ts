@@ -1,4 +1,16 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import {
+  emailButton,
+  emailContactLine,
+  emailHeading,
+  emailLinkFallback,
+  emailParagraph,
+  emailShell,
+  escapeHtml,
+  venueFooterLines,
+  VENUE_EMAIL_COLUMNS,
+  type EmailVenue,
+} from '../_shared/emailTemplate.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -11,52 +23,37 @@ const json = (status: number, body: unknown) =>
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   })
 
-function escapeHtml(s: string) {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
-}
-
 function renderAdminInviteEmail(args: {
   actionLink: string
-  venueName: string
+  venue: EmailVenue
   name: string
   role: string
-  contactEmail: string | null
 }) {
   const safeName = escapeHtml(args.name.split(' ')[0] || 'there')
-  const safeVenue = escapeHtml(args.venueName)
-  const safeLink = escapeHtml(args.actionLink)
+  const safeVenue = escapeHtml(args.venue.name)
   const roleLabel = args.role === 'manager' ? 'Club Manager' : 'Admin'
   const roleBlurb = args.role === 'manager'
     ? `You'll have access to the club calendar, reported issues, your assigned jobs and leave requests.`
     : `You'll have full access to the ${safeVenue} admin panel.`
-  const contactLine = args.contactEmail
-    ? `<p style="margin:0 0 4px 0;color:#5A6B7A;font-size:13px;">Questions? Reply to this email or contact <a href="mailto:${escapeHtml(args.contactEmail)}" style="color:#2A9D8F;text-decoration:none;">${escapeHtml(args.contactEmail)}</a>.</p>`
-    : ''
-  return `<!doctype html>
-<html>
-<body style="margin:0;padding:0;background:#FAF8F5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#1B3A4B;">
-  <div style="max-width:560px;margin:0 auto;padding:32px 20px;">
-    <div style="background:#FFFFFF;border:1px solid #E2E8F0;border-radius:8px;padding:32px;box-shadow:0 1px 3px rgba(0,0,0,0.06);">
-      <h1 style="margin:0 0 16px 0;font-size:22px;font-weight:700;color:#1B3A4B;line-height:1.3;">You've been added to ${safeVenue}</h1>
-      <p style="margin:0 0 14px 0;font-size:15px;line-height:1.55;color:#334155;">Hi ${safeName},</p>
-      <p style="margin:0 0 20px 0;font-size:15px;line-height:1.55;color:#334155;">You've been set up as <strong>${roleLabel}</strong> for ${safeVenue}. ${roleBlurb} Click below to set your password and get started.</p>
-      <div style="text-align:center;margin:28px 0;">
-        <a href="${safeLink}" style="display:inline-block;background:#2E5FA3;color:#FFFFFF;text-decoration:none;font-weight:600;font-size:15px;padding:14px 28px;border-radius:6px;">Set your password</a>
-      </div>
-      <p style="margin:0 0 6px 0;font-size:13px;color:#5A6B7A;">If the button doesn't work, paste this link into your browser:</p>
-      <p style="margin:0 0 24px 0;font-size:12px;word-break:break-all;"><a href="${safeLink}" style="color:#2A9D8F;text-decoration:none;">${safeLink}</a></p>
-      <hr style="border:0;border-top:1px solid #E2E8F0;margin:20px 0;" />
-      <p style="margin:0 0 4px 0;color:#5A6B7A;font-size:13px;">&mdash; ${safeVenue}</p>
-      ${contactLine}
-    </div>
-  </div>
-</body>
-</html>`
+
+  const bodyHtml = [
+    emailHeading(`You've been added to ${args.venue.name}`),
+    emailParagraph(`Hi ${safeName},`),
+    emailParagraph(
+      `You've been set up as <strong>${roleLabel}</strong> for ${safeVenue}. ${roleBlurb} Click below to set your password and get started.`,
+    ),
+    emailButton({ href: args.actionLink, label: 'Set your password' }),
+    emailLinkFallback(args.actionLink),
+    emailContactLine(args.venue.contact_email),
+  ].join('\n      ')
+
+  return emailShell({
+    venue: args.venue,
+    title: `You've been added to ${args.venue.name}`,
+    preheader: `Set your password to access the ${args.venue.name} ${roleLabel.toLowerCase()} workspace.`,
+    bodyHtml,
+    footerLines: venueFooterLines(args.venue),
+  })
 }
 
 Deno.serve(async (req) => {
@@ -121,9 +118,9 @@ Deno.serve(async (req) => {
     // Venue for branding + redirect slug.
     const { data: venue, error: venueError } = await supabase
       .from('venues')
-      .select('slug, name, contact_email')
+      .select(VENUE_EMAIL_COLUMNS)
       .eq('id', venue_id)
-      .single()
+      .single<EmailVenue & { slug: string }>()
 
     if (venueError || !venue) {
       return json(404, { error: 'Venue not found for invite.' })
@@ -184,10 +181,9 @@ Deno.serve(async (req) => {
       subject: `You've been added to ${venue.name}`,
       html: renderAdminInviteEmail({
         actionLink,
-        venueName: venue.name,
+        venue,
         name,
         role: inviteRole,
-        contactEmail: venue.contact_email,
       }),
     }
     if (venue.contact_email) resendBody.reply_to = venue.contact_email

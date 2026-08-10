@@ -12,6 +12,18 @@
 // They only fire for the VCA venue; other venues get guest-facing mail only.
 
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  detailRows,
+  emailShell,
+  escapeHtml,
+  sendResendEmail,
+  venueFooterLines,
+  VENUE_EMAIL_COLUMNS,
+  type EmailVenue,
+} from "./emailTemplate.ts";
+
+// Re-exported so existing importers (booking-schedule-reminders) keep working.
+export { detailRows, emailShell, escapeHtml, sendResendEmail };
 
 // ── Recipients (VCA) ─────────────────────────────────────────────────────────
 export const VCA_SLUG = "vca";
@@ -22,15 +34,6 @@ export const RECIPIENTS = {
 };
 
 // ── Small formatting helpers ─────────────────────────────────────────────────
-export function escapeHtml(s: string): string {
-  return String(s ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
-
 export function formatCentsZAR(cents: number): string {
   const v = (cents ?? 0) / 100;
   return `R ${v.toLocaleString("en-ZA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -50,92 +53,6 @@ export function fmtDate(d: string, withWeekday = true): string {
   } catch {
     return d;
   }
-}
-
-// ── Email shell (Nautical Warm card) ─────────────────────────────────────────
-export function emailShell(args: {
-  venueName: string;
-  logoUrl?: string | null;
-  title: string;
-  bodyHtml: string;
-  footerLines?: string[];
-}): string {
-  const safeVenue = escapeHtml(args.venueName);
-  const logoBlock = args.logoUrl
-    ? `<img src="${escapeHtml(args.logoUrl)}" alt="${safeVenue}" style="max-height:56px;max-width:180px;display:block;margin:0 auto 12px;object-fit:contain;" />`
-    : "";
-  const footer = (args.footerLines ?? [])
-    .map((l) => `<p style="margin:0 0 4px;color:#5A6B7A;font-size:12px;line-height:1.5;">${l}</p>`)
-    .join("");
-
-  return `<!doctype html>
-<html>
-<head><meta charset="utf-8"><title>${escapeHtml(args.title)}</title></head>
-<body style="margin:0;padding:0;background:#FAF8F5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#1B3A4B;">
-  <div style="max-width:560px;margin:0 auto;padding:32px 20px;">
-    <div style="background:#FFFFFF;border:1px solid #E2E8F0;border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.06);">
-      <div style="background:#FFFFFF;padding:26px 32px 20px;text-align:center;border-bottom:3px solid #2A9D8F;">
-        ${logoBlock}
-        <div style="color:#1B3A4B;font-size:19px;font-weight:700;letter-spacing:0.02em;">${safeVenue}</div>
-      </div>
-      <div style="padding:30px 32px;">
-${args.bodyHtml}
-      </div>
-      ${footer ? `<div style="background:#F7F9FC;border-top:1px solid #E2E8F0;padding:18px 32px;text-align:center;">${footer}</div>` : ""}
-    </div>
-  </div>
-</body>
-</html>`;
-}
-
-// A labelled key/value block used inside booking emails.
-export function detailRows(rows: Array<{ label: string; value: string; strong?: boolean }>): string {
-  return `<table style="width:100%;border-collapse:collapse;margin:0 0 4px;">${rows
-    .map(
-      (r) => `<tr>
-      <td style="padding:9px 0;border-bottom:1px solid #EEF2F6;font-size:14px;color:#5A6B7A;">${escapeHtml(r.label)}</td>
-      <td style="padding:9px 0;border-bottom:1px solid #EEF2F6;font-size:14px;color:#1B3A4B;font-weight:${r.strong ? 700 : 500};text-align:right;">${escapeHtml(r.value)}</td>
-    </tr>`,
-    )
-    .join("")}</table>`;
-}
-
-// ── Resend sender ────────────────────────────────────────────────────────────
-export async function sendResendEmail(args: {
-  apiKey: string;
-  from: string;
-  to: string[];
-  cc?: string[];
-  replyTo?: string | null;
-  subject: string;
-  html: string;
-}): Promise<{ ok: boolean; error?: string }> {
-  const body: Record<string, unknown> = {
-    from: args.from,
-    to: args.to,
-    subject: args.subject,
-    html: args.html,
-  };
-  if (args.cc && args.cc.length) body.cc = args.cc;
-  if (args.replyTo) body.reply_to = args.replyTo;
-
-  const resp = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${args.apiKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-
-  if (!resp.ok) {
-    let detail: string;
-    try {
-      const j = await resp.json();
-      detail = j?.message || j?.name || JSON.stringify(j);
-    } catch {
-      detail = `HTTP ${resp.status}`;
-    }
-    return { ok: false, error: detail };
-  }
-  return { ok: true };
 }
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -159,15 +76,7 @@ interface BookingRow {
   booking_site_link: Array<{ nights: number; booking_sites: { name: string } | null }> | null;
 }
 
-interface VenueRow {
-  name: string;
-  slug: string;
-  logo_url: string | null;
-  address: string | null;
-  contact_email: string | null;
-  contact_phone: string | null;
-  broadcast_from_email: string | null;
-}
+type VenueRow = EmailVenue & { slug: string };
 
 function siteSummary(b: BookingRow): { names: string; nights: number } {
   const links = b.booking_site_link ?? [];
@@ -212,7 +121,7 @@ export async function sendBookingEmail(
 
   const { data: venue, error: vErr } = await supabase
     .from("venues")
-    .select("name, slug, logo_url, address, contact_email, contact_phone, broadcast_from_email")
+    .select(VENUE_EMAIL_COLUMNS)
     .eq("id", booking.venue_id)
     .single<VenueRow>();
 
@@ -220,11 +129,7 @@ export async function sendBookingEmail(
 
   const from = `${venue.name} <${venue.broadcast_from_email || fallbackFrom}>`;
   const isVca = venue.slug === VCA_SLUG;
-  const footerLines = [
-    escapeHtml(venue.name),
-    ...(venue.address ? [escapeHtml(venue.address)] : []),
-    ...(venue.contact_phone ? [escapeHtml(venue.contact_phone)] : []),
-  ];
+  const footerLines = venueFooterLines(venue);
   const { names } = siteSummary(booking);
 
   if (kind === "paid_confirmation") {
@@ -242,7 +147,7 @@ export async function sendBookingEmail(
       ])}
       <p style="margin:18px 0 0;font-size:14px;line-height:1.55;color:#334155;">We look forward to welcoming you. If you need to change anything, just reply to this email${venue.contact_phone ? ` or call ${escapeHtml(venue.contact_phone)}` : ""}.</p>`;
 
-    const guestHtml = emailShell({ venueName: venue.name, logoUrl: venue.logo_url, title: "Booking confirmed", bodyHtml: guestBody, footerLines });
+    const guestHtml = emailShell({ venue, title: "Booking confirmed", bodyHtml: guestBody, footerLines });
     const guestRes = booking.guest_email
       ? await sendResendEmail({ apiKey, from, to: [booking.guest_email], replyTo: venue.contact_email, subject: `Booking confirmed — ${booking.booking_code}`, html: guestHtml })
       : { ok: false, error: "no guest email" };
@@ -259,7 +164,7 @@ export async function sendBookingEmail(
           { label: "Amount", value: formatCentsZAR(booking.total_price_cents), strong: true },
           { label: "Method", value: booking.payment_method === "eft" ? "EFT / Bank transfer" : "Card (Yoco)" },
         ])}`;
-      const staffHtml = emailShell({ venueName: venue.name, logoUrl: venue.logo_url, title: "New paid booking", bodyHtml: staffBody, footerLines });
+      const staffHtml = emailShell({ venue, title: "New paid booking", bodyHtml: staffBody, footerLines });
       await sendResendEmail({
         apiKey,
         from,
@@ -293,7 +198,7 @@ export async function sendBookingEmail(
         ...(booking.expires_at ? [{ label: "Holds until", value: fmtDate(booking.expires_at) }] : []),
       ])}
       <p style="margin:18px 0 0;font-size:13px;line-height:1.5;color:#8B7E74;">The booking auto-expires if payment isn't confirmed within the hold window.</p>`;
-    const staffHtml = emailShell({ venueName: venue.name, logoUrl: venue.logo_url, title: "EFT booking — watch for payment", bodyHtml: staffBody, footerLines });
+    const staffHtml = emailShell({ venue, title: "EFT booking — watch for payment", bodyHtml: staffBody, footerLines });
 
     const res = await sendResendEmail({
       apiKey,

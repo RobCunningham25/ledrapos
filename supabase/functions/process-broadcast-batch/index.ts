@@ -24,6 +24,7 @@ import {
   buildUnsubscribeUrl,
   wrapWithFooter,
 } from "../_shared/broadcastTemplate.ts";
+import { VENUE_EMAIL_COLUMNS, type EmailVenue } from "../_shared/emailTemplate.ts";
 
 const THROTTLE_MS = 120; // ~8 req/sec, under Resend free tier 10/sec cap.
 const DEFAULT_BATCH_SIZE = 25;
@@ -101,7 +102,11 @@ Deno.serve(async (req) => {
     return json(500, { error: "RESEND_API_KEY not configured" });
   }
 
-  const fallbackBaseUrl = "https://portal.vaalcruising.co.za";
+  // The unsubscribe endpoint is an Edge Function, so its link must point at the
+  // Supabase project origin. A venue's portal domain is a static SPA host with no
+  // /functions/v1 route — pointing there silently served the app shell instead of
+  // unsubscribing anyone.
+  const functionsBaseUrl = (Deno.env.get("SUPABASE_URL") || "").replace(/\/+$/, "");
 
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,
@@ -127,9 +132,9 @@ Deno.serve(async (req) => {
   // ===== Load venue =====
   const { data: venue, error: venueError } = await supabase
     .from("venues")
-    .select("id, name, address, contact_email, contact_phone, broadcast_from_email, logo_url, portal_domain")
+    .select(VENUE_EMAIL_COLUMNS)
     .eq("id", broadcast.venue_id)
-    .maybeSingle();
+    .maybeSingle<EmailVenue>();
 
   if (venueError || !venue) {
     return json(500, { error: "Venue lookup failed" });
@@ -245,17 +250,11 @@ Deno.serve(async (req) => {
         await sleep(THROTTLE_MS - since);
       }
 
-      const portalBase = venue.portal_domain
-        ? `https://${venue.portal_domain}`
-        : fallbackBaseUrl;
-      const unsubscribeUrl = buildUnsubscribeUrl(portalBase, row.unsubscribe_token);
+      const unsubscribeUrl = buildUnsubscribeUrl(functionsBaseUrl, row.unsubscribe_token);
       const { html, text } = wrapWithFooter({
+        venue,
         subject: broadcast.subject,
         bodyHtml: broadcast.body_html,
-        venueName: venue.name,
-        venueAddress: venue.address,
-        logoUrl: venue.logo_url,
-        contactPhone: venue.contact_phone,
         unsubscribeUrl,
       });
 

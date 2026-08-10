@@ -1,4 +1,4 @@
-export type Json =
+﻿export type Json =
   | string
   | number
   | boolean
@@ -2033,6 +2033,7 @@ export type Database = {
           contact_phone: string | null
           created_at: string | null
           danger_color: string
+          email_logo_url: string | null
           hero_gradient: string | null
           id: string
           is_active: boolean | null
@@ -2071,6 +2072,7 @@ export type Database = {
           contact_phone?: string | null
           created_at?: string | null
           danger_color?: string
+          email_logo_url?: string | null
           hero_gradient?: string | null
           id?: string
           is_active?: boolean | null
@@ -2109,6 +2111,7 @@ export type Database = {
           contact_phone?: string | null
           created_at?: string | null
           danger_color?: string
+          email_logo_url?: string | null
           hero_gradient?: string | null
           id?: string
           is_active?: boolean | null

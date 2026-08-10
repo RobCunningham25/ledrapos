@@ -4,21 +4,22 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
+import {
+  emailButton,
+  emailHeading,
+  emailParagraph,
+  emailShell,
+  escapeHtml,
+  venueFooterLines,
+  VENUE_EMAIL_COLUMNS,
+  type EmailVenue,
+} from "../_shared/emailTemplate.ts";
 
 function json(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
-}
-
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
 }
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -28,7 +29,7 @@ const CATEGORY_LABELS: Record<string, string> = {
 };
 
 function renderAdminEmail(args: {
-  venueName: string;
+  venue: EmailVenue;
   categoryLabel: string;
   reporterName: string;
   reporterEmail: string;
@@ -39,37 +40,39 @@ function renderAdminEmail(args: {
   const safe = (s: string) => escapeHtml(s);
   const messageHtml = safe(args.message).replace(/\n/g, "<br/>");
   const photosHtml = args.photoUrls.length > 0
-    ? `<div style="margin:0 0 24px 0;">
+    ? `<div style="margin:0 0 24px;">
          <div style="font-size:13px;color:#64748B;margin-bottom:8px;">Attached photos (${args.photoUrls.length})</div>
-         <div>${args.photoUrls.map((u) => `<a href="${u}" style="display:inline-block;margin:0 8px 8px 0;"><img src="${u}" alt="attachment" style="width:96px;height:96px;object-fit:cover;border-radius:6px;border:1px solid #E2E8F0;"/></a>`).join("")}</div>
+         <div>${args.photoUrls.map((u) => `<a href="${safe(u)}" style="display:inline-block;margin:0 8px 8px 0;"><img src="${safe(u)}" alt="attachment" style="width:96px;height:96px;object-fit:cover;border-radius:6px;border:1px solid #E2E8F0;"/></a>`).join("")}</div>
        </div>`
     : "";
-  return `<!doctype html>
-<html>
-<body style="margin:0;padding:0;background:#FAF8F5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#1B3A4B;">
-  <div style="max-width:560px;margin:0 auto;padding:32px 20px;">
-    <div style="background:#FFFFFF;border:1px solid #E2E8F0;border-radius:8px;padding:32px;box-shadow:0 1px 3px rgba(0,0,0,0.06);">
-      <h1 style="margin:0 0 16px 0;font-size:20px;font-weight:700;color:#1B3A4B;">New ${safe(args.categoryLabel)}</h1>
-      <p style="margin:0 0 20px 0;font-size:15px;line-height:1.55;color:#334155;">
-        A member has submitted a report through the <strong>${safe(args.venueName)}</strong> portal.
-      </p>
-      <table style="width:100%;border-collapse:collapse;margin-bottom:20px;">
+
+  const bodyHtml = [
+    emailHeading(`New ${args.categoryLabel}`),
+    emailParagraph(
+      `A member has submitted a report through the <strong>${safe(args.venue.name)}</strong> portal.`,
+    ),
+    `<table style="width:100%;border-collapse:collapse;margin-bottom:20px;">
         <tr><td style="padding:8px 0;border-bottom:1px solid #F1F5F9;font-size:13px;color:#64748B;width:120px;">From</td>
             <td style="padding:8px 0;border-bottom:1px solid #F1F5F9;font-size:14px;font-weight:600;color:#1B3A4B;">${safe(args.reporterName)}</td></tr>
         <tr><td style="padding:8px 0;border-bottom:1px solid #F1F5F9;font-size:13px;color:#64748B;">Email</td>
             <td style="padding:8px 0;border-bottom:1px solid #F1F5F9;font-size:14px;color:#334155;">${safe(args.reporterEmail)}</td></tr>
         <tr><td style="padding:8px 0;border-bottom:1px solid #F1F5F9;font-size:13px;color:#64748B;">Type</td>
             <td style="padding:8px 0;border-bottom:1px solid #F1F5F9;font-size:14px;color:#334155;">${safe(args.categoryLabel)}</td></tr>
-      </table>
-      <div style="background:#F8FAFC;border:1px solid #F1F5F9;border-radius:6px;padding:16px;margin-bottom:24px;font-size:14px;line-height:1.6;color:#334155;">
+      </table>`,
+    `<div style="background:#F8FAFC;border:1px solid #F1F5F9;border-radius:6px;padding:16px;margin-bottom:24px;font-size:14px;line-height:1.6;color:#334155;">
         ${messageHtml}
-      </div>
-      ${photosHtml}
-      <a href="${safe(args.adminUrl)}" style="display:inline-block;background:#2A9D8F;color:#FFFFFF;text-decoration:none;font-size:14px;font-weight:600;padding:12px 24px;border-radius:6px;">View in Admin</a>
-    </div>
-  </div>
-</body>
-</html>`;
+      </div>`,
+    photosHtml,
+    emailButton({ href: args.adminUrl, label: "View in Admin" }),
+  ].join("\n      ");
+
+  return emailShell({
+    venue: args.venue,
+    title: `New ${args.categoryLabel}`,
+    preheader: `${args.reporterName} submitted a ${args.categoryLabel.toLowerCase()} via the member portal.`,
+    bodyHtml,
+    footerLines: venueFooterLines(args.venue),
+  });
 }
 
 Deno.serve(async (req) => {
@@ -109,9 +112,9 @@ Deno.serve(async (req) => {
     // Resolve venue + reporter details
     const { data: venue, error: venueErr } = await supabase
       .from("venues")
-      .select("id, name, slug, contact_email, broadcast_from_email")
+      .select(VENUE_EMAIL_COLUMNS)
       .eq("id", venue_id)
-      .single();
+      .single<EmailVenue & { id: string; slug: string }>();
     if (venueErr || !venue) return json(404, { error: "Venue not found" });
 
     let reporterName = "A member";
@@ -179,7 +182,7 @@ Deno.serve(async (req) => {
             reply_to: reporterEmail || undefined,
             subject: `New ${categoryLabel} — ${reporterName}`,
             html: renderAdminEmail({
-              venueName: venue.name,
+              venue,
               categoryLabel,
               reporterName,
               reporterEmail,

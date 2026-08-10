@@ -3,21 +3,22 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
+import {
+  emailButton,
+  emailHeading,
+  emailParagraph,
+  emailShell,
+  escapeHtml,
+  venueFooterLines,
+  VENUE_EMAIL_COLUMNS,
+  type EmailVenue,
+} from "../_shared/emailTemplate.ts";
 
 function json(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
-}
-
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
 }
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -33,7 +34,7 @@ function formatZAR(cents: number): string {
 }
 
 function renderAdminNotificationEmail(args: {
-  venueName: string;
+  venue: EmailVenue;
   applicantName: string;
   category: string;
   email: string;
@@ -47,16 +48,13 @@ function renderAdminNotificationEmail(args: {
     ? `<tr><td style="padding:8px 0;border-bottom:1px solid #F1F5F9;font-size:13px;color:#64748B;">Add-ons</td>
            <td style="padding:8px 0;border-bottom:1px solid #F1F5F9;font-size:14px;color:#334155;">${safe(args.addonMembers.map(m => `${m.name} (${m.category === 'intermediate' ? '19–30' : '12–18'})`).join(', '))}</td></tr>`
     : '';
-  return `<!doctype html>
-<html>
-<body style="margin:0;padding:0;background:#FAF8F5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#1B3A4B;">
-  <div style="max-width:560px;margin:0 auto;padding:32px 20px;">
-    <div style="background:#FFFFFF;border:1px solid #E2E8F0;border-radius:8px;padding:32px;box-shadow:0 1px 3px rgba(0,0,0,0.06);">
-      <h1 style="margin:0 0 16px 0;font-size:20px;font-weight:700;color:#1B3A4B;">New Membership Application</h1>
-      <p style="margin:0 0 20px 0;font-size:15px;line-height:1.55;color:#334155;">
-        A new application has been submitted to <strong>${safe(args.venueName)}</strong>.
-      </p>
-      <table style="width:100%;border-collapse:collapse;margin-bottom:24px;">
+
+  const bodyHtml = [
+    emailHeading("New Membership Application"),
+    emailParagraph(
+      `A new application has been submitted to <strong>${safe(args.venue.name)}</strong>.`,
+    ),
+    `<table style="width:100%;border-collapse:collapse;margin-bottom:24px;">
         <tr><td style="padding:8px 0;border-bottom:1px solid #F1F5F9;font-size:13px;color:#64748B;width:140px;">Applicant</td>
             <td style="padding:8px 0;border-bottom:1px solid #F1F5F9;font-size:14px;font-weight:600;color:#1B3A4B;">${safe(args.applicantName)}</td></tr>
         <tr><td style="padding:8px 0;border-bottom:1px solid #F1F5F9;font-size:13px;color:#64748B;">Category</td>
@@ -68,12 +66,17 @@ function renderAdminNotificationEmail(args: {
             <td style="padding:8px 0;border-bottom:1px solid #F1F5F9;font-size:14px;color:#334155;">${safe(args.mobile)}</td></tr>
         <tr><td style="padding:8px 0;font-size:13px;color:#64748B;">Fees due</td>
             <td style="padding:8px 0;font-size:14px;font-weight:600;color:#1B3A4B;">${safe(formatZAR(args.totalCents))}</td></tr>
-      </table>
-      <a href="${safe(args.applicationUrl)}" style="display:inline-block;background:#2A9D8F;color:#FFFFFF;text-decoration:none;font-size:14px;font-weight:600;padding:12px 24px;border-radius:6px;">Review Application</a>
-    </div>
-  </div>
-</body>
-</html>`;
+      </table>`,
+    emailButton({ href: args.applicationUrl, label: "Review Application" }),
+  ].join("\n      ");
+
+  return emailShell({
+    venue: args.venue,
+    title: "New Membership Application",
+    preheader: `${args.applicantName} applied for ${CATEGORY_LABELS[args.category] ?? args.category}.`,
+    bodyHtml,
+    footerLines: venueFooterLines(args.venue),
+  });
 }
 
 Deno.serve(async (req) => {
@@ -106,9 +109,9 @@ Deno.serve(async (req) => {
     // Resolve venue
     const { data: venue, error: venueErr } = await supabase
       .from("venues")
-      .select("id, name, contact_email, broadcast_from_email")
+      .select(VENUE_EMAIL_COLUMNS)
       .eq("id", venue_id)
-      .single();
+      .single<EmailVenue & { id: string }>();
     if (venueErr || !venue) return json(404, { error: "Venue not found" });
 
     // Insert application
@@ -164,7 +167,7 @@ Deno.serve(async (req) => {
 
     if (resendKey) {
       const emailHtml = renderAdminNotificationEmail({
-        venueName: venue.name,
+        venue,
         applicantName: `${first_names} ${surname}`,
         category: membership_category,
         email,

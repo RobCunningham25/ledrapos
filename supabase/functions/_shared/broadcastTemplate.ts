@@ -1,27 +1,26 @@
-// Shared template helpers for the Member Broadcast Email feature.
-// Used by `unsubscribe`, `send-broadcast`, and `process-broadcast-batch` Edge Functions.
-// Keep in sync with any client-side preview helper.
+// Broadcast-specific template helpers.
+// The card shell itself lives in `emailTemplate.ts` — this file only adds the
+// bits unique to bulk member mail: the POPIA/RFC-8058 compliance footer and the
+// unsubscribe URL builder.
+//
+// Used by `send-broadcast` and `process-broadcast-batch`. Mirrored client-side
+// in `src/lib/broadcastTemplate.ts` for the compose-page preview (Deno can't
+// import from src/, so a copy is unavoidable — keep the two in lock-step).
 
-export function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
+import {
+  emailShell,
+  escapeHtml,
+  htmlToPlainText,
+  type EmailVenue,
+} from "./emailTemplate.ts";
 
-export interface BroadcastFooterContext {
-  venueName: string;
-  venueAddress: string | null;
-  unsubscribeUrl: string;
-}
+export { escapeHtml };
 
-interface WrapInput extends BroadcastFooterContext {
+interface WrapInput {
+  venue: EmailVenue;
   subject: string;
   bodyHtml: string;
-  logoUrl?: string | null;
-  contactPhone?: string | null;
+  unsubscribeUrl: string;
 }
 
 interface WrapOutput {
@@ -29,94 +28,39 @@ interface WrapOutput {
   text: string;
 }
 
-// Wraps the admin's composed body in the email shell + injects the compliance footer.
-// Returns both HTML and a plain-text alternative for Resend.
+// Wraps the admin's composed body in the shared email shell + injects the
+// compliance footer. Returns both HTML and a plain-text alternative for Resend.
 export function wrapWithFooter(input: WrapInput): WrapOutput {
-  const safeVenue = escapeHtml(input.venueName);
-  const safeSubject = escapeHtml(input.subject);
+  const { venue } = input;
+  const safeVenue = escapeHtml(venue.name);
   const safeUnsub = escapeHtml(input.unsubscribeUrl);
 
-  const logoBlock = input.logoUrl
-    ? `<img src="${escapeHtml(input.logoUrl)}" alt="${safeVenue}" style="max-height:64px;max-width:180px;display:block;margin:0 auto 14px;object-fit:contain;" />`
-    : '';
+  const footerLines = [
+    `You're receiving this because you're a member of ${safeVenue}.`,
+    ...(venue.address ? [escapeHtml(venue.address)] : []),
+    ...(venue.contact_phone ? [escapeHtml(venue.contact_phone)] : []),
+    `<a href="${safeUnsub}" style="color:#2A9D8F;text-decoration:underline;">Unsubscribe from ${safeVenue} emails</a>`,
+  ];
 
-  const headerPhone = input.contactPhone
-    ? `<div style="color:#2A9D8F;font-size:13px;margin-top:6px;letter-spacing:0.01em;">${escapeHtml(input.contactPhone)}</div>`
-    : '';
-
-  const footerAddress = input.venueAddress
-    ? `<p style="margin:0 0 4px;color:#5A6B7A;font-size:12px;line-height:1.5;">${escapeHtml(input.venueAddress)}</p>`
-    : '';
-
-  const footerPhone = input.contactPhone
-    ? `<p style="margin:0 0 4px;color:#5A6B7A;font-size:12px;">${escapeHtml(input.contactPhone)}</p>`
-    : '';
-
-  const html = `<!doctype html>
-<html>
-<head><meta charset="utf-8"><title>${safeSubject}</title></head>
-<body style="margin:0;padding:0;background:#FAF8F5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#1B3A4B;">
-  <div style="max-width:600px;margin:0 auto;padding:32px 20px;">
-    <div style="background:#FFFFFF;border:1px solid #E2E8F0;border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.06);">
-
-      <div style="background:#FFFFFF;padding:28px 32px 24px;text-align:center;border-bottom:3px solid #2A9D8F;">
-        ${logoBlock}
-        <div style="color:#1B3A4B;font-size:20px;font-weight:700;letter-spacing:0.02em;">${safeVenue}</div>
-        ${headerPhone}
-      </div>
-
-      <div style="padding:32px;font-size:15px;line-height:1.7;color:#334155;">
-${input.bodyHtml}
-      </div>
-
-      <div style="background:#F7F9FC;border-top:1px solid #E2E8F0;padding:20px 32px;text-align:center;">
-        <p style="margin:0 0 4px;color:#5A6B7A;font-size:12px;line-height:1.5;">You're receiving this because you're a member of ${safeVenue}.</p>
-        ${footerAddress}
-        ${footerPhone}
-        <p style="margin:8px 0 0;font-size:12px;">
-          <a href="${safeUnsub}" style="color:#2A9D8F;text-decoration:underline;">Unsubscribe from ${safeVenue} emails</a>
-        </p>
-      </div>
-
-    </div>
-  </div>
-</body>
-</html>`;
+  const html = emailShell({
+    venue,
+    title: input.subject,
+    bodyHtml: input.bodyHtml,
+    footerLines,
+  });
 
   const text =
-    `[ ${input.venueName} ]` +
-    (input.contactPhone ? `\n${input.contactPhone}` : '') +
-    `\n${'─'.repeat(40)}\n\n` +
+    `[ ${venue.name} ]` +
+    (venue.contact_phone ? `\n${venue.contact_phone}` : "") +
+    `\n${"─".repeat(40)}\n\n` +
     htmlToPlainText(input.bodyHtml) +
     "\n\n--\n" +
-    `You're receiving this because you're a member of ${input.venueName}.\n` +
-    (input.venueAddress ? `${input.venueAddress}\n` : "") +
-    (input.contactPhone ? `${input.contactPhone}\n` : "") +
+    `You're receiving this because you're a member of ${venue.name}.\n` +
+    (venue.address ? `${venue.address}\n` : "") +
+    (venue.contact_phone ? `${venue.contact_phone}\n` : "") +
     `\nUnsubscribe: ${input.unsubscribeUrl}\n`;
 
   return { html, text };
-}
-
-// Best-effort HTML → plain text. Not a full parser; just enough to give Resend
-// a sensible text/plain alternative so messages don't get filed as spam-likely.
-function htmlToPlainText(html: string): string {
-  return html
-    .replace(/<br\s*\/?>/gi, "\n")
-    .replace(/<\/p>/gi, "\n\n")
-    .replace(/<\/div>/gi, "\n")
-    .replace(/<li[^>]*>/gi, "- ")
-    .replace(/<\/li>/gi, "\n")
-    .replace(/<\/h[1-6]>/gi, "\n\n")
-    .replace(/<[^>]+>/g, "")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/[ \t]+\n/g, "\n")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
 }
 
 // Builds the unsubscribe URL for a member. Edge Functions construct this with
