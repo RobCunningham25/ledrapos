@@ -126,7 +126,7 @@ function CreditTabCard({ memberId, venueId }: { memberId: string; venueId: strin
               fontSize: 11, fontWeight: 600, letterSpacing: '0.08em',
               textTransform: 'uppercase', color: 'rgba(255,255,255,0.7)', margin: 0,
             }}>
-              You owe on your tab
+              {hasTab && netOutstanding > 0 ? 'You owe on your tab' : 'Your bar tab'}
             </p>
             {tabLoading ? (
               <Skeleton className="h-10 w-[160px] mt-1" style={{ background: 'rgba(255,255,255,0.15)' }} />
