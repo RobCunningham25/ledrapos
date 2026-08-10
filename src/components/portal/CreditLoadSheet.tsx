@@ -73,7 +73,11 @@ export default function CreditLoadSheet({ open, onClose, memberId, venueId }: Cr
         {/* Handle bar */}
         <div style={{ width: 40, height: 4, background: 'var(--portal-card-border)', borderRadius: 2, margin: '0 auto 20px' }} />
 
-        <p style={{ fontSize: 18, fontWeight: 600, color: 'var(--portal-text-primary)', marginBottom: 20 }}>Load Credit</p>
+        <p style={{ fontSize: 18, fontWeight: 600, color: 'var(--portal-text-primary)', marginBottom: 4 }}>Load Credit</p>
+        <p style={{ fontSize: 13, color: 'var(--portal-text-muted)', marginBottom: 20, lineHeight: 1.4 }}>
+          Adds prepaid credit to your account for future drinks. This does <strong>not</strong> settle an open tab —
+          close this and use <strong>Pay Tab</strong> for that.
+        </p>
 
         {/* Quick amounts */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>

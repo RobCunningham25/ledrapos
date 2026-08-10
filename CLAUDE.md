@@ -28,7 +28,7 @@ for database, RLS, Edge Functions, Auth, and Storage.
 
 | Table | Purpose |
 |---|---|
-| `venues` | One row per tenant; includes 21 branding/config columns, `slug`, `logo_url`, `broadcast_from_email` (per-tenant verified Resend sender) |
+| `venues` | One row per tenant; includes 21 branding/config columns, `slug`, `logo_url` (app asset — may be relative and/or SVG), `email_logo_url` (absolute https raster URL for email; see rule 18), `broadcast_from_email` (per-tenant verified Resend sender) |
 | `members` | Club members; `venue_id`, `membership_number`, `email_opt_out`, `unsubscribe_token` (per-member, used in broadcast unsubscribe links), plus WhatsApp fields: `whatsapp_number`, `whatsapp_opt_in` (**opt-OUT consent model** — TRUE by default, FALSE only alongside an explicit `whatsapp_opt_out_at`; STOP opts out, START re-subscribes), `whatsapp_opt_in_at`, `whatsapp_opt_in_method` (`assumed` = subscribed by the opt-out model), `whatsapp_opt_out_at`, `whatsapp_notice_sent_at` (one-time "reply STOP to opt out" courtesy notice), `whatsapp_last_inbound_at` (drives the 24h session-window check) |
 | `products` | Product catalogue; `venue_id`, `category`, `price`, `purchase_price` (cost-per-shot) |
 | `tabs` | Open/closed bar tabs; written on first cart commit, not on tab open |
@@ -215,6 +215,13 @@ native PS syntax or use `curl.exe` explicitly when giving CLI instructions.
 17. **Never expose `TWILIO_AUTH_TOKEN` or `WHATSAPP_WORKER_TOKEN`** — `whatsapp-webhook` validates
     `X-Twilio-Signature` (HMAC-SHA1 of URL + sorted form params using the auth token) and
     `send-whatsapp` requires the worker token. Both live in Supabase function secrets only.
+18. **Never hand-roll email HTML** — every outbound message renders through `emailShell()` in
+    [supabase/functions/_shared/emailTemplate.ts](supabase/functions/_shared/emailTemplate.ts) so
+    the whole platform shares one branded shell. Select venue columns with `VENUE_EMAIL_COLUMNS`
+    and pass the whole `venue` object; never pass `logo_url` to an `<img>` directly. Email clients
+    can't resolve relative paths and Gmail/Outlook/Apple Mail strip SVG — `emailLogoUrl()` handles
+    both and returns null rather than emitting a broken image. The client mirror
+    [src/lib/broadcastTemplate.ts](src/lib/broadcastTemplate.ts) must stay in lock-step.
 
 ---
 

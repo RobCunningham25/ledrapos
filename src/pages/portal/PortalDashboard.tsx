@@ -6,10 +6,13 @@ import { usePortalAuth } from '@/contexts/PortalAuthContext';
 import { usePortalTheme } from '@/contexts/PortalThemeContext';
 import { usePortalCredit } from '@/hooks/usePortalCredit';
 import { usePortalOpenTab } from '@/hooks/usePortalOpenTab';
+import { usePayTab, MIN_ONLINE_PAYMENT_CENTS } from '@/hooks/usePayTab';
+import { useVenue } from '@/contexts/VenueContext';
 import { formatCents } from '@/utils/currency';
 import { Calendar, BedDouble } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import CreditLoadSheet from '@/components/portal/CreditLoadSheet';
+import PayTabDialog from '@/components/portal/PayTabDialog';
 import ClubAccountCard from '@/components/portal/ClubAccountCard';
 import { supabase } from '@/integrations/supabase/client';
 import { expandAllOccurrences, type EventSeries, type MonthlyMode, type Recurrence } from '@/utils/eventOccurrences';
@@ -74,19 +77,37 @@ function WeatherWidget() {
 // ─── Credit & Tab Card ─────────────────────────────────────────
 function CreditTabCard({ memberId, venueId }: { memberId: string; venueId: string }) {
   const { balance, isLoading: creditLoading } = usePortalCredit(memberId, venueId);
-  const { tabTotal, amountDue, isLoading: tabLoading, items } = usePortalOpenTab(memberId, venueId);
+  const { tabTotal, amountDue, tabId, isLoading: tabLoading, items } = usePortalOpenTab(memberId, venueId);
   const [showCredit, setShowCredit] = useState(false);
   const { portalPath } = useVenueNav();
+  const { venueSlug } = useVenue();
   const navigate = useNavigate();
 
   const hasTab = items !== null && items.length > 0;
   const netOutstanding = amountDue;
+
+  const pay = usePayTab({ memberId, venueId, venueSlug, tabId, amountCents: netOutstanding });
+
+  // Only offer online payment once the outstanding amount clears Yoco's minimum.
+  const canPayOnline = hasTab && netOutstanding >= MIN_ONLINE_PAYMENT_CENTS;
+  const belowMinimum = hasTab && netOutstanding > 0 && netOutstanding < MIN_ONLINE_PAYMENT_CENTS;
 
   const owedColor = !hasTab
     ? 'rgba(255,255,255,0.9)'
     : netOutstanding > 0
       ? '#FBBF24'
       : '#86EFAC';
+
+  const primaryBtn: React.CSSProperties = {
+    flex: 2, height: 48, borderRadius: 'var(--portal-button-radius)', fontWeight: 700, fontSize: 15,
+    background: '#FFFFFF', color: 'var(--portal-primary)', border: 'none', cursor: 'pointer',
+    boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+  };
+  const secondaryBtn: React.CSSProperties = {
+    flex: 1, height: 48, borderRadius: 'var(--portal-button-radius)', fontWeight: 600, fontSize: 14,
+    background: 'rgba(255,255,255,0.15)', color: '#FFFFFF',
+    border: '1px solid rgba(255,255,255,0.35)', cursor: 'pointer',
+  };
 
   return (
     <>
@@ -153,29 +174,62 @@ function CreditTabCard({ memberId, venueId }: { memberId: string; venueId: strin
           </div>
         </div>
 
+        {/* Primary action is always the one the member actually came here for:
+            settle the tab if something is owed, otherwise prepay credit. */}
         <div style={{ display: 'flex', gap: 12, marginTop: 20 }}>
-          <button
-            onClick={() => setShowCredit(true)}
-            style={{
-              flex: 1, height: 44, borderRadius: 'var(--portal-button-radius)', fontWeight: 600, fontSize: 14,
-              background: 'rgba(255,255,255,0.15)', color: '#FFFFFF',
-              border: '1px solid rgba(255,255,255,0.2)', cursor: 'pointer',
-            }}
-          >
-            Load Credit
-          </button>
-          <button
-            onClick={() => navigate(portalPath('bar-tab'))}
-            style={{
-              flex: 1, height: 44, borderRadius: 'var(--portal-button-radius)', fontWeight: 600, fontSize: 14,
-              background: 'rgba(255,255,255,0.15)', color: '#FFFFFF',
-              border: '1px solid rgba(255,255,255,0.2)', cursor: 'pointer',
-            }}
-          >
-            View Bar Tab
-          </button>
+          {canPayOnline ? (
+            <>
+              <button onClick={pay.openDialog} style={primaryBtn}>
+                Pay Tab · {formatCents(netOutstanding)}
+              </button>
+              <button onClick={() => navigate(portalPath('bar-tab'))} style={secondaryBtn}>
+                View Tab
+              </button>
+            </>
+          ) : (
+            <>
+              <button onClick={() => setShowCredit(true)} style={primaryBtn}>
+                Load Credit
+              </button>
+              <button onClick={() => navigate(portalPath('bar-tab'))} style={secondaryBtn}>
+                View Tab
+              </button>
+            </>
+          )}
         </div>
+
+        {belowMinimum && (
+          <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.75)', margin: '10px 0 0', textAlign: 'center' }}>
+            {formatCents(netOutstanding)} is below the {formatCents(MIN_ONLINE_PAYMENT_CENTS)} online minimum — please settle at the bar.
+          </p>
+        )}
+
+        {/* Credit demoted to a tertiary link whenever there's a tab to pay,
+            so "Load Credit" stops being mistaken for "Pay Tab". */}
+        {canPayOnline && (
+          <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)', margin: '12px 0 0', textAlign: 'center' }}>
+            Just topping up for later?{' '}
+            <button
+              onClick={() => setShowCredit(true)}
+              style={{
+                background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+                color: '#FFFFFF', fontWeight: 600, fontSize: 13, textDecoration: 'underline',
+              }}
+            >
+              Load credit
+            </button>
+          </p>
+        )}
       </div>
+
+      {pay.isOpen && (
+        <PayTabDialog
+          amountCents={netOutstanding}
+          onConfirm={pay.confirmPay}
+          onCancel={pay.closeDialog}
+          loading={pay.isPaying}
+        />
+      )}
 
       <CreditLoadSheet open={showCredit} onClose={() => setShowCredit(false)} memberId={memberId} venueId={venueId} />
     </>

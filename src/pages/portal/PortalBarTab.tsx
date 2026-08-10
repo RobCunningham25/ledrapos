@@ -25,13 +25,14 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { usePortalAuth } from '@/contexts/PortalAuthContext';
 import { formatCents } from '@/utils/currency';
-import { toast } from 'sonner';
 import { format, formatDistanceToNow } from 'date-fns';
-import { ChevronDown, ChevronUp, Loader2, ArrowLeft, Receipt } from 'lucide-react';
+import { ChevronDown, ChevronUp, ArrowLeft, Receipt } from 'lucide-react';
 import { useVenueNav } from '@/hooks/useVenueNav';
 import { useVenue } from '@/contexts/VenueContext';
+import { usePayTab, MIN_ONLINE_PAYMENT_CENTS } from '@/hooks/usePayTab';
 import { Skeleton } from '@/components/ui/skeleton';
 import CreditLoadSheet from '@/components/portal/CreditLoadSheet';
+import PayTabDialog from '@/components/portal/PayTabDialog';
 import CreditBalanceBarCard from '@/components/portal/CreditBalanceBarCard';
 import SpendingSnapshotCard from '@/components/portal/SpendingSnapshotCard';
 import FavouritesCard from '@/components/portal/FavouritesCard';
@@ -58,40 +59,6 @@ const cardStyle: React.CSSProperties = {
   boxShadow: 'var(--portal-card-shadow)', padding: 24,
 };
 
-// ─── Pay Tab Confirmation Dialog ─────────────────────────────────────
-function PayTabDialog({ amountCents, onConfirm, onCancel, loading }: {
-  amountCents: number; onConfirm: () => void; onCancel: () => void; loading: boolean;
-}) {
-  return (
-    <>
-      <div onClick={onCancel} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 50 }} />
-      <div style={{
-        position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)',
-        maxWidth: 320, width: 'calc(100% - 32px)', background: 'var(--portal-card-bg)', borderRadius: 'var(--portal-card-radius)',
-        padding: 24, boxShadow: '0 4px 12px rgba(0,0,0,0.15)', zIndex: 51, textAlign: 'center',
-        border: `1px solid var(--portal-card-border)`,
-      }}>
-        <p style={{ fontSize: 16, color: 'var(--portal-text-primary)' }}>Pay your tab of {formatCents(amountCents)} via card?</p>
-        <div style={{ display: 'flex', gap: 12, marginTop: 20 }}>
-          <button onClick={onCancel} style={{
-            flex: 1, height: 44, border: `1px solid var(--portal-card-border)`, background: 'var(--portal-card-bg)',
-            color: 'var(--portal-text-secondary)', fontWeight: 500, borderRadius: 'var(--portal-button-radius)', cursor: 'pointer',
-          }}>Cancel</button>
-          <button disabled={loading} onClick={onConfirm} style={{
-            flex: 1, height: 44, background: 'var(--portal-accent)', color: '#FFFFFF',
-            fontWeight: 600, borderRadius: 'var(--portal-button-radius)', border: 'none',
-            cursor: loading ? 'default' : 'pointer',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-          }}>
-            {loading ? <Loader2 size={16} className="animate-spin" /> : null}
-            Pay Now
-          </button>
-        </div>
-      </div>
-    </>
-  );
-}
-
 // ─── Open Tab Card ───────────────────────────────────────────────────
 function OpenTabCard({
   items, openedAt, totalPaidCents, tabId, memberId, venueId, venueSlug, isLoading, error,
@@ -99,8 +66,9 @@ function OpenTabCard({
   items: TabItem[] | null; openedAt: string | null; totalPaidCents: number;
   tabId: string | null; memberId: string; venueId: string; venueSlug: string; isLoading: boolean; error: string | null;
 }) {
-  const [showPayDialog, setShowPayDialog] = useState(false);
-  const [payLoading, setPayLoading] = useState(false);
+  const tabTotal = (items || []).reduce((s, i) => s + i.line_total_cents, 0);
+  const amountDue = tabTotal - totalPaidCents;
+  const pay = usePayTab({ memberId, venueId, venueSlug, tabId, amountCents: amountDue });
 
   if (isLoading) {
     return (
@@ -131,25 +99,6 @@ function OpenTabCard({
       </div>
     );
   }
-
-  const tabTotal = items.reduce((s, i) => s + i.line_total_cents, 0);
-  const amountDue = tabTotal - totalPaidCents;
-
-  const handlePayTab = async () => {
-    setPayLoading(true);
-    try {
-      const { data, error: fnErr } = await supabase.functions.invoke('create-checkout', {
-        body: { member_id: memberId, venue_id: venueId, venue_slug: venueSlug, purpose: 'tab_payment', amount_cents: amountDue, tab_id: tabId },
-      });
-      if (fnErr) throw new Error(fnErr.message);
-      if (!data?.success) throw new Error(data?.error || 'Failed to create checkout');
-      window.location.href = data.redirect_url;
-    } catch (err: any) {
-      toast.error(err.message || 'Something went wrong');
-      setPayLoading(false);
-      setShowPayDialog(false);
-    }
-  };
 
   const thStyle: React.CSSProperties = {
     fontSize: 12, fontWeight: 600, color: 'var(--portal-text-muted)', textTransform: 'uppercase',
@@ -218,32 +167,30 @@ function OpenTabCard({
       </div>
 
       {/* Pay button */}
-      {amountDue >= 200 && (
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16 }}>
-          <button
-            onClick={() => setShowPayDialog(true)}
-            className="w-full lg:w-auto"
-            style={{
-              minWidth: 200, height: 48, background: 'var(--portal-primary)', color: '#FFFFFF',
-              fontWeight: 600, fontSize: 16, borderRadius: 'var(--portal-button-radius)', border: 'none', cursor: 'pointer',
-            }}
-          >
-            Pay {formatCents(amountDue)} Now
-          </button>
-        </div>
+      {amountDue >= MIN_ONLINE_PAYMENT_CENTS && (
+        <button
+          onClick={pay.openDialog}
+          style={{
+            width: '100%', height: 52, background: 'var(--portal-primary)', color: '#FFFFFF',
+            fontWeight: 700, fontSize: 17, borderRadius: 'var(--portal-button-radius)', border: 'none', cursor: 'pointer',
+            marginTop: 16, boxShadow: '0 2px 8px rgba(27,58,75,0.2)',
+          }}
+        >
+          Pay Tab · {formatCents(amountDue)}
+        </button>
       )}
-      {amountDue > 0 && amountDue < 200 && (
+      {amountDue > 0 && amountDue < MIN_ONLINE_PAYMENT_CENTS && (
         <p style={{ fontSize: 13, color: 'var(--portal-text-muted)', textAlign: 'center', marginTop: 12 }}>
           Remaining balance of {formatCents(amountDue)} is below the minimum online payment amount. Please settle at the bar.
         </p>
       )}
 
-      {showPayDialog && (
+      {pay.isOpen && (
         <PayTabDialog
           amountCents={amountDue}
-          onConfirm={handlePayTab}
-          onCancel={() => setShowPayDialog(false)}
-          loading={payLoading}
+          onConfirm={pay.confirmPay}
+          onCancel={pay.closeDialog}
+          loading={pay.isPaying}
         />
       )}
     </div>
@@ -581,6 +528,8 @@ export default function PortalBarTab() {
 
       {/* Mobile layout */}
       <div className="flex flex-col lg:hidden" style={{ gap: 16, paddingBottom: 100 }}>
+        {/* Tab first — the credit card used to sit above it and got tapped by mistake */}
+        {openTabCard}
         <CreditBalanceBarCard
           balance={creditBalance}
           isLoading={creditLoading && isFirstLoad}
@@ -588,7 +537,6 @@ export default function PortalBarTab() {
           memberId={memberId}
           venueId={venueId}
         />
-        {openTabCard}
         <SpendingSnapshotCard memberId={memberId} venueId={venueId} />
         <FavouritesCard memberId={memberId} venueId={venueId} />
         {tabHistory}

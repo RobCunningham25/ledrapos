@@ -55,11 +55,16 @@ export default function CreditBalanceBarCard({
           {formatCents(balance)}
         </p>
       )}
+      <p style={{ fontSize: 12, color: 'var(--portal-text-muted)', margin: '6px 0 0', lineHeight: 1.4 }}>
+        Prepaid money for future drinks. To settle what you owe now, use the <strong>Pay Tab</strong> button on your open tab.
+      </p>
+      {/* Secondary styling on purpose — Pay Tab is the primary action on this page */}
       <button
         onClick={onLoadCredit}
         style={{
-          width: '100%', height: 44, background: 'var(--portal-accent)', color: '#FFFFFF',
-          fontWeight: 600, fontSize: 15, borderRadius: 'var(--portal-button-radius)', border: 'none', marginTop: 12, cursor: 'pointer',
+          width: '100%', height: 44, background: 'transparent', color: 'var(--portal-accent)',
+          fontWeight: 600, fontSize: 15, borderRadius: 'var(--portal-button-radius)',
+          border: `1px solid var(--portal-accent)`, marginTop: 12, cursor: 'pointer',
         }}
       >
         Load Credit
