@@ -130,6 +130,11 @@ Dashboard cards use: white background, `1px solid #E2E8F0` border, `8px` radius,
   unsubscribe via `unsubscribe` Edge Function → 302 redirect to public Vite route `/unsubscribed`.
   4 starter templates seeded for VCA (Letter from Commodore / Newsletter / Formal Letter / Casual
   notice). Footer auto-injected with venue address + unsubscribe link (POPIA + RFC 8058 compliant).
+  **Club archive copy:** if `venues.broadcast_archive_email` is set (VCA → `info@vaalcruising.co.za`),
+  the worker sends **one** copy per broadcast to that inbox before the member run — subject prefixed
+  `[Copy]`, archive banner in place of the member notice, no unsubscribe link, guarded by
+  `email_broadcasts.archive_sent_at` so the cron drainer can't re-archive. Deliberately not a
+  per-email BCC: at ~74 members that would double every broadcast past the 95/day Resend threshold.
 - **Portal password reset:** `request-password-reset` Edge Function (unauthenticated; looks up
   active member by email + venue, generates a recovery link via `generateLink`, sends branded
   email through Resend — never Supabase's rate-limited built-in SMTP) → member lands on
