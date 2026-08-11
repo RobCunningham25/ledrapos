@@ -611,8 +611,11 @@ export type Database = {
           created_at: string
           created_by: string | null
           failed_count: number
+          from_email: string | null
+          from_label: string | null
           id: string
           recipient_filter: Json
+          reply_to_email: string | null
           scheduled_for: string | null
           sent_at: string | null
           sent_count: number
@@ -632,8 +635,11 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           failed_count?: number
+          from_email?: string | null
+          from_label?: string | null
           id?: string
           recipient_filter?: Json
+          reply_to_email?: string | null
           scheduled_for?: string | null
           sent_at?: string | null
           sent_count?: number
@@ -653,8 +659,11 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           failed_count?: number
+          from_email?: string | null
+          from_label?: string | null
           id?: string
           recipient_filter?: Json
+          reply_to_email?: string | null
           scheduled_for?: string | null
           sent_at?: string | null
           sent_count?: number
@@ -1989,6 +1998,53 @@ export type Database = {
           },
         ]
       }
+      venue_email_senders: {
+        Row: {
+          created_at: string
+          email: string
+          id: string
+          is_active: boolean
+          is_default: boolean
+          label: string | null
+          reply_to: string | null
+          sort_order: number
+          updated_at: string
+          venue_id: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          id?: string
+          is_active?: boolean
+          is_default?: boolean
+          label?: string | null
+          reply_to?: string | null
+          sort_order?: number
+          updated_at?: string
+          venue_id: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: string
+          is_active?: boolean
+          is_default?: boolean
+          label?: string | null
+          reply_to?: string | null
+          sort_order?: number
+          updated_at?: string
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "venue_email_senders_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       venue_knowledge: {
         Row: {
           body: string
@@ -2415,6 +2471,7 @@ export type Database = {
           whatsapp_opt_out_at: string
         }[]
       }
+      is_active_admin: { Args: never; Returns: boolean }
       process_payment: {
         Args: {
           p_card_amount?: number

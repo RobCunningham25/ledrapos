@@ -134,11 +134,21 @@ Dashboard cards use: white background, `1px solid #E2E8F0` border, `8px` radius,
   unsubscribe via `unsubscribe` Edge Function → 302 redirect to public Vite route `/unsubscribed`.
   4 starter templates seeded for VCA (Letter from Commodore / Newsletter / Formal Letter / Casual
   notice). Footer auto-injected with venue address + unsubscribe link (POPIA + RFC 8058 compliant).
+  **Sender picker:** `venue_email_senders` holds the curated From addresses per venue (VCA →
+  `info@` default, `finance@`). Resend verifies the whole *domain*, so any address on
+  `vaalcruising.co.za` sends with no new setup — this table is what limits that to a chosen list.
+  `send-broadcast` takes a `sender_id`, never an address (see rule 20). Replies default to the
+  sending address. The choice is frozen onto `email_broadcasts.from_email` / `from_label` /
+  `reply_to_email` at compose time so the cron drainer can't finish a finance@ broadcast as info@.
+  Broadcasts only — transactional mail still resolves its sender from `venues.broadcast_from_email`.
   **Club archive copy:** if `venues.broadcast_archive_email` is set (VCA → `info@vaalcruising.co.za`),
-  the worker sends **one** copy per broadcast to that inbox before the member run — subject prefixed
-  `[Copy]`, archive banner in place of the member notice, no unsubscribe link, guarded by
-  `email_broadcasts.archive_sent_at` so the cron drainer can't re-archive. Deliberately not a
-  per-email BCC: at ~74 members that would double every broadcast past the 95/day Resend threshold.
+  the worker sends **one** copy per broadcast before the member run — subject prefixed `[Copy]`,
+  archive banner in place of the member notice, no unsubscribe link, guarded by
+  `email_broadcasts.archive_sent_at` so the cron drainer can't re-archive. It goes to the standing
+  archive address **plus the sending address when they differ**, so a finance@ broadcast is on record
+  in both inboxes (Resend doesn't send via the club's mail host, so finance@ gets no Sent copy of its
+  own). Deliberately not a per-email BCC: at ~74 members that would double every broadcast past the
+  95/day Resend threshold.
 - **Portal password reset:** `request-password-reset` Edge Function (unauthenticated; looks up
   active member by email + venue, generates a recovery link via `generateLink`, sends branded
   email through Resend — never Supabase's rate-limited built-in SMTP) → member lands on
@@ -235,6 +245,11 @@ native PS syntax or use `curl.exe` explicitly when giving CLI instructions.
     and allergy information. Members read only their own row (`can_write_event_rsvp(member_id)`);
     the portal's "N people are going" count comes from the aggregate-only `event_rsvp_counts` RPC,
     which returns no names and no notes. This is a deliberate exception to the permissive RLS pattern.
+20. **Never let the client name a broadcast's From address** — `send-broadcast` accepts a `sender_id`
+    and resolves it against that venue's own `venue_email_senders` rows. Resend verifies the whole
+    domain, so a raw address from the browser would let any admin send as anything on
+    `vaalcruising.co.za`. `venue_email_senders` is admin-only in both directions for the same reason
+    (`is_active_admin()`) — another deliberate exception to the permissive RLS pattern.
 
 ---
 

@@ -30,6 +30,10 @@ interface BroadcastRequest {
   attachment_paths?: string[];
   recipient_filter?: Record<string, unknown>;
   scheduled_for?: string | null;
+  // Row id from venue_email_senders — NOT an address. The client must never be
+  // able to name the From header directly, or any admin could send as any
+  // address on the venue's verified domain. Omitted = the venue's default sender.
+  sender_id?: string | null;
 }
 
 function json(status: number, body: unknown): Response {
@@ -106,16 +110,41 @@ Deno.serve(async (req) => {
 
     if (venueError || !venue) return json(404, { error: "Venue not found" });
 
-    const fromEmail = venue.broadcast_from_email
+    // ===== Resolve the sender =====
+    // Always looked up against this venue's own rows, so a forged or borrowed
+    // sender_id from another tenant resolves to nothing rather than sending.
+    let senderQuery = supabase
+      .from("venue_email_senders")
+      .select("id, email, label, reply_to")
+      .eq("venue_id", body.venue_id)
+      .eq("is_active", true);
+
+    senderQuery = body.sender_id
+      ? senderQuery.eq("id", body.sender_id)
+      : senderQuery.eq("is_default", true);
+
+    const { data: sender } = await senderQuery.maybeSingle();
+
+    if (body.sender_id && !sender) {
+      return json(400, { error: "Unknown or inactive sender for this venue" });
+    }
+
+    // No sender rows configured yet → fall back to the venue's single legacy address.
+    const fromEmail = sender?.email
+      || venue.broadcast_from_email
       || Deno.env.get("INVITE_FROM_EMAIL")
       || null;
 
     if (!fromEmail) {
       return json(500, {
         error:
-          "No sender email configured for this venue (set venues.broadcast_from_email or INVITE_FROM_EMAIL env)",
+          "No sender email configured for this venue (add a venue_email_senders row, or set venues.broadcast_from_email)",
       });
     }
+    const fromLabel = sender?.label || venue.name;
+    // Replies default to the sending address — the whole point of a finance@
+    // broadcast is that the replies land at finance@, not the club inbox.
+    const replyToEmail = sender?.reply_to || fromEmail;
 
     // ===== Resolve recipients via SQL helper =====
     const { data: candidates, error: recipientError } = await supabase.rpc(
@@ -167,9 +196,15 @@ Deno.serve(async (req) => {
 
     const todayCount = todaySent ?? 0;
     const quotaRemaining = Math.max(0, DAILY_QUOTA_THRESHOLD - todayCount);
-    // The worker also sends one archive copy to the club inbox when configured —
-    // one extra send per broadcast, not per recipient.
-    const archiveSends = venue.broadcast_archive_email ? 1 : 0;
+    // The worker also archives to the club inbox when configured — one extra
+    // message per broadcast, not per recipient. It goes to the standing archive
+    // address plus the sending address when they differ, so a finance@ broadcast
+    // is recorded in both inboxes. Counted per address: one Resend call with two
+    // recipients may or may not bill as two, so assume the worse of the two.
+    const archiveTo = venue.broadcast_archive_email
+      ? [...new Set([venue.broadcast_archive_email.toLowerCase(), fromEmail.toLowerCase()])]
+      : [];
+    const archiveSends = archiveTo.length;
     const willDefer = Math.max(0, sendableCount + archiveSends - quotaRemaining);
 
     // ===== Schedule: scheduled_for in the future leaves status='queued' =====
@@ -192,6 +227,9 @@ Deno.serve(async (req) => {
         created_by: adminUser.id,
         subject,
         body_html: body.body_html,
+        from_email: fromEmail,
+        from_label: fromLabel,
+        reply_to_email: replyToEmail,
         attachment_paths: attachmentPaths,
         recipient_filter: recipientFilter,
         status: "queued",

@@ -60,6 +60,16 @@ interface AttachmentEntry {
   size: number;
 }
 
+// One selectable From address for this venue. Resend verifies the whole domain,
+// so any address on it can send — this table is what limits that to a curated list.
+interface EmailSender {
+  id: string;
+  email: string;
+  label: string | null;
+  reply_to: string | null;
+  is_default: boolean;
+}
+
 interface EmailTemplate {
   id: string;
   name: string;
@@ -117,6 +127,9 @@ export default function BroadcastCompose() {
   // quota on a full-club broadcast — so including them is a per-send choice.
   const [includePartners, setIncludePartners] = useState(false);
 
+  const [senders, setSenders] = useState<EmailSender[]>([]);
+  const [selectedSenderId, setSelectedSenderId] = useState<string | null>(null);
+
   const [templates, setTemplates] = useState<EmailTemplate[]>([]);
   const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
   const [pendingTemplate, setPendingTemplate] = useState<EmailTemplate | null>(null);
@@ -133,7 +146,7 @@ export default function BroadcastCompose() {
     const load = async () => {
       setLoading(true);
 
-      const [venueRes, membersRes, templatesRes, todayRes] = await Promise.all([
+      const [venueRes, membersRes, templatesRes, sendersRes, todayRes] = await Promise.all([
         supabase
           .from('venues')
           .select('id, name, address, contact_email, contact_phone, broadcast_from_email, broadcast_archive_email, logo_url, email_logo_url, portal_domain')
@@ -150,6 +163,12 @@ export default function BroadcastCompose() {
           .select('id, name, description, subject_template, body_html')
           .eq('venue_id', venueId)
           .order('display_order', { ascending: true }),
+        supabase
+          .from('venue_email_senders')
+          .select('id, email, label, reply_to, is_default')
+          .eq('venue_id', venueId)
+          .eq('is_active', true)
+          .order('sort_order', { ascending: true }),
         countTodaySent(venueId),
       ]);
 
@@ -158,6 +177,11 @@ export default function BroadcastCompose() {
       if (venueRes.data) setVenue(venueRes.data as VenueInfo);
       if (membersRes.data) setMembers((membersRes.data as MemberOption[]) || []);
       if (templatesRes.data) setTemplates((templatesRes.data as EmailTemplate[]) || []);
+      if (sendersRes.data) {
+        const rows = (sendersRes.data as EmailSender[]) || [];
+        setSenders(rows);
+        setSelectedSenderId((rows.find(s => s.is_default) ?? rows[0])?.id ?? null);
+      }
       setTodaySent(todayRes);
       setLoading(false);
     };
@@ -211,10 +235,23 @@ export default function BroadcastCompose() {
   );
 
   const remainingQuota = Math.max(QUOTA_THRESHOLD - todaySent, 0);
-  // The club archive copy is one extra send against the same quota (the worker
-  // sends it once per broadcast, before the member run — not a per-email BCC).
-  const archiveEmail = venue?.broadcast_archive_email?.trim() || null;
-  const totalSends = stats.sendable + (archiveEmail ? 1 : 0);
+
+  // Sender: falls back to the venue's single legacy address if no sender rows
+  // are configured, so a venue without them behaves exactly as before.
+  const selectedSender = senders.find(s => s.id === selectedSenderId) ?? null;
+  const fromEmail = selectedSender?.email || venue?.broadcast_from_email || null;
+  const fromLabel = selectedSender?.label || venue?.name || '';
+  const replyToEmail = selectedSender?.reply_to || fromEmail || venue?.contact_email || null;
+
+  // Archive goes to the standing club address plus the sending address when they
+  // differ — one message, but counted per address so the quota can't overshoot.
+  const standingArchive = venue?.broadcast_archive_email?.trim() || null;
+  const archiveTo = standingArchive
+    ? Array.from(new Map(
+        [standingArchive, ...(fromEmail ? [fromEmail] : [])].map(e => [e.toLowerCase(), e]),
+      ).values())
+    : [];
+  const totalSends = stats.sendable + archiveTo.length;
   // Resend's daily limit resets at midnight UTC (02:00 SAST). Anything past the
   // remaining quota is queued and auto-sent by the cron drainer after the reset.
   const sendNowCount = Math.min(totalSends, remainingQuota);
@@ -303,7 +340,7 @@ export default function BroadcastCompose() {
     if (stripped.length === 0) return 'Body is empty';
     if (recipientMode === 'specific' && selectedIds.size === 0) return 'Select at least one member';
     if (stats.sendable === 0) return 'No eligible recipients (all skipped or none selected)';
-    if (!venue.broadcast_from_email) return 'No sender email configured for this venue. Set venues.broadcast_from_email in Supabase.';
+    if (!fromEmail) return 'No sender address configured for this venue. Add a venue_email_senders row in Supabase.';
     if (!venue.address) return 'Venue address is required for the email footer (POPIA compliance). Set venues.address.';
     return null;
   };
@@ -334,6 +371,7 @@ export default function BroadcastCompose() {
           body_html: bodyHtml,
           attachment_paths: attachments.map(a => a.path),
           recipient_filter: recipientFilter,
+          sender_id: selectedSenderId,
         },
       });
 
@@ -667,16 +705,35 @@ export default function BroadcastCompose() {
           {venue && (
             <div className="rounded-lg border border-border bg-card p-4 text-xs space-y-1.5">
               <div className="text-sm font-semibold text-foreground mb-2">From</div>
-              <div className="text-foreground">
-                {venue.name} &lt;{venue.broadcast_from_email || '(not configured)'}&gt;
-              </div>
-              {venue.contact_email && (
-                <div className="text-muted-foreground">Reply-to: {venue.contact_email}</div>
+
+              {senders.length > 1 ? (
+                <select
+                  value={selectedSenderId ?? ''}
+                  onChange={e => setSelectedSenderId(e.target.value || null)}
+                  disabled={sending}
+                  className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-xs text-foreground"
+                >
+                  {senders.map(s => (
+                    <option key={s.id} value={s.id}>
+                      {s.label || venue.name} &lt;{s.email}&gt;
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <div className="text-foreground">
+                  {fromEmail ? `${fromLabel} <${fromEmail}>` : '(not configured)'}
+                </div>
               )}
-              {archiveEmail && (
+
+              {replyToEmail && (
+                <div className="text-muted-foreground pt-1">Replies go to: {replyToEmail}</div>
+              )}
+              {archiveTo.length > 0 && (
                 <div className="text-muted-foreground pt-1.5 border-t border-border mt-1.5">
-                  Copy to: {archiveEmail}
-                  <span className="block">One archive copy per broadcast (1 extra send), not per member.</span>
+                  Copy to: {archiveTo.join(', ')}
+                  <span className="block">
+                    One archive copy per broadcast, not per member.
+                  </span>
                 </div>
               )}
               {!venue.address && (
@@ -776,9 +833,15 @@ export default function BroadcastCompose() {
                     Skipping {stats.noEmail + stats.optedOut} (no email or opted out).
                   </div>
                 )}
-                {archiveEmail && (
+                {fromEmail && (
                   <div className="text-sm text-muted-foreground">
-                    Plus one archive copy to {archiveEmail}.
+                    From <strong>{fromLabel} &lt;{fromEmail}&gt;</strong>
+                    {replyToEmail ? `, replies to ${replyToEmail}` : ''}.
+                  </div>
+                )}
+                {archiveTo.length > 0 && (
+                  <div className="text-sm text-muted-foreground">
+                    Plus one archive copy to {archiveTo.join(' and ')}.
                   </div>
                 )}
                 <div className="text-sm text-muted-foreground pt-1 border-t border-border mt-2">

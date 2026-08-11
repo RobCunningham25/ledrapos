@@ -157,7 +157,9 @@ Deno.serve(async (req) => {
   // ===== Load broadcast =====
   const { data: broadcast, error: broadcastError } = await supabase
     .from("email_broadcasts")
-    .select("id, venue_id, subject, body_html, attachment_paths, status, archive_sent_at")
+    .select(
+      "id, venue_id, subject, body_html, attachment_paths, status, archive_sent_at, from_email, from_label, reply_to_email",
+    )
     .eq("id", body.broadcast_id)
     .maybeSingle();
 
@@ -181,14 +183,20 @@ Deno.serve(async (req) => {
     return json(500, { error: "Venue lookup failed" });
   }
 
-  const fromEmail = venue.broadcast_from_email
+  // Sender is read off the broadcast, not the venue: send-broadcast resolved and
+  // froze it at compose time. The cron drainer can finish a quota-deferred run
+  // hours later, and a broadcast that started as finance@ must not finish as
+  // info@. NULL on broadcasts created before senders existed.
+  const fromEmail = broadcast.from_email
+    || venue.broadcast_from_email
     || Deno.env.get("INVITE_FROM_EMAIL")
     || null;
 
   if (!fromEmail) {
     return json(500, { error: "No sender email configured for venue" });
   }
-  const fromHeader = `${venue.name} <${fromEmail}>`;
+  const fromHeader = `${broadcast.from_label || venue.name} <${fromEmail}>`;
+  const replyToEmail = broadcast.reply_to_email || venue.contact_email || null;
 
   // ===== Remaining daily quota (per UTC day — Resend resets at midnight UTC) =====
   const todayStart = new Date();
@@ -272,11 +280,20 @@ Deno.serve(async (req) => {
   // Deliberately not a per-email BCC: at ~74 members that would double every
   // broadcast's Resend usage past the 95/day threshold and bury the inbox.
   // `archive_sent_at` guards against the cron drainer re-archiving on later runs.
+  // Archived to the venue's standing address plus the sending address when they
+  // differ, so a finance@ broadcast is on record in both inboxes. Resend doesn't
+  // send through the club's mail host, so finance@ has no Sent-folder copy of its
+  // own — without this there'd be no trace in that mailbox at all.
   let archiveSent = false;
   let archiveError: string | null = null;
-  const archiveEmail = venue.broadcast_archive_email?.trim() || null;
+  const standingArchive = venue.broadcast_archive_email?.trim() || null;
+  const archiveTo = standingArchive
+    ? [...new Map(
+        [standingArchive, fromEmail].map((e) => [e.toLowerCase(), e]),
+      ).values()]
+    : [];
 
-  if (archiveEmail && !broadcast.archive_sent_at && quotaRemaining > 0) {
+  if (archiveTo.length > 0 && !broadcast.archive_sent_at && quotaRemaining > 0) {
     // All sendable rows are still 'pending' on the run that archives; count
     // in-flight/sent too so a retry after a failed archive still reports right.
     const { count: audience } = await supabase
@@ -292,14 +309,16 @@ Deno.serve(async (req) => {
       unsubscribeUrl: null, // no member behind this copy — nothing to unsubscribe
     });
 
+    // One Resend call with both club inboxes on the To line — they're internal,
+    // so there's nothing to hide between them.
     const archivePayload: Record<string, unknown> = {
       from: fromHeader,
-      to: [archiveEmail],
+      to: archiveTo,
       subject: `[Copy] ${broadcast.subject}`,
       html,
       text,
     };
-    if (venue.contact_email) archivePayload.reply_to = venue.contact_email;
+    if (replyToEmail) archivePayload.reply_to = replyToEmail;
     if (attachments.length > 0) archivePayload.attachments = attachments;
 
     const { id: archiveId, error: archiveErr } = await sendViaResend(resendApiKey, archivePayload);
@@ -307,7 +326,9 @@ Deno.serve(async (req) => {
 
     if (archiveId) {
       archiveSent = true;
-      quotaRemaining = Math.max(0, quotaRemaining - 1); // the copy costs a send
+      // One call, but Resend may bill per recipient — charge the quota the worse
+      // of the two readings rather than risk overshooting the daily limit.
+      quotaRemaining = Math.max(0, quotaRemaining - archiveTo.length);
       await supabase
         .from("email_broadcasts")
         .update({ archive_sent_at: new Date().toISOString() })
@@ -315,7 +336,7 @@ Deno.serve(async (req) => {
     } else {
       // Never fail the broadcast over the archive copy — members still get theirs.
       archiveError = archiveErr;
-      console.error(`archive copy to ${archiveEmail} failed:`, archiveErr);
+      console.error(`archive copy to ${archiveTo.join(", ")} failed:`, archiveErr);
     }
   }
 
@@ -363,8 +384,8 @@ Deno.serve(async (req) => {
           "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
         },
       };
-      if (venue.contact_email) {
-        payload.reply_to = venue.contact_email;
+      if (replyToEmail) {
+        payload.reply_to = replyToEmail;
       }
       if (attachments.length > 0) {
         payload.attachments = attachments;
@@ -440,8 +461,9 @@ Deno.serve(async (req) => {
     final_status: finalStatus,
     this_run: { sent: totalSent, failed: totalFailed },
     totals: { sent: sentCount, failed: failedCount, pending: pendingCount, skipped: skippedCount },
-    ...(archiveEmail
-      ? { archive: { email: archiveEmail, sent: archiveSent, ...(archiveError ? { error: archiveError } : {}) } }
+    sender: { from: fromHeader, reply_to: replyToEmail },
+    ...(archiveTo.length > 0
+      ? { archive: { to: archiveTo, sent: archiveSent, ...(archiveError ? { error: archiveError } : {}) } }
       : {}),
     ...(pendingCount > 0
       ? { deferred: true, message: `${pendingCount} recipient(s) deferred to stay within the daily quota; they will send automatically after 00:00 UTC (02:00 SAST)` }
