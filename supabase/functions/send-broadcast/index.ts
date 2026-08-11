@@ -100,7 +100,7 @@ Deno.serve(async (req) => {
     // ===== Look up venue =====
     const { data: venue, error: venueError } = await supabase
       .from("venues")
-      .select("id, name, slug, address, contact_email, broadcast_from_email")
+      .select("id, name, slug, address, contact_email, broadcast_from_email, broadcast_archive_email")
       .eq("id", body.venue_id)
       .maybeSingle();
 
@@ -167,7 +167,10 @@ Deno.serve(async (req) => {
 
     const todayCount = todaySent ?? 0;
     const quotaRemaining = Math.max(0, DAILY_QUOTA_THRESHOLD - todayCount);
-    const willDefer = Math.max(0, sendableCount - quotaRemaining);
+    // The worker also sends one archive copy to the club inbox when configured —
+    // one extra send per broadcast, not per recipient.
+    const archiveSends = venue.broadcast_archive_email ? 1 : 0;
+    const willDefer = Math.max(0, sendableCount + archiveSends - quotaRemaining);
 
     // ===== Schedule: scheduled_for in the future leaves status='queued' =====
     const scheduledFor = body.scheduled_for ? new Date(body.scheduled_for) : null;

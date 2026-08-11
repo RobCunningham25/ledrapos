@@ -50,7 +50,9 @@ interface WrapInput {
   venue: EmailVenue;
   subject: string;
   bodyHtml: string;
-  unsubscribeUrl: string;
+  // null ONLY for the club archive copy (see the Deno original) — it goes to the
+  // venue's own inbox, so there is no member token to unsubscribe.
+  unsubscribeUrl: string | null;
 }
 
 interface WrapOutput {
@@ -62,7 +64,7 @@ export function wrapWithFooter(input: WrapInput): WrapOutput {
   const { venue } = input;
   const safeVenue = escapeHtml(venue.name);
   const safeSubject = escapeHtml(input.subject);
-  const safeUnsub = escapeHtml(input.unsubscribeUrl);
+  const safeUnsub = input.unsubscribeUrl ? escapeHtml(input.unsubscribeUrl) : null;
   const logo = emailLogoUrl(venue);
 
   const logoBlock = logo
@@ -74,10 +76,14 @@ export function wrapWithFooter(input: WrapInput): WrapOutput {
     : '';
 
   const footerLines = [
-    `You're receiving this because you're a member of ${safeVenue}.`,
+    ...(safeUnsub
+      ? [`You're receiving this because you're a member of ${safeVenue}.`]
+      : [`Archive copy of a message sent to ${safeVenue} members.`]),
     ...(venue.address ? [escapeHtml(venue.address)] : []),
     ...(venue.contact_phone ? [escapeHtml(venue.contact_phone)] : []),
-    `<a href="${safeUnsub}" style="color:#2A9D8F;text-decoration:underline;">Unsubscribe from ${safeVenue} emails</a>`,
+    ...(safeUnsub
+      ? [`<a href="${safeUnsub}" style="color:#2A9D8F;text-decoration:underline;">Unsubscribe from ${safeVenue} emails</a>`]
+      : []),
   ];
 
   const footerBlock = `<div style="background:#F7F9FC;border-top:1px solid #E2E8F0;padding:18px 32px;text-align:center;">${footerLines
@@ -116,10 +122,12 @@ ${input.bodyHtml}
     `\n${'─'.repeat(40)}\n\n` +
     htmlToPlainText(input.bodyHtml) +
     "\n\n--\n" +
-    `You're receiving this because you're a member of ${venue.name}.\n` +
+    (input.unsubscribeUrl
+      ? `You're receiving this because you're a member of ${venue.name}.\n`
+      : `Archive copy of a message sent to ${venue.name} members.\n`) +
     (venue.address ? `${venue.address}\n` : "") +
     (venue.contact_phone ? `${venue.contact_phone}\n` : "") +
-    `\nUnsubscribe: ${input.unsubscribeUrl}\n`;
+    (input.unsubscribeUrl ? `\nUnsubscribe: ${input.unsubscribeUrl}\n` : "");
 
   return { html, text };
 }

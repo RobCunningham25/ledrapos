@@ -22,6 +22,7 @@ interface VenueInfo {
   contact_email: string | null;
   contact_phone: string | null;
   broadcast_from_email: string | null;
+  broadcast_archive_email: string | null;
   logo_url: string | null;
   email_logo_url: string | null;
   portal_domain: string | null;
@@ -135,7 +136,7 @@ export default function BroadcastCompose() {
       const [venueRes, membersRes, templatesRes, todayRes] = await Promise.all([
         supabase
           .from('venues')
-          .select('id, name, address, contact_email, contact_phone, broadcast_from_email, logo_url, email_logo_url, portal_domain')
+          .select('id, name, address, contact_email, contact_phone, broadcast_from_email, broadcast_archive_email, logo_url, email_logo_url, portal_domain')
           .eq('id', venueId)
           .maybeSingle(),
         supabase
@@ -210,10 +211,14 @@ export default function BroadcastCompose() {
   );
 
   const remainingQuota = Math.max(QUOTA_THRESHOLD - todaySent, 0);
+  // The club archive copy is one extra send against the same quota (the worker
+  // sends it once per broadcast, before the member run — not a per-email BCC).
+  const archiveEmail = venue?.broadcast_archive_email?.trim() || null;
+  const totalSends = stats.sendable + (archiveEmail ? 1 : 0);
   // Resend's daily limit resets at midnight UTC (02:00 SAST). Anything past the
   // remaining quota is queued and auto-sent by the cron drainer after the reset.
-  const sendNowCount = Math.min(stats.sendable, remainingQuota);
-  const deferredCount = Math.max(0, stats.sendable - remainingQuota);
+  const sendNowCount = Math.min(totalSends, remainingQuota);
+  const deferredCount = Math.max(0, totalSends - remainingQuota);
 
   // ===== Attachment upload =====
   const handleFiles = async (files: FileList | File[]) => {
@@ -668,6 +673,12 @@ export default function BroadcastCompose() {
               {venue.contact_email && (
                 <div className="text-muted-foreground">Reply-to: {venue.contact_email}</div>
               )}
+              {archiveEmail && (
+                <div className="text-muted-foreground pt-1.5 border-t border-border mt-1.5">
+                  Copy to: {archiveEmail}
+                  <span className="block">One archive copy per broadcast (1 extra send), not per member.</span>
+                </div>
+              )}
               {!venue.address && (
                 <div className="flex items-start gap-1.5 mt-2 pt-2 border-t border-border" style={{ color: '#991B1B' }}>
                   <AlertTriangle size={12} className="shrink-0 mt-0.5" />
@@ -765,10 +776,15 @@ export default function BroadcastCompose() {
                     Skipping {stats.noEmail + stats.optedOut} (no email or opted out).
                   </div>
                 )}
+                {archiveEmail && (
+                  <div className="text-sm text-muted-foreground">
+                    Plus one archive copy to {archiveEmail}.
+                  </div>
+                )}
                 <div className="text-sm text-muted-foreground pt-1 border-t border-border mt-2">
                   {deferredCount > 0
                     ? `${sendNowCount} will send now (remaining daily quota: ${remainingQuota}); ${deferredCount} will queue and send automatically after 02:00 SA time.`
-                    : `This will use ${stats.sendable} of your remaining ${remainingQuota} daily Resend quota.`}
+                    : `This will use ${totalSends} of your remaining ${remainingQuota} daily Resend quota.`}
                 </div>
               </div>
             </AlertDialogDescription>

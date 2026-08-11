@@ -66,6 +66,47 @@ async function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+// Single POST to Resend. Never throws — returns the message id or an error string
+// so the caller can record per-recipient outcomes.
+async function sendViaResend(
+  apiKey: string,
+  payload: Record<string, unknown>,
+): Promise<{ id: string | null; error: string | null }> {
+  try {
+    const resp = await fetch(RESEND_API_URL, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+    const respBody = await resp.json().catch(() => ({}));
+    if (resp.ok) {
+      return { id: respBody?.id ?? null, error: null };
+    }
+    return {
+      id: null,
+      error: `Resend ${resp.status}: ${respBody?.message || respBody?.error || "unknown"}`,
+    };
+  } catch (err) {
+    return {
+      id: null,
+      error: `fetch failed: ${err instanceof Error ? err.message : String(err)}`,
+    };
+  }
+}
+
+// Notice prepended to the club's archive copy so it can't be mistaken for the
+// member-facing message.
+function archiveBanner(recipientCount: number): string {
+  const who = recipientCount === 1 ? "1 member" : `${recipientCount} members`;
+  return `<div style="background:#FAF8F5;border:1px solid #E2E8F0;border-left:3px solid #D4A574;border-radius:6px;padding:12px 14px;margin:0 0 22px;color:#5A6B7A;font-size:13px;line-height:1.6;">` +
+    `<strong style="color:#1B3A4B;">Club archive copy</strong> — this is the broadcast being sent to ${who}. ` +
+    `Their copy does not include this notice and carries a personal unsubscribe link.` +
+    `</div>`;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -116,7 +157,7 @@ Deno.serve(async (req) => {
   // ===== Load broadcast =====
   const { data: broadcast, error: broadcastError } = await supabase
     .from("email_broadcasts")
-    .select("id, venue_id, subject, body_html, attachment_paths, status")
+    .select("id, venue_id, subject, body_html, attachment_paths, status, archive_sent_at")
     .eq("id", body.broadcast_id)
     .maybeSingle();
 
@@ -163,7 +204,7 @@ Deno.serve(async (req) => {
     console.error("quota check failed:", quotaError.message);
     return json(500, { error: "Failed to check daily quota" });
   }
-  const quotaRemaining = Math.max(0, DAILY_QUOTA_THRESHOLD - (todaySent ?? 0));
+  let quotaRemaining = Math.max(0, DAILY_QUOTA_THRESHOLD - (todaySent ?? 0));
 
   if (quotaRemaining === 0) {
     // Nothing can go out today — leave everything pending for the cron drainer.
@@ -225,6 +266,59 @@ Deno.serve(async (req) => {
   let totalFailed = 0;
   let lastCallAt = 0;
 
+  // ===== Club archive copy =====
+  // One copy of the broadcast to the venue's own inbox, sent before the member
+  // run so the club sees what went out even if the send later defers on quota.
+  // Deliberately not a per-email BCC: at ~74 members that would double every
+  // broadcast's Resend usage past the 95/day threshold and bury the inbox.
+  // `archive_sent_at` guards against the cron drainer re-archiving on later runs.
+  let archiveSent = false;
+  let archiveError: string | null = null;
+  const archiveEmail = venue.broadcast_archive_email?.trim() || null;
+
+  if (archiveEmail && !broadcast.archive_sent_at && quotaRemaining > 0) {
+    // All sendable rows are still 'pending' on the run that archives; count
+    // in-flight/sent too so a retry after a failed archive still reports right.
+    const { count: audience } = await supabase
+      .from("broadcast_recipients")
+      .select("id", { count: "exact", head: true })
+      .eq("broadcast_id", broadcast.id)
+      .in("status", ["pending", "sending", "sent"]);
+
+    const { html, text } = wrapWithFooter({
+      venue,
+      subject: broadcast.subject,
+      bodyHtml: archiveBanner(audience ?? 0) + broadcast.body_html,
+      unsubscribeUrl: null, // no member behind this copy — nothing to unsubscribe
+    });
+
+    const archivePayload: Record<string, unknown> = {
+      from: fromHeader,
+      to: [archiveEmail],
+      subject: `[Copy] ${broadcast.subject}`,
+      html,
+      text,
+    };
+    if (venue.contact_email) archivePayload.reply_to = venue.contact_email;
+    if (attachments.length > 0) archivePayload.attachments = attachments;
+
+    const { id: archiveId, error: archiveErr } = await sendViaResend(resendApiKey, archivePayload);
+    lastCallAt = Date.now();
+
+    if (archiveId) {
+      archiveSent = true;
+      quotaRemaining = Math.max(0, quotaRemaining - 1); // the copy costs a send
+      await supabase
+        .from("email_broadcasts")
+        .update({ archive_sent_at: new Date().toISOString() })
+        .eq("id", broadcast.id);
+    } else {
+      // Never fail the broadcast over the archive copy — members still get theirs.
+      archiveError = archiveErr;
+      console.error(`archive copy to ${archiveEmail} failed:`, archiveErr);
+    }
+  }
+
   while (true) {
     // Never claim more than the remaining daily quota allows.
     const claimLimit = Math.min(batchSize, quotaRemaining - totalSent);
@@ -276,33 +370,8 @@ Deno.serve(async (req) => {
         payload.attachments = attachments;
       }
 
-      let resendId: string | null = null;
-      let errorMsg: string | null = null;
-
-      try {
-        const resendResp = await fetch(RESEND_API_URL, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${resendApiKey}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(payload),
-        });
-        lastCallAt = Date.now();
-
-        const resendBody = await resendResp.json().catch(() => ({}));
-
-        if (resendResp.ok) {
-          resendId = resendBody?.id ?? null;
-        } else {
-          errorMsg = `Resend ${resendResp.status}: ${
-            resendBody?.message || resendBody?.error || "unknown"
-          }`;
-        }
-      } catch (err) {
-        errorMsg = `fetch failed: ${err instanceof Error ? err.message : String(err)}`;
-        lastCallAt = Date.now();
-      }
+      const { id: resendId, error: errorMsg } = await sendViaResend(resendApiKey, payload);
+      lastCallAt = Date.now();
 
       const update: Record<string, unknown> = {
         updated_at: new Date().toISOString(),
@@ -371,6 +440,9 @@ Deno.serve(async (req) => {
     final_status: finalStatus,
     this_run: { sent: totalSent, failed: totalFailed },
     totals: { sent: sentCount, failed: failedCount, pending: pendingCount, skipped: skippedCount },
+    ...(archiveEmail
+      ? { archive: { email: archiveEmail, sent: archiveSent, ...(archiveError ? { error: archiveError } : {}) } }
+      : {}),
     ...(pendingCount > 0
       ? { deferred: true, message: `${pendingCount} recipient(s) deferred to stay within the daily quota; they will send automatically after 00:00 UTC (02:00 SAST)` }
       : {}),

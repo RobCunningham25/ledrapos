@@ -598,6 +598,7 @@ export type Database = {
       }
       email_broadcasts: {
         Row: {
+          archive_sent_at: string | null
           attachment_paths: Json
           body_html: string
           body_text: string | null
@@ -618,6 +619,7 @@ export type Database = {
           venue_id: string
         }
         Insert: {
+          archive_sent_at?: string | null
           attachment_paths?: Json
           body_html: string
           body_text?: string | null
@@ -638,6 +640,7 @@ export type Database = {
           venue_id: string
         }
         Update: {
+          archive_sent_at?: string | null
           attachment_paths?: Json
           body_html?: string
           body_text?: string | null
@@ -2022,6 +2025,7 @@ export type Database = {
           accent_color: string
           address: string | null
           booking_code_prefix: string
+          broadcast_archive_email: string | null
           broadcast_from_email: string | null
           button_radius: string
           calendar_feed_token: string
@@ -2061,6 +2065,7 @@ export type Database = {
           accent_color?: string
           address?: string | null
           booking_code_prefix?: string
+          broadcast_archive_email?: string | null
           broadcast_from_email?: string | null
           button_radius?: string
           calendar_feed_token?: string
@@ -2100,6 +2105,7 @@ export type Database = {
           accent_color?: string
           address?: string | null
           booking_code_prefix?: string
+          broadcast_archive_email?: string | null
           broadcast_from_email?: string | null
           button_radius?: string
           calendar_feed_token?: string

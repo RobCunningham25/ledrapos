@@ -24,11 +24,12 @@ export interface EmailVenue {
   contact_email?: string | null;
   contact_phone?: string | null;
   broadcast_from_email?: string | null;
+  broadcast_archive_email?: string | null;
 }
 
 // Convenience select list so every function pulls the same venue columns.
 export const VENUE_EMAIL_COLUMNS =
-  "id, name, slug, logo_url, email_logo_url, portal_domain, address, contact_email, contact_phone, broadcast_from_email";
+  "id, name, slug, logo_url, email_logo_url, portal_domain, address, contact_email, contact_phone, broadcast_from_email, broadcast_archive_email";
 
 export function escapeHtml(s: string): string {
   return String(s ?? "")

@@ -20,7 +20,10 @@ interface WrapInput {
   venue: EmailVenue;
   subject: string;
   bodyHtml: string;
-  unsubscribeUrl: string;
+  // null ONLY for the club archive copy, which goes to the venue's own inbox and
+  // has no member behind it — there is no token to unsubscribe. Every message to
+  // a member must pass a real URL (rule 13).
+  unsubscribeUrl: string | null;
 }
 
 interface WrapOutput {
@@ -33,13 +36,17 @@ interface WrapOutput {
 export function wrapWithFooter(input: WrapInput): WrapOutput {
   const { venue } = input;
   const safeVenue = escapeHtml(venue.name);
-  const safeUnsub = escapeHtml(input.unsubscribeUrl);
+  const safeUnsub = input.unsubscribeUrl ? escapeHtml(input.unsubscribeUrl) : null;
 
   const footerLines = [
-    `You're receiving this because you're a member of ${safeVenue}.`,
+    ...(safeUnsub
+      ? [`You're receiving this because you're a member of ${safeVenue}.`]
+      : [`Archive copy of a message sent to ${safeVenue} members.`]),
     ...(venue.address ? [escapeHtml(venue.address)] : []),
     ...(venue.contact_phone ? [escapeHtml(venue.contact_phone)] : []),
-    `<a href="${safeUnsub}" style="color:#2A9D8F;text-decoration:underline;">Unsubscribe from ${safeVenue} emails</a>`,
+    ...(safeUnsub
+      ? [`<a href="${safeUnsub}" style="color:#2A9D8F;text-decoration:underline;">Unsubscribe from ${safeVenue} emails</a>`]
+      : []),
   ];
 
   const html = emailShell({
@@ -55,10 +62,12 @@ export function wrapWithFooter(input: WrapInput): WrapOutput {
     `\n${"─".repeat(40)}\n\n` +
     htmlToPlainText(input.bodyHtml) +
     "\n\n--\n" +
-    `You're receiving this because you're a member of ${venue.name}.\n` +
+    (input.unsubscribeUrl
+      ? `You're receiving this because you're a member of ${venue.name}.\n`
+      : `Archive copy of a message sent to ${venue.name} members.\n`) +
     (venue.address ? `${venue.address}\n` : "") +
     (venue.contact_phone ? `${venue.contact_phone}\n` : "") +
-    `\nUnsubscribe: ${input.unsubscribeUrl}\n`;
+    (input.unsubscribeUrl ? `\nUnsubscribe: ${input.unsubscribeUrl}\n` : "");
 
   return { html, text };
 }
