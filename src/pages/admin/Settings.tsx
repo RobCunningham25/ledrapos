@@ -25,6 +25,10 @@ export default function Settings() {
   const [email, setEmail] = useState('');
   const [saving, setSaving] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  // Rand strings while editing; stored in venue_settings as cents.
+  const [siteRate, setSiteRate] = useState('');
+  const [electricityRate, setElectricityRate] = useState('');
+  const [savingRates, setSavingRates] = useState(false);
   const [toggles, setToggles] = useState<Record<string, boolean>>({
     portal_tab_calendar: true,
     portal_tab_my_details: true,
@@ -37,10 +41,17 @@ export default function Settings() {
         .from('venue_settings')
         .select('key, value')
         .eq('venue_id', venueId)
-        .in('key', ['report_recipient_email', 'portal_tab_calendar', 'portal_tab_my_details', 'portal_tab_bookings']);
+        .in('key', ['report_recipient_email', 'portal_tab_calendar', 'portal_tab_my_details', 'portal_tab_bookings',
+                    'rate_caravan_site_annual_cents', 'rate_electricity_annual_cents']);
       if (data) {
         const emailRow = data.find(r => r.key === 'report_recipient_email');
         if (emailRow?.value) setEmail(emailRow.value);
+        const toRands = (key: string) => {
+          const cents = parseInt(data.find(r => r.key === key)?.value ?? '', 10);
+          return Number.isFinite(cents) ? (cents / 100).toFixed(2) : '';
+        };
+        setSiteRate(toRands('rate_caravan_site_annual_cents'));
+        setElectricityRate(toRands('rate_electricity_annual_cents'));
         const newToggles = { ...toggles };
         for (const t of PORTAL_TOGGLES) {
           const row = data.find(r => r.key === t.key);
@@ -66,6 +77,34 @@ export default function Settings() {
       toast.error('Failed to save settings');
     } else {
       toast.success('Settings saved.');
+    }
+  };
+
+  const handleSaveRates = async () => {
+    const parse = (v: string) => {
+      const rands = parseFloat(v.replace(/[^0-9.]/g, ''));
+      return Number.isFinite(rands) ? Math.round(rands * 100) : null;
+    };
+    const siteCents = parse(siteRate);
+    const electricityCents = parse(electricityRate);
+    if (siteCents === null || electricityCents === null) {
+      toast.error('Enter both rates as rand amounts');
+      return;
+    }
+    setSavingRates(true);
+    const { error } = await supabase
+      .from('venue_settings')
+      .upsert([
+        { venue_id: venueId, key: 'rate_caravan_site_annual_cents', value: String(siteCents), updated_at: new Date().toISOString() },
+        { venue_id: venueId, key: 'rate_electricity_annual_cents', value: String(electricityCents), updated_at: new Date().toISOString() },
+      ], { onConflict: 'venue_id,key' });
+    setSavingRates(false);
+    if (error) {
+      toast.error('Failed to save rates');
+    } else {
+      setSiteRate((siteCents / 100).toFixed(2));
+      setElectricityRate((electricityCents / 100).toFixed(2));
+      toast.success('Rates saved.');
     }
   };
 
@@ -143,6 +182,47 @@ export default function Settings() {
                 style={{ background: '#2E5FA3', color: '#fff' }}
               >
                 {saving ? 'Saving…' : 'Save'}
+              </Button>
+            </div>
+
+            {/* Club Rates — surfaced to members in the portal Club Account card */}
+            <div className="bg-card rounded-lg border border-border p-5 space-y-4" style={{ borderRadius: 8, boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}>
+              <div>
+                <h3 className="text-base font-semibold" style={{ color: '#1A202C' }}>Club Rates</h3>
+                <p className="text-[13px]" style={{ color: '#718096' }}>
+                  Annual fees for permanent caravan site holders. Shown to members under
+                  "See current rates" on the portal Club Account card.
+                </p>
+              </div>
+              <div className="space-y-1.5">
+                <label className="block text-sm font-medium">Caravan site (per year, R)</label>
+                <Input
+                  inputMode="decimal"
+                  placeholder="5447.00"
+                  value={siteRate}
+                  onChange={(e) => setSiteRate(e.target.value)}
+                  className="h-12 text-base rounded-[6px] border-border"
+                  disabled={!loaded}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="block text-sm font-medium">Electricity (per year, R)</label>
+                <Input
+                  inputMode="decimal"
+                  placeholder="3095.00"
+                  value={electricityRate}
+                  onChange={(e) => setElectricityRate(e.target.value)}
+                  className="h-12 text-base rounded-[6px] border-border"
+                  disabled={!loaded}
+                />
+              </div>
+              <Button
+                onClick={handleSaveRates}
+                disabled={savingRates || !loaded}
+                className="h-12 px-6 rounded-[6px] font-semibold"
+                style={{ background: '#2E5FA3', color: '#fff' }}
+              >
+                {savingRates ? 'Saving…' : 'Save Rates'}
               </Button>
             </div>
 

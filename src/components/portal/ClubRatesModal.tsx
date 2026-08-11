@@ -37,6 +37,32 @@ export default function ClubRatesModal({ venueId, onClose }: { venueId: string; 
     refetchOnWindowFocus: false,
   });
 
+  // Permanent-site fees are committee-set and change at AGM, so they live in
+  // venue_settings (Admin → Settings) rather than in code.
+  const { data: rates } = useQuery({
+    queryKey: ['portal-club-rate-settings', venueId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('venue_settings')
+        .select('key, value')
+        .eq('venue_id', venueId)
+        .in('key', ['rate_caravan_site_annual_cents', 'rate_electricity_annual_cents']);
+      if (error) throw error;
+      const map: Record<string, number> = {};
+      for (const row of data ?? []) {
+        const cents = parseInt(row.value ?? '', 10);
+        if (Number.isFinite(cents)) map[row.key] = cents;
+      }
+      return map;
+    },
+    enabled: !!venueId,
+    staleTime: 5 * 60_000,
+    refetchOnWindowFocus: false,
+  });
+
+  const siteAnnual = rates?.rate_caravan_site_annual_cents;
+  const electricityAnnual = rates?.rate_electricity_annual_cents;
+
   const caravans = (sites ?? []).filter(s => s.site_type === 'caravan');
   const camping = (sites ?? []).filter(s => s.site_type === 'camping');
   const dayVisitor = (sites ?? []).filter(s => s.site_type === 'day_visitor');
@@ -102,7 +128,19 @@ export default function ClubRatesModal({ venueId, onClose }: { venueId: string; 
           Subscriptions are pro-rated by the month you join — the application month is charged in full.
         </p>
 
-        <div style={sectionTitle}>Caravan &amp; Camping</div>
+        {(siteAnnual !== undefined || electricityAnnual !== undefined) && (
+          <>
+            <div style={sectionTitle}>Permanent Caravan Sites</div>
+            {siteAnnual !== undefined && (
+              <Row label="Caravan site" note="Annual site fee for permanent site holders" price={`${formatZAR(siteAnnual)} / year`} />
+            )}
+            {electricityAnnual !== undefined && (
+              <Row label="Electricity" note="Annual electricity charge on a permanent site" price={`${formatZAR(electricityAnnual)} / year`} />
+            )}
+          </>
+        )}
+
+        <div style={sectionTitle}>Casual Caravan &amp; Camping Bookings</div>
         {isLoading ? (
           <>
             <Skeleton className="h-10 w-full mt-2" />
@@ -144,9 +182,9 @@ export default function ClubRatesModal({ venueId, onClose }: { venueId: string; 
         )}
 
         <p style={{ fontSize: 12, color: 'var(--portal-text-muted)', margin: '16px 0 0' }}>
-          Permanent caravan sites, boat sheds and moorings are billed separately on your club
-          account and are not shown here. Rates are subject to change — speak to a committee
-          member if anything looks out of date.
+          Boat sheds and moorings are billed separately on your club account and are not shown
+          here. Rates are subject to change — speak to a committee member if anything looks
+          out of date.
         </p>
 
         <button onClick={onClose} style={{
