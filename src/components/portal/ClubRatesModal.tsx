@@ -7,7 +7,6 @@ import { X } from 'lucide-react';
 interface BookingSiteRate {
   name: string;
   site_type: string;
-  site_number: number | null;
   price_cents: number;
   pricing_tiers: { min_guests: number; max_guests: number; price_cents: number }[] | null;
   description: string | null;
@@ -26,7 +25,7 @@ export default function ClubRatesModal({ venueId, onClose }: { venueId: string; 
     queryFn: async () => {
       const { data, error } = await supabase
         .from('booking_sites')
-        .select('name, site_type, site_number, price_cents, pricing_tiers, description, sort_order')
+        .select('name, site_type, price_cents, pricing_tiers, description, sort_order')
         .eq('venue_id', venueId)
         .eq('is_active', true)
         .order('sort_order');
@@ -98,7 +97,7 @@ export default function ClubRatesModal({ venueId, onClose }: { venueId: string; 
 
         <div style={sectionTitle}>Joining Costs (new members)</div>
         <Row label="Joining fee" note="Once-off, Ordinary and Social members" price={formatZAR(CATEGORY_FEES.ordinary.joiningFeeCents)} />
-        <Row label="Land levy" note="Payable for the first five years of membership" price={`${formatZAR(CATEGORY_FEES.ordinary.landLevyCents)} / year`} />
+        <Row label="Levy" note="Payable for the first five years of membership" price={`${formatZAR(CATEGORY_FEES.ordinary.landLevyCents)} / year`} />
         <p style={{ fontSize: 12, color: 'var(--portal-text-muted)', margin: '10px 0 0' }}>
           Subscriptions are pro-rated by the month you join — the application month is charged in full.
         </p>
@@ -114,7 +113,7 @@ export default function ClubRatesModal({ venueId, onClose }: { venueId: string; 
             {caravans.map(s => (
               <Row
                 key={s.name}
-                label={s.site_number ? `${s.name} (Site ${s.site_number})` : s.name}
+                label={s.name}
                 note={s.description ?? undefined}
                 price={`${formatZAR(s.price_cents)} / night`}
               />
