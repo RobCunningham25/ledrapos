@@ -1,12 +1,13 @@
 import { useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, MapPin, Repeat } from 'lucide-react';
+import { Plus, MapPin, Repeat, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { useVenue } from '@/contexts/VenueContext';
 import { toast } from 'sonner';
 import AdminLayout from '@/components/admin/AdminLayout';
 import EventDrawer from '@/components/admin/EventDrawer';
+import EventRsvpDrawer, { type RsvpTarget } from '@/components/admin/EventRsvpDrawer';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -31,6 +32,8 @@ export interface ClubEvent {
   recurrence: Recurrence;
   recurrence_end_date: string | null;
   monthly_mode: MonthlyMode;
+  requires_rsvp: boolean | null;
+  rsvp_close_days_before: number | null;
   created_by: string | null;
   created_at: string | null;
 }
@@ -75,6 +78,7 @@ export default function Events() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<ClubEvent | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
+  const [rsvpTarget, setRsvpTarget] = useState<RsvpTarget | null>(null);
 
   const rangeStart = useMemo(() => addMonthsISO(todayISO(), -6), []);
   const rangeEnd = useMemo(() => addMonthsISO(todayISO(), 12), []);
@@ -107,6 +111,32 @@ export default function Events() {
     enabled: !!venueId,
   });
 
+  // Attending head counts for every occurrence in range, in one query — the list
+  // shows "N going" on the RSVP button without a fetch per row.
+  const { data: rsvpCounts = new Map<string, { parties: number; heads: number }>() } = useQuery({
+    queryKey: ['event-rsvp-counts', venueId, rangeStart, rangeEnd],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('event_rsvps')
+        .select('event_id, occurrence_date, adults, children')
+        .eq('venue_id', venueId)
+        .eq('status', 'attending')
+        .gte('occurrence_date', rangeStart)
+        .lte('occurrence_date', rangeEnd);
+      if (error) throw error;
+      const m = new Map<string, { parties: number; heads: number }>();
+      for (const r of data ?? []) {
+        const key = `${r.event_id}:${r.occurrence_date}`;
+        const cur = m.get(key) ?? { parties: 0, heads: 0 };
+        cur.parties += 1;
+        cur.heads += (r.adults ?? 0) + (r.children ?? 0);
+        m.set(key, cur);
+      }
+      return m;
+    },
+    enabled: !!venueId,
+  });
+
   const occurrences = useMemo(() => {
     const eventsById = new Map(events.map((e) => [e.id, e]));
     const series: EventSeries[] = events.map((e) => ({
@@ -120,6 +150,8 @@ export default function Events() {
       recurrence: e.recurrence ?? 'none',
       recurrence_end_date: e.recurrence_end_date,
       monthly_mode: (e.monthly_mode ?? 'day_of_month') as MonthlyMode,
+      requires_rsvp: e.requires_rsvp ?? false,
+      rsvp_close_days_before: e.rsvp_close_days_before,
     }));
     return expandAllOccurrences(series, rangeStart, rangeEnd, exceptions).map((o) => ({
       occ: o,
@@ -225,6 +257,15 @@ export default function Events() {
                       <Repeat size={11} /> {occ.recurrence === 'weekly' ? 'Weekly' : 'Monthly'}
                     </span>
                   )}
+                  {occ.requires_rsvp && (
+                    <span style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 4,
+                      background: '#E8F5F2', color: '#2A9D8F', fontSize: 11, fontWeight: 600,
+                      borderRadius: 999, padding: '2px 8px',
+                    }}>
+                      <Users size={11} /> RSVP
+                    </span>
+                  )}
                 </div>
                 <p style={{ fontSize: 14, color: '#718096', margin: '4px 0 0' }}>{formatEventDate(occ.occurrence_date)}</p>
                 {formatTime(occ.start_time, occ.end_time) && (
@@ -246,6 +287,29 @@ export default function Events() {
                 )}
               </div>
               <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+                {occ.requires_rsvp && (() => {
+                  const counts = rsvpCounts.get(`${occ.event_id}:${occ.occurrence_date}`);
+                  return (
+                    <button
+                      onClick={() =>
+                        setRsvpTarget({
+                          event_id: occ.event_id,
+                          occurrence_date: occ.occurrence_date,
+                          title: occ.title,
+                          rsvp_close_days_before: occ.rsvp_close_days_before,
+                        })
+                      }
+                      style={{
+                        border: '1px solid #E2E8F0', borderRadius: 6, height: 36, padding: '0 12px',
+                        background: 'transparent', color: '#2A9D8F', fontSize: 14, cursor: 'pointer',
+                        display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap',
+                      }}
+                    >
+                      <Users size={14} />
+                      {counts ? `${counts.heads} going` : 'RSVPs'}
+                    </button>
+                  );
+                })()}
                 <button
                   onClick={() => handleEdit(event)}
                   style={{
@@ -274,6 +338,12 @@ export default function Events() {
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
         event={editingEvent}
+      />
+
+      <EventRsvpDrawer
+        open={!!rsvpTarget}
+        onClose={() => setRsvpTarget(null)}
+        target={rsvpTarget}
       />
 
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>

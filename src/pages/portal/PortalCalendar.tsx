@@ -5,6 +5,7 @@ import { usePortalAuth } from '@/contexts/PortalAuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { expandAllOccurrences, type EventSeries, type EventOccurrence, type MonthlyMode, type Recurrence } from '@/utils/eventOccurrences';
 import { downloadEventIcs } from '@/utils/ics';
+import EventRsvpControls, { type MyRsvp } from '@/components/portal/EventRsvpControls';
 
 interface ClubEventRow {
   id: string;
@@ -17,6 +18,8 @@ interface ClubEventRow {
   recurrence: Recurrence;
   recurrence_end_date: string | null;
   monthly_mode: MonthlyMode;
+  requires_rsvp: boolean | null;
+  rsvp_close_days_before: number | null;
 }
 
 function formatTime(start: string | null, end: string | null) {
@@ -78,7 +81,7 @@ export default function PortalCalendar() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('club_events')
-        .select('id, title, description, event_date, start_time, end_time, location, recurrence, recurrence_end_date, monthly_mode')
+        .select('id, title, description, event_date, start_time, end_time, location, recurrence, recurrence_end_date, monthly_mode, requires_rsvp, rsvp_close_days_before')
         .eq('venue_id', venueId)
         .lte('event_date', lastDayStr)
         .or(`recurrence.neq.none,event_date.gte.${firstDayStr}`);
@@ -106,6 +109,55 @@ export default function PortalCalendar() {
     staleTime: 30_000,
     refetchOnWindowFocus: false,
   });
+
+  // This member's own RSVPs for the visible month, in one query. RLS limits the
+  // table to own rows anyway; the filter keeps the intent explicit.
+  const memberId = member?.id ?? '';
+  const { data: myRsvpRows = [] } = useQuery({
+    queryKey: ['portal-event-rsvps', 'mine', venueId, memberId, firstDayStr, lastDayStr],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('event_rsvps')
+        .select('id, event_id, occurrence_date, status, adults, children, note')
+        .eq('venue_id', venueId)
+        .eq('member_id', memberId)
+        .gte('occurrence_date', firstDayStr)
+        .lte('occurrence_date', lastDayStr);
+      if (error) throw error;
+      return (data ?? []) as MyRsvp[];
+    },
+    enabled: !!venueId && !!memberId,
+    staleTime: 30_000,
+  });
+
+  // Head counts come from an aggregate RPC — members never receive other
+  // members' names or notes.
+  const { data: countRows = [] } = useQuery({
+    queryKey: ['portal-event-rsvps', 'counts', venueId, firstDayStr, lastDayStr],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('event_rsvp_counts', {
+        p_venue_id: venueId,
+        p_from: firstDayStr,
+        p_to: lastDayStr,
+      });
+      if (error) throw error;
+      return (data ?? []) as { event_id: string; occurrence_date: string; parties: number; heads: number }[];
+    },
+    enabled: !!venueId,
+    staleTime: 30_000,
+  });
+
+  const myRsvps = useMemo(() => {
+    const m = new Map<string, MyRsvp>();
+    for (const r of myRsvpRows) m.set(`${r.event_id}:${r.occurrence_date}`, r);
+    return m;
+  }, [myRsvpRows]);
+
+  const attendingHeads = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const c of countRows) m.set(`${c.event_id}:${c.occurrence_date}`, Number(c.heads) || 0);
+    return m;
+  }, [countRows]);
 
   const { data: feedToken } = useQuery({
     queryKey: ['portal-calendar-feed-token', venueId],
@@ -135,6 +187,8 @@ export default function PortalCalendar() {
       recurrence: e.recurrence ?? 'none',
       recurrence_end_date: e.recurrence_end_date,
       monthly_mode: (e.monthly_mode ?? 'day_of_month') as MonthlyMode,
+      requires_rsvp: e.requires_rsvp ?? false,
+      rsvp_close_days_before: e.rsvp_close_days_before,
     }));
     return expandAllOccurrences(s, firstDayStr, lastDayStr, exceptions);
   }, [series, exceptions, firstDayStr, lastDayStr]);
@@ -278,7 +332,14 @@ export default function PortalCalendar() {
             {selectedEvents.length === 0 ? (
               <p style={{ color: 'var(--portal-text-muted)', fontSize: 14 }}>No events on this day</p>
             ) : (
-              selectedEvents.map((ev) => <EventCard key={`${ev.event_id}:${ev.occurrence_date}`} event={ev} />)
+              selectedEvents.map((ev) => (
+                <EventCard
+                  key={`${ev.event_id}:${ev.occurrence_date}`}
+                  event={ev}
+                  myRsvp={myRsvps.get(`${ev.event_id}:${ev.occurrence_date}`) ?? null}
+                  attendingHeads={attendingHeads.get(`${ev.event_id}:${ev.occurrence_date}`) ?? 0}
+                />
+              ))
             )}
           </>
         ) : (
@@ -287,7 +348,15 @@ export default function PortalCalendar() {
             {upcomingEvents.length === 0 ? (
               <p style={{ color: 'var(--portal-text-muted)', fontSize: 14 }}>No upcoming events this month</p>
             ) : (
-              upcomingEvents.map((ev) => <EventCard key={`${ev.event_id}:${ev.occurrence_date}`} event={ev} showDate />)
+              upcomingEvents.map((ev) => (
+                <EventCard
+                  key={`${ev.event_id}:${ev.occurrence_date}`}
+                  event={ev}
+                  showDate
+                  myRsvp={myRsvps.get(`${ev.event_id}:${ev.occurrence_date}`) ?? null}
+                  attendingHeads={attendingHeads.get(`${ev.event_id}:${ev.occurrence_date}`) ?? 0}
+                />
+              ))
             )}
           </>
         )}
@@ -361,7 +430,17 @@ function SubscribeCard({ token }: { token: string }) {
   );
 }
 
-function EventCard({ event, showDate }: { event: EventOccurrence; showDate?: boolean }) {
+function EventCard({
+  event,
+  showDate,
+  myRsvp,
+  attendingHeads,
+}: {
+  event: EventOccurrence;
+  showDate?: boolean;
+  myRsvp?: MyRsvp | null;
+  attendingHeads?: number;
+}) {
   return (
     <div style={{
       background: 'var(--portal-card-bg)', border: `1px solid var(--portal-card-border)`, borderRadius: 'var(--portal-card-radius)',
@@ -372,6 +451,14 @@ function EventCard({ event, showDate }: { event: EventOccurrence; showDate?: boo
         {event.is_recurring && (
           <span title={event.recurrence === 'weekly' ? 'Repeats weekly' : 'Repeats monthly'} style={{ color: 'var(--portal-text-muted)' }}>
             <Repeat size={13} />
+          </span>
+        )}
+        {event.requires_rsvp && !myRsvp && (
+          <span style={{
+            background: 'var(--portal-accent)', color: '#FFFFFF', fontSize: 10, fontWeight: 700,
+            borderRadius: 999, padding: '2px 8px', letterSpacing: 0.3,
+          }}>
+            RSVP
           </span>
         )}
       </div>
@@ -408,6 +495,16 @@ function EventCard({ event, showDate }: { event: EventOccurrence; showDate?: boo
       >
         <CalendarPlus size={14} /> Add to calendar
       </button>
+
+      {event.requires_rsvp && (
+        <EventRsvpControls
+          eventId={event.event_id}
+          occurrenceDate={event.occurrence_date}
+          rsvpCloseDaysBefore={event.rsvp_close_days_before}
+          myRsvp={myRsvp ?? null}
+          attendingHeads={attendingHeads}
+        />
+      )}
     </div>
   );
 }

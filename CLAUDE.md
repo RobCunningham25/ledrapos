@@ -38,8 +38,9 @@ for database, RLS, Edge Functions, Auth, and Storage.
 | `admin_users` | Admin accounts; first login matched by email to seeded records |
 | `bookings` | Accommodation bookings with Yoco and EFT payment support; `total_price_cents` (not `amount_cents`) |
 | `booking_payments` | Payments against bookings |
-| `club_events` | Admin-created events; columns are `event_date` (date) and `title`; supports recurrence |
+| `club_events` | Admin-created events; columns are `event_date` (date) and `title`; supports recurrence; `requires_rsvp` + `rsvp_close_days_before` (days before the occurrence, NULL = open until the event day) |
 | `event_exceptions` | Per-occurrence overrides/cancellations for recurring events |
+| `event_rsvps` | Member RSVPs, one per `(event_id, occurrence_date, member_id)`; `status` (attending/not_attending), `adults`, `children`, `note`. Members read/write only their own row; head counts come from the `event_rsvp_counts` RPC |
 | `pos_sessions` | Bartender shift sessions |
 | `checkout_sessions` | Yoco Checkout API sessions for online payments |
 | `member_favorites` | Manual pre-population only — never auto-learn from purchase history |
@@ -48,9 +49,11 @@ for database, RLS, Edge Functions, Auth, and Storage.
 | `email_templates` | Per-venue starter templates for the broadcast compose page (subject + body); seeded via migration |
 | `whatsapp_messages` | Audit log of every outbound + inbound WhatsApp message; `direction`, `template_sid`, `twilio_sid`, `status`, `related_kind`/`related_id`. Backs the daily-cap check, recent-reminder lookups, and the inbound webhook router |
 
-**`bookings` is for accommodation only** — it has no `event_id` FK to `club_events`. There is no
-event RSVP system. Do not conflate bookings with event attendance. If RSVP tracking is ever needed,
-it belongs in a separate `event_rsvps` table in its own phase.
+**`bookings` is for accommodation only** — it has no `event_id` FK to `club_events`. Do not conflate
+bookings with event attendance: event attendance lives in `event_rsvps` and nowhere else.
+
+**RSVPs are keyed per occurrence**, on `(event_id, occurrence_date)` — never on `event_id` alone.
+`club_events` rows can be recurring series, so a weekly braai takes a separate RSVP each week.
 
 **`club_events` recurrence columns:** `recurrence` (TEXT), `recurrence_end_date` (DATE),
 `monthly_mode` TEXT — `'day_of_month'` or `'nth_weekday'`. Expansion logic lives in
@@ -114,7 +117,8 @@ Dashboard cards use: white background, `1px solid #E2E8F0` border, `8px` radius,
 - **Admin:** Monthly sales report, top products, inventory; member CRUD (MemberDrawer with Tab
   History / Credit History / Details / Sites+Boats tabs); user management
 - **Member portal:** Responsive nautical design; OpenWeather Vaal Dam widget; Bar Tab view;
-  My Details; Club Events calendar with recurring event support; Bookings (Yoco + EFT); visitor
+  My Details; Club Events calendar with recurring event support and per-occurrence RSVP (attending /
+  not attending + adults & children head count + note); Bookings (Yoco + EFT); visitor
   booking at `/booking/:code`; Club Account card (Sage balance snapshot from
   `member_club_balances`); searchable Constitution page (62 sections in `venue_knowledge`
   category `'constitution'`, FTS on `search_tsv`, TOC order via `sort_order`)
@@ -227,6 +231,10 @@ native PS syntax or use `curl.exe` explicitly when giving CLI instructions.
     can't resolve relative paths and Gmail/Outlook/Apple Mail strip SVG — `emailLogoUrl()` handles
     both and returns null rather than emitting a broken image. The client mirror
     [src/lib/broadcastTemplate.ts](src/lib/broadcastTemplate.ts) must stay in lock-step.
+19. **Never widen `event_rsvps` SELECT back to all authenticated users** — RSVP notes carry dietary
+    and allergy information. Members read only their own row (`can_write_event_rsvp(member_id)`);
+    the portal's "N people are going" count comes from the aggregate-only `event_rsvp_counts` RPC,
+    which returns no names and no notes. This is a deliberate exception to the permissive RLS pattern.
 
 ---
 

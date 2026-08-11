@@ -12,6 +12,8 @@ export interface EventSeries {
   recurrence: Recurrence;
   recurrence_end_date: string | null;
   monthly_mode: MonthlyMode;
+  requires_rsvp?: boolean;
+  rsvp_close_days_before?: number | null;
 }
 
 export interface EventOccurrence {
@@ -24,6 +26,8 @@ export interface EventOccurrence {
   location: string | null;
   recurrence: Recurrence;
   is_recurring: boolean;
+  requires_rsvp: boolean;
+  rsvp_close_days_before: number | null;
 }
 
 function parseISODate(s: string): Date {
@@ -93,6 +97,8 @@ export function expandOccurrences(
     location: series.location,
     recurrence: series.recurrence,
     is_recurring: series.recurrence !== 'none',
+    requires_rsvp: series.requires_rsvp ?? false,
+    rsvp_close_days_before: series.rsvp_close_days_before ?? null,
   };
 
   if (series.recurrence === 'none') {
@@ -140,6 +146,23 @@ export function expandOccurrences(
   }
 
   return out;
+}
+
+/**
+ * Last date on which an RSVP may still be given or changed.
+ * `closeDaysBefore` is null for "open right up to the event day itself".
+ */
+export function rsvpDeadline(occurrenceDate: string, closeDaysBefore: number | null): string {
+  if (!closeDaysBefore) return occurrenceDate;
+  return formatISODate(addDays(parseISODate(occurrenceDate), -closeDaysBefore));
+}
+
+/** True while the occurrence still accepts RSVPs (deadline is inclusive). */
+export function isRsvpOpen(
+  occ: Pick<EventOccurrence, 'occurrence_date' | 'rsvp_close_days_before'>,
+  todayISO: string,
+): boolean {
+  return todayISO <= rsvpDeadline(occ.occurrence_date, occ.rsvp_close_days_before);
 }
 
 export function expandAllOccurrences(

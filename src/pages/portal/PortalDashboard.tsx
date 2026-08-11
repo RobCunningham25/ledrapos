@@ -15,7 +15,7 @@ import CreditLoadSheet from '@/components/portal/CreditLoadSheet';
 import PayTabDialog from '@/components/portal/PayTabDialog';
 import ClubAccountCard from '@/components/portal/ClubAccountCard';
 import { supabase } from '@/integrations/supabase/client';
-import { expandAllOccurrences, type EventSeries, type MonthlyMode, type Recurrence } from '@/utils/eventOccurrences';
+import { expandAllOccurrences, isRsvpOpen, type EventSeries, type MonthlyMode, type Recurrence } from '@/utils/eventOccurrences';
 
 function getGreeting() {
   const h = new Date().getHours();
@@ -333,7 +333,7 @@ function UpcomingBookingsCard({ venueId, memberId }: { venueId: string; memberId
 }
 
 // ─── Upcoming Events Card (real data) ──────────────────────────
-function UpcomingEventsCard({ venueId }: { venueId: string }) {
+function UpcomingEventsCard({ venueId, memberId }: { venueId: string; memberId: string }) {
   const { portalPath } = useVenueNav();
   const navigate = useNavigate();
   const today = new Date().toISOString().slice(0, 10);
@@ -346,7 +346,7 @@ function UpcomingEventsCard({ venueId }: { venueId: string }) {
       const [seriesRes, exceptionsRes] = await Promise.all([
         supabase
           .from('club_events')
-          .select('id, title, description, event_date, start_time, end_time, location, recurrence, recurrence_end_date, monthly_mode')
+          .select('id, title, description, event_date, start_time, end_time, location, recurrence, recurrence_end_date, monthly_mode, requires_rsvp, rsvp_close_days_before')
           .eq('venue_id', venueId)
           .lte('event_date', horizon),
         supabase
@@ -369,10 +369,31 @@ function UpcomingEventsCard({ venueId }: { venueId: string }) {
         recurrence: (e.recurrence ?? 'none') as Recurrence,
         recurrence_end_date: e.recurrence_end_date,
         monthly_mode: (e.monthly_mode ?? 'day_of_month') as MonthlyMode,
+        requires_rsvp: e.requires_rsvp ?? false,
+        rsvp_close_days_before: e.rsvp_close_days_before,
       }));
       return expandAllOccurrences(series, today, horizon, exceptionsRes.data ?? []).slice(0, 3);
     },
     enabled: !!venueId,
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
+  });
+
+  // This member's own RSVPs, so the card can nudge only where they haven't
+  // responded yet. Key prefix matches EventRsvpControls' invalidation.
+  const { data: myRsvpKeys = new Set<string>() } = useQuery({
+    queryKey: ['portal-event-rsvps', 'dashboard', venueId, memberId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('event_rsvps')
+        .select('event_id, occurrence_date')
+        .eq('venue_id', venueId)
+        .eq('member_id', memberId)
+        .gte('occurrence_date', today);
+      if (error) throw error;
+      return new Set((data ?? []).map((r) => `${r.event_id}:${r.occurrence_date}`));
+    },
+    enabled: !!venueId && !!memberId,
     staleTime: 30_000,
     refetchOnWindowFocus: false,
   });
@@ -414,9 +435,23 @@ function UpcomingEventsCard({ venueId }: { venueId: string }) {
               padding: '10px 0',
               borderBottom: i < events.length - 1 ? `1px solid var(--portal-card-border)` : 'none',
             }}>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
                 <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--portal-primary)' }}>{formatShort(ev.occurrence_date)}</span>
                 <span style={{ fontSize: 14, color: 'var(--portal-text-primary)' }}>{ev.title}</span>
+                {ev.requires_rsvp &&
+                  !myRsvpKeys.has(`${ev.event_id}:${ev.occurrence_date}`) &&
+                  isRsvpOpen(ev, today) && (
+                    <button
+                      onClick={() => navigate(portalPath('calendar'))}
+                      style={{
+                        background: 'var(--portal-accent)', color: '#FFFFFF', border: 'none',
+                        fontSize: 10, fontWeight: 700, letterSpacing: 0.3, borderRadius: 999,
+                        padding: '2px 8px', cursor: 'pointer',
+                      }}
+                    >
+                      RSVP
+                    </button>
+                  )}
               </div>
               {formatTime(ev.start_time, ev.end_time) && (
                 <p style={{ fontSize: 13, color: 'var(--portal-text-secondary)', margin: '2px 0 0' }}>{formatTime(ev.start_time, ev.end_time)}</p>
@@ -455,7 +490,7 @@ export default function PortalDashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-[1.2fr_1fr] gap-5">
         <CreditTabCard memberId={memberId} venueId={venueId} />
         <ClubAccountCard memberId={memberId} venueId={venueId} />
-        <UpcomingEventsCard venueId={venueId} />
+        <UpcomingEventsCard venueId={venueId} memberId={memberId} />
         <UpcomingBookingsCard venueId={venueId} memberId={memberId} />
       </div>
     </div>

@@ -552,6 +552,8 @@ export type Database = {
           monthly_mode: string
           recurrence: string
           recurrence_end_date: string | null
+          requires_rsvp: boolean
+          rsvp_close_days_before: number | null
           start_time: string | null
           title: string
           venue_id: string
@@ -567,6 +569,8 @@ export type Database = {
           monthly_mode?: string
           recurrence?: string
           recurrence_end_date?: string | null
+          requires_rsvp?: boolean
+          rsvp_close_days_before?: number | null
           start_time?: string | null
           title: string
           venue_id: string
@@ -582,6 +586,8 @@ export type Database = {
           monthly_mode?: string
           recurrence?: string
           recurrence_end_date?: string | null
+          requires_rsvp?: boolean
+          rsvp_close_days_before?: number | null
           start_time?: string | null
           title?: string
           venue_id?: string
@@ -750,6 +756,70 @@ export type Database = {
           },
           {
             foreignKeyName: "event_exceptions_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_rsvps: {
+        Row: {
+          adults: number
+          children: number
+          created_at: string
+          event_id: string
+          id: string
+          member_id: string
+          note: string | null
+          occurrence_date: string
+          status: string
+          updated_at: string
+          venue_id: string
+        }
+        Insert: {
+          adults?: number
+          children?: number
+          created_at?: string
+          event_id: string
+          id?: string
+          member_id: string
+          note?: string | null
+          occurrence_date: string
+          status?: string
+          updated_at?: string
+          venue_id: string
+        }
+        Update: {
+          adults?: number
+          children?: number
+          created_at?: string
+          event_id?: string
+          id?: string
+          member_id?: string
+          note?: string | null
+          occurrence_date?: string
+          status?: string
+          updated_at?: string
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_rsvps_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "club_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_rsvps_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_rsvps_venue_id_fkey"
             columns: ["venue_id"]
             isOneToOne: false
             referencedRelation: "venues"
@@ -2284,6 +2354,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      can_write_event_rsvp: { Args: { p_member_id: string }; Returns: boolean }
       claim_broadcast_batch: {
         Args: { p_broadcast_id: string; p_limit?: number }
         Returns: {
@@ -2302,6 +2373,15 @@ export type Database = {
           p_venue_id: string
         }
         Returns: Json
+      }
+      event_rsvp_counts: {
+        Args: { p_from: string; p_to: string; p_venue_id: string }
+        Returns: {
+          event_id: string
+          heads: number
+          occurrence_date: string
+          parties: number
+        }[]
       }
       get_members_with_auth: {
         Args: { p_venue_id: string }

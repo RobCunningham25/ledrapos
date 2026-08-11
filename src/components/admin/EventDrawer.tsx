@@ -34,6 +34,8 @@ interface FormData {
   recurrence: RecurrenceKind;
   recurrence_end_date: string;
   monthly_mode: MonthlyModeKind;
+  requires_rsvp: boolean;
+  rsvp_close_days_before: string;
 }
 
 const emptyForm: FormData = {
@@ -46,6 +48,8 @@ const emptyForm: FormData = {
   recurrence: 'none',
   recurrence_end_date: '',
   monthly_mode: 'day_of_month',
+  requires_rsvp: false,
+  rsvp_close_days_before: '',
 };
 
 const ORDINAL_WORDS = ['first', 'second', 'third', 'fourth', 'fifth'];
@@ -89,6 +93,9 @@ export default function EventDrawer({ open, onClose, event }: EventDrawerProps) 
           recurrence: r === 'weekly' || r === 'monthly' ? r : 'none',
           recurrence_end_date: event.recurrence_end_date ?? '',
           monthly_mode: mm === 'nth_weekday' ? 'nth_weekday' : 'day_of_month',
+          requires_rsvp: event.requires_rsvp ?? false,
+          rsvp_close_days_before:
+            event.rsvp_close_days_before == null ? '' : String(event.rsvp_close_days_before),
         });
       } else {
         setForm(emptyForm);
@@ -105,6 +112,10 @@ export default function EventDrawer({ open, onClose, event }: EventDrawerProps) 
       e.end_time = 'End time must be after start time';
     if (form.recurrence !== 'none' && form.recurrence_end_date && form.event_date && form.recurrence_end_date < form.event_date)
       e.recurrence_end_date = 'End date must be on or after the event date';
+    if (form.requires_rsvp && form.rsvp_close_days_before) {
+      const n = Number(form.rsvp_close_days_before);
+      if (!Number.isInteger(n) || n < 0) e.rsvp_close_days_before = 'Enter a whole number of days (0 or more)';
+    }
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -124,6 +135,11 @@ export default function EventDrawer({ open, onClose, event }: EventDrawerProps) 
       recurrence: form.recurrence,
       recurrence_end_date: form.recurrence === 'none' ? null : (form.recurrence_end_date || null),
       monthly_mode: form.recurrence === 'monthly' ? form.monthly_mode : 'day_of_month',
+      requires_rsvp: form.requires_rsvp,
+      rsvp_close_days_before:
+        form.requires_rsvp && form.rsvp_close_days_before
+          ? Number(form.rsvp_close_days_before)
+          : null,
     };
 
     let error;
@@ -312,6 +328,53 @@ export default function EventDrawer({ open, onClose, event }: EventDrawerProps) 
                   );
                 })()}
               </>
+            )}
+          </div>
+
+          <div style={{ borderTop: '1px solid #E2E8F0', paddingTop: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div>
+                <Label style={{ fontSize: 14, fontWeight: 500, color: '#1A202C' }}>Requires RSVP</Label>
+                <p style={{ fontSize: 12, color: '#718096', margin: '2px 0 0' }}>
+                  Members respond in the portal with an adults and children head count
+                </p>
+              </div>
+              <Switch
+                checked={form.requires_rsvp}
+                onCheckedChange={(on) => {
+                  set('requires_rsvp', on);
+                  if (!on) set('rsvp_close_days_before', '');
+                }}
+              />
+            </div>
+
+            {form.requires_rsvp && (
+              <div style={{ marginTop: 12 }}>
+                <Label style={{ fontSize: 14, fontWeight: 500, color: '#1A202C' }}>RSVPs close</Label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
+                  <Input
+                    type="number"
+                    min={0}
+                    value={form.rsvp_close_days_before}
+                    onChange={(e) => set('rsvp_close_days_before', e.target.value)}
+                    placeholder="0"
+                    style={{
+                      width: 90,
+                      borderColor: errors.rsvp_close_days_before ? '#C0392B' : '#E2E8F0',
+                      borderRadius: 6,
+                    }}
+                  />
+                  <span style={{ fontSize: 14, color: '#718096' }}>days before the event</span>
+                </div>
+                <p style={{ fontSize: 12, color: '#718096', margin: '6px 0 0' }}>
+                  {form.rsvp_close_days_before && Number(form.rsvp_close_days_before) > 0
+                    ? `Members can respond up to ${form.rsvp_close_days_before} day${Number(form.rsvp_close_days_before) === 1 ? '' : 's'} before${form.recurrence !== 'none' ? ' each occurrence' : ''} — useful for catering numbers.`
+                    : 'Leave blank to keep RSVPs open until the day of the event.'}
+                </p>
+                {errors.rsvp_close_days_before && (
+                  <p style={{ fontSize: 12, color: '#C0392B', marginTop: 2 }}>{errors.rsvp_close_days_before}</p>
+                )}
+              </div>
             )}
           </div>
         </div>
