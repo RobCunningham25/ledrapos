@@ -1,13 +1,16 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { formatCents } from '@/utils/currency';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Landmark } from 'lucide-react';
+import ClubRatesModal from './ClubRatesModal';
 
 // Club-account position (subs, levies, mooring fees) imported from the club's
 // accounting system. This is a statement snapshot as at a date — not live, and
 // not the bar tab or POS credit balance.
 export default function ClubAccountCard({ memberId, venueId }: { memberId: string; venueId: string }) {
+  const [showRates, setShowRates] = useState(false);
   const { data, isLoading, fetchStatus } = useQuery({
     queryKey: ['portal-club-balance', venueId, memberId],
     queryFn: async () => {
@@ -68,6 +71,19 @@ export default function ClubAccountCard({ memberId, venueId }: { memberId: strin
           </p>
         </>
       )}
+
+      {!showLoading && (
+        <button onClick={() => setShowRates(true)} style={{
+          marginTop: 14, width: '100%', height: 40,
+          background: 'transparent', color: 'var(--portal-accent)',
+          border: `1px solid var(--portal-accent)`, borderRadius: 'var(--portal-button-radius)',
+          fontSize: 14, fontWeight: 600, cursor: 'pointer',
+        }}>
+          See current rates
+        </button>
+      )}
+
+      {showRates && <ClubRatesModal venueId={venueId} onClose={() => setShowRates(false)} />}
     </div>
   );
 }
