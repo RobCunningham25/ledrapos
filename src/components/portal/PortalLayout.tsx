@@ -76,8 +76,8 @@ export default function PortalLayout() {
       >
         <div style={{ padding: '24px 20px 0', display: 'flex', alignItems: 'center', gap: 10 }}>
           {T.logoUrl && (
-            <span style={{ display: 'inline-flex', background: '#FFFFFF', borderRadius: 8, padding: 4 }}>
-              <img src={T.logoUrl} alt="" style={{ maxHeight: 36, objectFit: 'contain', display: 'block' }} />
+            <span style={{ display: 'inline-flex', background: '#FFFFFF', borderRadius: 8, padding: 4, flexShrink: 0 }}>
+              <img src={T.logoUrl} alt="" style={{ height: 36, width: 'auto', objectFit: 'contain', display: 'block' }} />
             </span>
           )}
           <span style={{ fontWeight: 700, fontSize: 18, color: '#FFFFFF' }}>{T.venueName}</span>
@@ -144,8 +144,8 @@ export default function PortalLayout() {
         >
           <div className="flex items-center gap-2">
             {T.logoUrl && (
-              <span className="lg:hidden" style={{ display: 'inline-flex', background: '#FFFFFF', borderRadius: 6, padding: 3 }}>
-                <img src={T.logoUrl} alt="" style={{ maxHeight: 28, objectFit: 'contain', display: 'block' }} />
+              <span className="lg:hidden" style={{ display: 'inline-flex', background: '#FFFFFF', borderRadius: 6, padding: 3, flexShrink: 0 }}>
+                <img src={T.logoUrl} alt="" style={{ height: 28, width: 'auto', objectFit: 'contain', display: 'block' }} />
               </span>
             )}
             <span className="hidden lg:inline" style={{ fontWeight: 600, fontSize: 16, color: '#FFFFFF' }}>
