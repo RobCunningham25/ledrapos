@@ -9,7 +9,7 @@ import { usePortalOpenTab } from '@/hooks/usePortalOpenTab';
 import { usePayTab, MIN_ONLINE_PAYMENT_CENTS } from '@/hooks/usePayTab';
 import { useVenue } from '@/contexts/VenueContext';
 import { formatCents } from '@/utils/currency';
-import { Calendar, BedDouble } from 'lucide-react';
+import { Calendar, BedDouble, User, MessageSquarePlus } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import CreditLoadSheet from '@/components/portal/CreditLoadSheet';
 import PayTabDialog from '@/components/portal/PayTabDialog';
@@ -332,6 +332,40 @@ function UpcomingBookingsCard({ venueId, memberId }: { venueId: string; memberId
   );
 }
 
+// ─── Quick Links (My Details / Report an Issue) ────────────────
+function QuickLinksRow() {
+  const { portalPath } = useVenueNav();
+  const navigate = useNavigate();
+
+  const btnBase: React.CSSProperties = {
+    flex: 1, height: 48, borderRadius: 'var(--portal-button-radius)', fontWeight: 600, fontSize: 14,
+    border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+  };
+
+  return (
+    <div className="flex" style={{ gap: 12 }}>
+      <button
+        onClick={() => navigate(portalPath('my-details'))}
+        style={{
+          ...btnBase,
+          background: 'var(--portal-card-bg)', color: 'var(--portal-text-primary)',
+          border: '1px solid var(--portal-card-border)', boxShadow: 'var(--portal-card-shadow)',
+        }}
+      >
+        <User size={16} />
+        My Details
+      </button>
+      <button
+        onClick={() => navigate(portalPath('report-issue'))}
+        style={{ ...btnBase, background: '#DC2626', color: '#FFFFFF' }}
+      >
+        <MessageSquarePlus size={16} />
+        Report an issue
+      </button>
+    </div>
+  );
+}
+
 // ─── Upcoming Events Card (real data) ──────────────────────────
 function UpcomingEventsCard({ venueId, memberId }: { venueId: string; memberId: string }) {
   const { portalPath } = useVenueNav();
@@ -491,7 +525,10 @@ export default function PortalDashboard() {
         <CreditTabCard memberId={memberId} venueId={venueId} />
         <ClubAccountCard memberId={memberId} venueId={venueId} />
         <UpcomingEventsCard venueId={venueId} memberId={memberId} />
-        <UpcomingBookingsCard venueId={venueId} memberId={memberId} />
+        <div className="flex flex-col" style={{ gap: 16 }}>
+          <UpcomingBookingsCard venueId={venueId} memberId={memberId} />
+          <QuickLinksRow />
+        </div>
       </div>
     </div>
   );
