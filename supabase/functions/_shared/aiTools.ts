@@ -201,6 +201,62 @@ export const TOOL_DEFINITIONS = [
     },
   },
   {
+    name: "create_caravan_booking",
+    description:
+      "Actually create and finalise a caravan or camping booking (does NOT handle day-visitor bookings — use book_caravan_link for those). Only call this after: (1) check_caravan_availability has confirmed the dates/site are free, (2) the member has explicitly confirmed the dates, chosen site, price, and — for a booking for themselves — payment method. NEVER call this without a clear final yes/confirmation from the member. Two modes: booking_for='self' books the calling member and takes a payment_method (card returns a Yoco payment link; eft returns bank details to pay by transfer, no link needed). booking_for='visitor' books on behalf of someone else — do NOT ask the member for a payment method in this case; instead collect the visitor's name and email (phone optional), and this returns a shareable link for the member to forward to the visitor, who completes payment themselves (mirrors the portal's 'book for a visitor' flow).",
+    input_schema: {
+      type: "object",
+      properties: {
+        site_type: {
+          type: "string",
+          enum: ["caravan", "camping"],
+          description: "Which kind of site is being booked.",
+        },
+        check_in: {
+          type: "string",
+          description: "Check-in date (YYYY-MM-DD).",
+        },
+        check_out: {
+          type: "string",
+          description: "Check-out date (YYYY-MM-DD). Must be after check_in.",
+        },
+        site_id: {
+          type: "string",
+          description: "The specific caravan site UUID (from check_caravan_availability's output). Required when site_type is 'caravan'. Ignored for camping.",
+        },
+        num_guests: {
+          type: "integer",
+          description: "Number of guests. Affects camping price tiers. Defaults to 1.",
+          minimum: 1,
+          maximum: 20,
+        },
+        booking_for: {
+          type: "string",
+          enum: ["self", "visitor"],
+          description: "'self' (default) books the calling member. 'visitor' books on behalf of someone else — requires guest_name and guest_email, and no payment_method is collected.",
+        },
+        guest_name: {
+          type: "string",
+          description: "Visitor's full name. Required when booking_for is 'visitor'.",
+        },
+        guest_email: {
+          type: "string",
+          description: "Visitor's email address. Required when booking_for is 'visitor'.",
+        },
+        guest_phone: {
+          type: "string",
+          description: "Visitor's phone number. Optional, only used when booking_for is 'visitor'.",
+        },
+        payment_method: {
+          type: "string",
+          enum: ["card", "eft"],
+          description: "How the member wants to pay. Required when booking_for is 'self'. Not used for visitor bookings.",
+        },
+      },
+      required: ["site_type", "check_in", "check_out"],
+    },
+  },
+  {
     name: "escalate_to_admin",
     description:
       "Hand this conversation to a human at the club. Call this when: (a) the member explicitly asks to speak to staff, (b) the member raises a complaint, refund request, or sensitive matter, (c) the question is outside what the available tools can answer. Someone from the club will follow up directly. After calling this, your final reply to the member should confirm that you've passed it on — do not name 'the office' or invent a specific role; just say someone from the club will be in touch shortly.",
@@ -247,6 +303,86 @@ const PORTAL_BASE_URL = (Deno.env.get("PORTAL_BASE_URL") ?? "https://pos.ledra.c
 const SITE_URL = (Deno.env.get("SITE_URL") ?? PORTAL_BASE_URL).replace(/\/+$/, "");
 
 const centsToZar = (cents: number) => Math.round(cents) / 100;
+
+// Date-range overlap test shared by availability checks and booking creation.
+const overlaps = (aStart: string, aEnd: string, bStart: string, bEnd: string) =>
+  aStart < bEnd && bStart < aEnd;
+
+// Per-night price for a booking_sites row: fixed price_cents, or (camping only)
+// a pricing_tiers lookup by guest count. Mirrors getPerNightPrice in
+// src/components/portal/booking/BookingDatesStep.tsx — keep both in sync.
+interface PricedSite {
+  site_type: string;
+  price_cents: number;
+  pricing_tiers: unknown;
+}
+function getPerNightPriceCents(site: PricedSite, numGuests: number): number {
+  if (site.site_type === "camping" && Array.isArray(site.pricing_tiers)) {
+    const tier = (site.pricing_tiers as Array<{ min_guests: number; max_guests: number; price_cents: number }>)
+      .find((t) => numGuests >= t.min_guests && numGuests <= t.max_guests);
+    if (tier) return tier.price_cents;
+  }
+  return site.price_cents;
+}
+
+// Booking code generator — mirrors generateBookingCode in
+// src/pages/portal/PortalBookings.tsx. Collision risk is the same as the
+// portal's (booking_code is UNIQUE at the DB level; no retry here, matching
+// existing behaviour).
+const CODE_CHARS = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
+function generateBookingCode(prefix: string): string {
+  let code = `${prefix}-`;
+  for (let i = 0; i < 6; i++) code += CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)];
+  return code;
+}
+
+// Which of the given site ids are blocked (existing PENDING/PAID booking or a
+// blackout) for the given date range. Shared by check_caravan_availability
+// (scanned across all sites) and create_caravan_booking (scanned across just
+// the one site being booked, to re-check right before insert).
+async function getBlockedSiteIds(
+  ctx: ToolContext,
+  siteIds: string[],
+  checkIn: string,
+  checkOut: string,
+): Promise<Set<string>> {
+  const blocked = new Set<string>();
+  if (siteIds.length === 0) return blocked;
+
+  const [linksRes, blackoutsRes] = await Promise.all([
+    ctx.supabase
+      .from("booking_site_link")
+      .select("site_id, booking:bookings!inner(id, check_in, check_out, status)")
+      .eq("venue_id", ctx.venueId)
+      .in("site_id", siteIds)
+      .in("booking.status", ["PENDING", "PAID"]),
+    ctx.supabase
+      .from("booking_blackouts")
+      .select("site_id, start_date, end_date")
+      .eq("venue_id", ctx.venueId),
+  ]);
+
+  for (const link of (linksRes.data ?? []) as Array<{
+    site_id: string;
+    booking: { check_in: string; check_out: string; status: string } | null;
+  }>) {
+    const b = link.booking;
+    if (!b) continue;
+    if (overlaps(checkIn, checkOut, b.check_in, b.check_out)) {
+      blocked.add(link.site_id);
+    }
+  }
+  for (const bo of (blackoutsRes.data ?? []) as Array<{
+    site_id: string | null;
+    start_date: string;
+    end_date: string;
+  }>) {
+    if (overlaps(checkIn, checkOut, bo.start_date, bo.end_date)) {
+      if (bo.site_id && siteIds.includes(bo.site_id)) blocked.add(bo.site_id);
+    }
+  }
+  return blocked;
+}
 
 // ===== Knowledge base (searchable) =====
 
@@ -727,9 +863,6 @@ async function tool_check_caravan_availability(
       .eq("venue_id", ctx.venueId),
   ]);
 
-  const overlaps = (aStart: string, aEnd: string, bStart: string, bEnd: string) =>
-    aStart < bEnd && bStart < aEnd;
-
   const blockedSiteIds = new Set<string>();
   for (const link of (linksRes.data ?? []) as Array<{
     site_id: string;
@@ -1007,6 +1140,314 @@ function tool_book_caravan_link(
   };
 }
 
+interface CreateCaravanBookingInput {
+  site_type: "caravan" | "camping";
+  check_in: string;
+  check_out: string;
+  site_id?: string;
+  num_guests?: number;
+  booking_for?: "self" | "visitor";
+  guest_name?: string;
+  guest_email?: string;
+  guest_phone?: string;
+  payment_method?: "card" | "eft";
+}
+
+async function tool_create_caravan_booking(
+  ctx: ToolContext,
+  input: CreateCaravanBookingInput,
+): Promise<ToolResult> {
+  if (ctx.dryRun) {
+    return {
+      output: {
+        status: "dry_run",
+        note: "Skipped booking creation in dry-run mode. In production this would create the booking and return a payment link, EFT details, or a visitor share link.",
+      },
+      logSummary: "create_caravan_booking: dry_run",
+    };
+  }
+
+  const { site_type, check_in, check_out, site_id, num_guests } = input;
+  const bookingFor = input.booking_for === "visitor" ? "visitor" : "self";
+  const numGuests = Math.max(1, Math.min(20, Math.round(num_guests ?? 1)));
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(check_in) || !/^\d{4}-\d{2}-\d{2}$/.test(check_out)) {
+    return {
+      output: { status: "invalid_dates", note: "Both check_in and check_out must be ISO dates (YYYY-MM-DD)." },
+      logSummary: "create_caravan_booking: invalid dates",
+    };
+  }
+  if (check_out <= check_in) {
+    return {
+      output: { status: "invalid_dates", note: "check_out must be after check_in." },
+      logSummary: "create_caravan_booking: bad date order",
+    };
+  }
+  if (site_type !== "caravan" && site_type !== "camping") {
+    return {
+      output: { status: "invalid_site_type", note: "site_type must be 'caravan' or 'camping'." },
+      logSummary: `create_caravan_booking: invalid site_type ${site_type}`,
+    };
+  }
+  if (site_type === "caravan" && !site_id) {
+    return {
+      output: { status: "missing_site_id", note: "site_id is required for a caravan booking — call check_caravan_availability first to get one." },
+      logSummary: "create_caravan_booking: missing site_id",
+    };
+  }
+  if (bookingFor === "visitor" && (!input.guest_name?.trim() || !input.guest_email?.trim())) {
+    return {
+      output: { status: "missing_guest_details", note: "guest_name and guest_email are required for a visitor booking." },
+      logSummary: "create_caravan_booking: missing guest details",
+    };
+  }
+  if (bookingFor === "self" && input.payment_method !== "card" && input.payment_method !== "eft") {
+    return {
+      output: { status: "missing_payment_method", note: "payment_method ('card' or 'eft') is required for a self booking." },
+      logSummary: "create_caravan_booking: missing payment_method",
+    };
+  }
+
+  // Resolve the target site.
+  let site: { id: string; name: string; site_type: string; price_cents: number; pricing_tiers: unknown } | null = null;
+  if (site_type === "caravan") {
+    const { data } = await ctx.supabase
+      .from("booking_sites")
+      .select("id, name, site_type, price_cents, pricing_tiers")
+      .eq("venue_id", ctx.venueId)
+      .eq("id", site_id)
+      .eq("site_type", "caravan")
+      .eq("is_active", true)
+      .maybeSingle();
+    site = data;
+  } else {
+    const { data } = await ctx.supabase
+      .from("booking_sites")
+      .select("id, name, site_type, price_cents, pricing_tiers")
+      .eq("venue_id", ctx.venueId)
+      .eq("site_type", "camping")
+      .eq("is_active", true)
+      .limit(1)
+      .maybeSingle();
+    site = data;
+  }
+  if (!site) {
+    return {
+      output: { status: "invalid_site", note: "That site couldn't be found or isn't available for this venue. Try check_caravan_availability again." },
+      logSummary: "create_caravan_booking: site not found",
+    };
+  }
+
+  // Re-check availability right before booking — closes the gap between an
+  // earlier check_caravan_availability call and now.
+  const blocked = await getBlockedSiteIds(ctx, [site.id], check_in, check_out);
+  if (blocked.has(site.id)) {
+    return {
+      output: {
+        status: "no_longer_available",
+        note: "That site is no longer free for these dates (someone else booked it, or a blackout was added). Call check_caravan_availability again to find alternatives.",
+      },
+      logSummary: `create_caravan_booking: ${site.name} no longer available`,
+    };
+  }
+
+  const nights = Math.max(
+    0,
+    Math.round((new Date(check_out + "T00:00:00Z").getTime() - new Date(check_in + "T00:00:00Z").getTime()) / 86400000),
+  );
+  const perNightCents = getPerNightPriceCents(site, numGuests);
+  const totalCents = nights * perNightCents;
+
+  // Resolve guest fields.
+  let guestName: string;
+  let guestEmail: string;
+  let guestPhone: string | null;
+  let membershipNumber: string | null = null;
+  const { data: memberRow } = await ctx.supabase
+    .from("members")
+    .select("first_name, last_name, email, phone, whatsapp_number, membership_number")
+    .eq("id", ctx.memberId)
+    .maybeSingle();
+  membershipNumber = (memberRow?.membership_number as string | null) ?? null;
+
+  if (bookingFor === "visitor") {
+    guestName = input.guest_name!.trim();
+    guestEmail = input.guest_email!.trim();
+    guestPhone = input.guest_phone?.trim() || null;
+  } else {
+    guestName = memberRow
+      ? `${memberRow.first_name ?? ""} ${memberRow.last_name ?? ""}`.trim()
+      : "Member";
+    guestEmail = (memberRow?.email as string | null) ?? "";
+    guestPhone = (memberRow?.whatsapp_number as string | null) ?? (memberRow?.phone as string | null) ?? null;
+    if (!guestEmail) {
+      return {
+        output: { status: "no_email_on_file", note: "The member has no email on file, which is required to create a booking. They should update their details on the portal first, or escalate to admin." },
+        logSummary: "create_caravan_booking: member has no email",
+      };
+    }
+  }
+
+  const { data: venueRow } = await ctx.supabase
+    .from("venues")
+    .select("booking_code_prefix")
+    .eq("id", ctx.venueId)
+    .maybeSingle();
+  const bookingCode = generateBookingCode((venueRow?.booking_code_prefix as string | null) || "VCA");
+
+  const { data: booking, error: bookingErr } = await ctx.supabase
+    .from("bookings")
+    .insert({
+      venue_id: ctx.venueId,
+      booking_code: bookingCode,
+      member_id: bookingFor === "visitor" ? null : ctx.memberId,
+      guest_name: guestName,
+      guest_email: guestEmail,
+      guest_phone: guestPhone,
+      membership_number: bookingFor === "visitor" ? null : membershipNumber,
+      check_in,
+      check_out,
+      num_guests: numGuests,
+      total_price_cents: totalCents,
+      status: totalCents === 0 ? "PAID" : "PENDING",
+      payment_method: null,
+      created_by_member_id: ctx.memberId,
+    })
+    .select("id")
+    .single();
+
+  if (bookingErr || !booking) {
+    return {
+      output: { status: "error", note: `Failed to create the booking: ${bookingErr?.message ?? "unknown error"}` },
+      logSummary: `create_caravan_booking: insert failed ${bookingErr?.message?.slice(0, 80)}`,
+    };
+  }
+
+  const { error: linkErr } = await ctx.supabase.from("booking_site_link").insert({
+    venue_id: ctx.venueId,
+    booking_id: booking.id,
+    site_id: site.id,
+    nights,
+    price_per_night_cents: perNightCents,
+    subtotal_cents: totalCents,
+  });
+  if (linkErr) {
+    return {
+      output: { status: "error", note: `Booking was created but the site link failed: ${linkErr.message}` },
+      logSummary: `create_caravan_booking: site link failed ${linkErr.message.slice(0, 80)}`,
+    };
+  }
+
+  const totalZar = centsToZar(totalCents);
+
+  if (totalCents === 0) {
+    return {
+      output: {
+        status: "ok_free",
+        booking_code: bookingCode,
+        note: "Booking created and confirmed — no payment required.",
+      },
+      logSummary: `create_caravan_booking: ${bookingCode} free, confirmed`,
+    };
+  }
+
+  if (bookingFor === "visitor") {
+    const shareUrl = `${SITE_URL}/booking/${bookingCode}`;
+    return {
+      output: {
+        status: "ok_visitor",
+        booking_code: bookingCode,
+        total_zar: totalZar,
+        share_url: shareUrl,
+        note: "Tell the member to forward this link to the visitor. The booking is only confirmed once the visitor completes payment on that page — the member doesn't need to do anything else.",
+      },
+      logSummary: `create_caravan_booking: ${bookingCode} visitor R${totalZar.toFixed(2)}, share link minted`,
+    };
+  }
+
+  if (input.payment_method === "card") {
+    const result = await callCreateCheckout(ctx, {
+      member_id: ctx.memberId,
+      venue_id: ctx.venueId,
+      venue_slug: ctx.venueSlug,
+      purpose: "booking_payment",
+      amount_cents: totalCents,
+      booking_id: booking.id,
+    });
+    if (!result.ok) {
+      return {
+        output: {
+          status: "payment_link_failed",
+          booking_code: bookingCode,
+          total_zar: totalZar,
+          note: `Booking ${bookingCode} was created and is being held, but the payment link failed: ${result.error}. Tell the member their spot is held and to try again shortly, or offer EFT instead.`,
+        },
+        logSummary: `create_caravan_booking: ${bookingCode} payment link failed`,
+      };
+    }
+    return {
+      output: {
+        status: "ok_card",
+        booking_code: bookingCode,
+        total_zar: totalZar,
+        payment_url: result.redirect_url,
+        note: "Send this Yoco link to the member — the booking confirms automatically once they pay.",
+      },
+      logSummary: `create_caravan_booking: ${bookingCode} card R${totalZar.toFixed(2)}, link minted`,
+    };
+  }
+
+  // EFT
+  await ctx.supabase
+    .from("bookings")
+    .update({
+      payment_method: "eft",
+      expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+    })
+    .eq("id", booking.id);
+
+  await ctx.supabase.from("booking_payments").insert({
+    venue_id: ctx.venueId,
+    booking_id: booking.id,
+    amount_cents: totalCents,
+    method: "eft",
+    status: "pending",
+  });
+
+  ctx.supabase.functions.invoke("send-booking-email", {
+    body: { booking_id: booking.id, kind: "eft_pending" },
+  }).catch((err: unknown) => {
+    console.error("create_caravan_booking: send-booking-email failed:", err);
+  });
+
+  const { data: bankRows } = await ctx.supabase
+    .from("venue_settings")
+    .select("key, value")
+    .eq("venue_id", ctx.venueId)
+    .in("key", ["eft_bank_name", "eft_account_holder", "eft_account_number", "eft_branch_code", "eft_account_type"]);
+  const bankMap: Record<string, string> = {};
+  for (const row of (bankRows ?? []) as Array<{ key: string; value: string | null }>) {
+    bankMap[row.key] = row.value ?? "";
+  }
+
+  return {
+    output: {
+      status: "ok_eft",
+      booking_code: bookingCode,
+      total_zar: totalZar,
+      bank: {
+        bank_name: bankMap.eft_bank_name ?? "",
+        account_holder: bankMap.eft_account_holder ?? "",
+        account_number: bankMap.eft_account_number ?? "",
+        branch_code: bankMap.eft_branch_code ?? "",
+        account_type: bankMap.eft_account_type ?? "",
+      },
+      note: `Relay these bank details to the member. They must use ${bookingCode} as the payment reference. The booking is held for 24 hours pending payment.`,
+    },
+    logSummary: `create_caravan_booking: ${bookingCode} eft R${totalZar.toFixed(2)}, bank details returned`,
+  };
+}
+
 /**
  * Best-effort: when an `urgent` escalation is created, email the venue's
  * configured recipient (Settings → "Report recipient email") so they don't
@@ -1215,6 +1656,8 @@ export async function runTool(
         ctx,
         input as { check_in: string; check_out: string; site_id?: string },
       );
+    case "create_caravan_booking":
+      return await tool_create_caravan_booking(ctx, input as unknown as CreateCaravanBookingInput);
     case "escalate_to_admin":
       return await tool_escalate_to_admin(ctx, input as { summary: string; urgency: string });
     default:

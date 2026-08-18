@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Navigate, Outlet } from 'react-router-dom';
+import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { signOutSafely } from '@/lib/signOutSafely';
 import { useVenueNav } from '@/hooks/useVenueNav';
@@ -7,6 +7,7 @@ import { useVenueNav } from '@/hooks/useVenueNav';
 export default function PortalProtectedRoute() {
   const [status, setStatus] = useState<'loading' | 'authenticated' | 'unauthenticated'>('loading');
   const { portalLoginPath } = useVenueNav();
+  const location = useLocation();
 
   useEffect(() => {
     supabase.auth.getSession()
@@ -43,7 +44,7 @@ export default function PortalProtectedRoute() {
   }
 
   if (status === 'unauthenticated') {
-    return <Navigate to={portalLoginPath} replace />;
+    return <Navigate to={portalLoginPath} replace state={{ from: location.pathname + location.search }} />;
   }
 
   return <Outlet />;

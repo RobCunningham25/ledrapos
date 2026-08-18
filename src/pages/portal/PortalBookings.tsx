@@ -1,4 +1,5 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { usePortalAuth } from '@/contexts/PortalAuthContext';
@@ -26,13 +27,14 @@ export default function PortalBookings() {
   const { member } = usePortalAuth();
   const { venue, venueSlug } = useVenue();
   const queryClient = useQueryClient();
+  const [searchParams] = useSearchParams();
 
   const [step, setStep] = useState(1);
   const [siteType, setSiteType] = useState<'caravan' | 'camping' | 'day_visitor' | null>(null);
   const [sites, setSites] = useState<BookingSite[]>([]);
   const [selectedSiteIds, setSelectedSiteIds] = useState<string[]>([]);
-  const [checkIn, setCheckIn] = useState('');
-  const [checkOut, setCheckOut] = useState('');
+  const [checkIn, setCheckIn] = useState(() => searchParams.get('check_in') || '');
+  const [checkOut, setCheckOut] = useState(() => searchParams.get('check_out') || '');
   const [numGuests, setNumGuests] = useState(1);
   const [guestName, setGuestName] = useState(member ? `${member.first_name} ${member.last_name}` : '');
   const [guestEmail, setGuestEmail] = useState(member?.email || '');
@@ -68,6 +70,28 @@ export default function PortalBookings() {
     setNumGuests(1);
     setStep(2);
   }, []);
+
+  // Deep-link support: a site_id query param (e.g. from the WhatsApp assistant's
+  // book_caravan_link) pre-selects that site's type and jumps straight to the
+  // dates step, keeping the check_in/check_out already seeded into state above.
+  const appliedDeepLinkRef = useRef(false);
+  useEffect(() => {
+    const siteId = searchParams.get('site_id');
+    if (!siteId || !venueId || appliedDeepLinkRef.current) return;
+    appliedDeepLinkRef.current = true;
+    supabase.from('booking_sites').select('*').eq('venue_id', venueId).eq('id', siteId).eq('is_active', true).maybeSingle()
+      .then(({ data: site }) => {
+        if (!site) return;
+        return supabase.from('booking_sites').select('*').eq('venue_id', venueId).eq('site_type', site.site_type).eq('is_active', true).order('sort_order')
+          .then(({ data: typeSites }) => {
+            if (!typeSites) return;
+            setSiteType(site.site_type as 'caravan' | 'camping' | 'day_visitor');
+            setSites(typeSites as BookingSite[]);
+            setSelectedSiteIds([siteId]);
+            setStep(2);
+          });
+      });
+  }, [venueId, searchParams]);
 
   const handleBookingForChange = useCallback((val: 'self' | 'visitor') => {
     setBookingFor(val);

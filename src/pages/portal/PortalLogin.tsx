@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { signOutSafely } from '@/lib/signOutSafely';
 import { useVenue } from '@/contexts/VenueContext';
@@ -13,9 +13,13 @@ const REMEMBER_EMAIL_KEY = 'ledrapos_portal_email';
 
 export default function PortalLogin() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { venueId } = useVenue();
   const { portalPath } = useVenueNav();
   const T = usePortalTheme();
+  // Only ever a same-app path we set ourselves (PortalProtectedRoute), never
+  // an external string — safe to navigate() straight to it.
+  const redirectTo = (location.state as { from?: string } | null)?.from || portalPath();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -33,14 +37,14 @@ export default function PortalLogin() {
     supabase.auth.getSession()
       .then(({ data: { session } }) => {
         if (session) {
-          navigate(portalPath(), { replace: true });
+          navigate(redirectTo, { replace: true });
         } else {
           setCheckingSession(false);
         }
       })
       // Never strand the user on "Loading..." if the session lookup fails.
       .catch(() => setCheckingSession(false));
-  }, [navigate]);
+  }, [navigate, redirectTo]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -70,7 +74,7 @@ export default function PortalLogin() {
       }
 
       localStorage.setItem(REMEMBER_EMAIL_KEY, email);
-      navigate(portalPath(), { replace: true });
+      navigate(redirectTo, { replace: true });
     }
 
     setLoading(false);
