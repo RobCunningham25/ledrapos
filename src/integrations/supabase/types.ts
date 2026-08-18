@@ -1,4 +1,4 @@
-﻿export type Json =
+export type Json =
   | string
   | number
   | boolean
@@ -595,6 +595,169 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "club_events_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      electricity_meter_imports: {
+        Row: {
+          as_of_date: string
+          id: string
+          imported_at: string
+          matched_count: number
+          period_month: string
+          row_count: number
+          source: string
+          total_cents: number
+          venue_id: string
+        }
+        Insert: {
+          as_of_date: string
+          id?: string
+          imported_at?: string
+          matched_count?: number
+          period_month: string
+          row_count?: number
+          source?: string
+          total_cents?: number
+          venue_id: string
+        }
+        Update: {
+          as_of_date?: string
+          id?: string
+          imported_at?: string
+          matched_count?: number
+          period_month?: string
+          row_count?: number
+          source?: string
+          total_cents?: number
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "electricity_meter_imports_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      electricity_meters: {
+        Row: {
+          building: string | null
+          created_at: string
+          description: string | null
+          id: string
+          member_id: string | null
+          meter_number: string
+          unit_label: string | null
+          updated_at: string
+          venue_id: string
+        }
+        Insert: {
+          building?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          member_id?: string | null
+          meter_number: string
+          unit_label?: string | null
+          updated_at?: string
+          venue_id: string
+        }
+        Update: {
+          building?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          member_id?: string | null
+          meter_number?: string
+          unit_label?: string | null
+          updated_at?: string
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "electricity_meters_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "electricity_meters_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      electricity_purchases: {
+        Row: {
+          amount_cents: number
+          as_of_date: string
+          created_at: string
+          id: string
+          import_id: string | null
+          member_id: string | null
+          meter_id: string
+          period_month: string
+          updated_at: string
+          venue_id: string
+        }
+        Insert: {
+          amount_cents: number
+          as_of_date: string
+          created_at?: string
+          id?: string
+          import_id?: string | null
+          member_id?: string | null
+          meter_id: string
+          period_month: string
+          updated_at?: string
+          venue_id: string
+        }
+        Update: {
+          amount_cents?: number
+          as_of_date?: string
+          created_at?: string
+          id?: string
+          import_id?: string | null
+          member_id?: string | null
+          meter_id?: string
+          period_month?: string
+          updated_at?: string
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "electricity_purchases_import_id_fkey"
+            columns: ["import_id"]
+            isOneToOne: false
+            referencedRelation: "electricity_meter_imports"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "electricity_purchases_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "electricity_purchases_meter_id_fkey"
+            columns: ["meter_id"]
+            isOneToOne: false
+            referencedRelation: "electricity_meters"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "electricity_purchases_venue_id_fkey"
             columns: ["venue_id"]
             isOneToOne: false
             referencedRelation: "venues"

@@ -14,6 +14,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import CreditLoadSheet from '@/components/portal/CreditLoadSheet';
 import PayTabDialog from '@/components/portal/PayTabDialog';
 import ClubAccountCard from '@/components/portal/ClubAccountCard';
+import ElectricityCard from '@/components/portal/ElectricityCard';
 import { supabase } from '@/integrations/supabase/client';
 import { expandAllOccurrences, isRsvpOpen, type EventSeries, type MonthlyMode, type Recurrence } from '@/utils/eventOccurrences';
 
@@ -523,7 +524,10 @@ export default function PortalDashboard() {
       {/* Cards grid */}
       <div className="grid grid-cols-1 lg:grid-cols-[1.2fr_1fr] gap-5">
         <CreditTabCard memberId={memberId} venueId={venueId} />
-        <ClubAccountCard memberId={memberId} venueId={venueId} />
+        <div className="flex flex-col" style={{ gap: 16 }}>
+          <ClubAccountCard memberId={memberId} venueId={venueId} />
+          <ElectricityCard memberId={memberId} venueId={venueId} />
+        </div>
         <UpcomingEventsCard venueId={venueId} memberId={memberId} />
         <div className="flex flex-col" style={{ gap: 16 }}>
           <UpcomingBookingsCard venueId={venueId} memberId={memberId} />
