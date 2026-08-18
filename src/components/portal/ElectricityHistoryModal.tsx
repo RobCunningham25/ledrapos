@@ -82,7 +82,7 @@ export default function ElectricityHistoryModal({
         </div>
 
         <p style={{ fontSize: 12, color: 'var(--portal-text-muted)', margin: '16px 0 0' }}>
-          Figures are updated weekly from meter readings and may lag actual usage by a few days.
+          Figures are updated weekly and may lag actual usage by a few days.
         </p>
 
         <button onClick={onClose} style={{

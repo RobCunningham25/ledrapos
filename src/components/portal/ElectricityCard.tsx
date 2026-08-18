@@ -88,7 +88,7 @@ export default function ElectricityCard({ memberId, venueId }: { memberId: strin
           </p>
           {asAt && (
             <p style={{ fontSize: 13, color: 'var(--portal-text-secondary)', margin: '10px 0 0' }}>
-              As at <strong>{asAt}</strong>. Updated weekly from meter readings.
+              As at <strong>{asAt}</strong>. Updated weekly.
             </p>
           )}
         </>
