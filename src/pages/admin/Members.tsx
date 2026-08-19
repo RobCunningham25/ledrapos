@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useVenueNav } from '@/hooks/useVenueNav';
 import AdminLayout from '@/components/admin/AdminLayout';
 import MemberDrawer from '@/components/admin/MemberDrawer';
@@ -40,8 +40,19 @@ interface Member {
 
 import { MEMBERSHIP_TYPE_COLORS, MEMBERSHIP_TYPES, getMembershipLabel } from '@/constants/membershipTypes';
 
+interface MemberPrefill {
+  first_name?: string;
+  last_name?: string;
+  email?: string;
+  phone?: string;
+  partner_first_name?: string;
+  partner_last_name?: string;
+  membership_type?: string;
+}
+
 export default function Members() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { adminPath } = useVenueNav();
   const { venueId } = useVenue();
   const [members, setMembers] = useState<Member[]>([]);
@@ -54,9 +65,27 @@ export default function Members() {
   const [bulkWaConfirmOpen, setBulkWaConfirmOpen] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editMember, setEditMember] = useState<Member | null>(null);
+  const [prefillValues, setPrefillValues] = useState<MemberPrefill | undefined>(undefined);
+  const [pendingApplicationId, setPendingApplicationId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
+
+  // Arriving from Applications → "Create Member" carries prefill data + the
+  // application id in router state so we can open the Add Member drawer
+  // pre-filled and link membership_applications.member_id back once saved.
+  useEffect(() => {
+    const state = location.state as { prefill?: MemberPrefill & { application_id?: string } } | null;
+    if (state?.prefill) {
+      const { application_id, ...values } = state.prefill;
+      setPrefillValues(values);
+      setPendingApplicationId(application_id ?? null);
+      setEditMember(null);
+      setDrawerOpen(true);
+      navigate(location.pathname, { replace: true, state: null });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.state]);
 
   const fetchMembers = async () => {
     setLoading(true);
@@ -194,8 +223,20 @@ export default function Members() {
     return result;
   }, [members, searchQuery, typeFilter, statusFilter]);
 
-  const openAddDrawer = () => { setEditMember(null); setDrawerOpen(true); };
-  const openEditDrawer = (m: Member) => { setEditMember(m); setDrawerOpen(true); };
+  const openAddDrawer = () => { setEditMember(null); setPrefillValues(undefined); setPendingApplicationId(null); setDrawerOpen(true); };
+  const openEditDrawer = (m: Member) => { setEditMember(m); setPrefillValues(undefined); setPendingApplicationId(null); setDrawerOpen(true); };
+
+  const handleMemberDrawerSuccess = async (createdMemberId?: string) => {
+    await fetchMembers();
+    if (pendingApplicationId && createdMemberId) {
+      const { error } = await supabase
+        .from('membership_applications')
+        .update({ member_id: createdMemberId })
+        .eq('id', pendingApplicationId);
+      if (error) toast.error('Member created, but failed to link back to the application.');
+      setPendingApplicationId(null);
+    }
+  };
 
   return (
     <AdminLayout title="Members" action={
@@ -475,10 +516,11 @@ export default function Members() {
 
       <MemberDrawer
         isOpen={drawerOpen}
-        onClose={() => setDrawerOpen(false)}
+        onClose={() => { setDrawerOpen(false); setPendingApplicationId(null); setPrefillValues(undefined); }}
         venueId={venueId}
         member={editMember}
-        onSuccess={fetchMembers}
+        initialValues={prefillValues}
+        onSuccess={handleMemberDrawerSuccess}
       />
 
       <AlertDialog open={bulkWaConfirmOpen} onOpenChange={setBulkWaConfirmOpen}>

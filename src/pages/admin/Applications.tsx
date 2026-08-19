@@ -99,16 +99,29 @@ export default function Applications() {
   useEffect(() => { fetchApplications(); }, [fetchApplications]);
 
   const handleCreateMember = (app: Application) => {
-    // Navigate to members page with pre-fill state
+    // MEMBER_TYPE_FROM_CATEGORY: application categories (ordinary/social/intermediate/
+    // junior/crew_visitor) aren't the same domain as members.membership_type
+    // (ordinary/pensioner/honorary/member/associate) — map the ones with an obvious
+    // match and fall back to 'ordinary' rather than passing through an invalid value.
+    const MEMBER_TYPE_FROM_CATEGORY: Record<string, string> = {
+      ordinary: 'ordinary',
+      crew_visitor: 'associate',
+    };
+    const partnerParts = (app.partner_name ?? '').trim().split(/\s+/).filter(Boolean);
+
+    // Navigate to members page with pre-fill state; Members.tsx opens the Add
+    // Member drawer pre-filled and links membership_applications.member_id
+    // back once the member is saved.
     navigate(adminPath('members'), {
       state: {
         prefill: {
-          first_name: app.first_names.split(' ')[0] ?? app.first_names,
-          last_name: app.surname,
+          first_name: app.first_names.trim().split(' ')[0] ?? app.first_names.trim(),
+          last_name: app.surname.trim(),
           email: app.email,
           phone: app.contact_mobile,
-          partner_name: app.partner_name ?? '',
-          membership_type: app.membership_category === 'crew_visitor' ? 'associate' : app.membership_category,
+          partner_first_name: partnerParts[0] ?? '',
+          partner_last_name: partnerParts.slice(1).join(' '),
+          membership_type: MEMBER_TYPE_FROM_CATEGORY[app.membership_category] ?? 'ordinary',
           application_id: app.id,
         },
       },

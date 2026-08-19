@@ -35,7 +35,8 @@ interface MemberDrawerProps {
   onClose: () => void;
   venueId: string;
   member?: MemberRow | null;
-  onSuccess: () => void;
+  initialValues?: Partial<FormState>;
+  onSuccess: (createdMemberId?: string) => void;
 }
 
 // Sites/sheds are rows in member_sites / member_boat_sheds (a member can have
@@ -97,7 +98,7 @@ const emptyForm: FormState = {
   whatsapp_manual_opt_out: false,
 };
 
-export default function MemberDrawer({ isOpen, onClose, venueId, member, onSuccess }: MemberDrawerProps) {
+export default function MemberDrawer({ isOpen, onClose, venueId, member, initialValues, onSuccess }: MemberDrawerProps) {
   const isEdit = !!member;
   const [form, setForm] = useState<FormState>(emptyForm);
   const [errors, setErrors] = useState<Partial<Record<keyof FormState, string>>>({});
@@ -191,7 +192,7 @@ export default function MemberDrawer({ isOpen, onClose, venueId, member, onSucce
             setBoats(((data as { id: string; boat_name: string; registration_number: string | null }[]) || []).map(r => ({ id: r.id, name: r.boat_name, reg: r.registration_number || '' })));
           });
       } else {
-        setForm(emptyForm);
+        setForm({ ...emptyForm, ...initialValues });
         setSites([]);
         setSheds([]);
         setKids([]);
@@ -205,7 +206,7 @@ export default function MemberDrawer({ isOpen, onClose, venueId, member, onSucce
       setNewBoatReg('');
       setErrors({});
     }
-  }, [isOpen, member, venueId]);
+  }, [isOpen, member, venueId, initialValues]);
 
   const set = (key: keyof FormState, value: string | boolean) =>
     setForm(prev => ({ ...prev, [key]: value }));
@@ -373,6 +374,7 @@ export default function MemberDrawer({ isOpen, onClose, venueId, member, onSucce
     }
 
     let error;
+    let createdId: string | undefined;
     if (isEdit && member) {
       ({ error } = await supabase.from('members').update(record).eq('id', member.id).eq('venue_id', venueId));
     } else {
@@ -382,6 +384,7 @@ export default function MemberDrawer({ isOpen, onClose, venueId, member, onSucce
         .select('id')
         .single();
       error = insertError;
+      createdId = created?.id;
       // Flush sites/sheds collected before the member existed.
       if (!error && created) {
         const pendingSites = sites.filter(s => !s.id).map(s => ({ venue_id: venueId, member_id: created.id, site_number: s.value }));
@@ -412,7 +415,7 @@ export default function MemberDrawer({ isOpen, onClose, venueId, member, onSucce
     }
 
     toast.success(isEdit ? 'Member updated' : 'Member added');
-    onSuccess();
+    onSuccess(createdId);
     onClose();
   }
 
