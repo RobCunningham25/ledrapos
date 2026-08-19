@@ -17,6 +17,7 @@ import AdminLogin from "./pages/admin/AdminLogin.tsx";
 import AdminSetPassword from "./pages/admin/AdminSetPassword.tsx";
 import AdminProtectedRoute from "./components/admin/AdminProtectedRoute.tsx";
 import Products from "./pages/admin/Products.tsx";
+import ElectricityMeters from "./pages/admin/ElectricityMeters.tsx";
 import AdminDashboard from "./pages/admin/Dashboard.tsx";
 import Members from "./pages/admin/Members.tsx";
 import MemberDetail from "./pages/admin/MemberDetail.tsx";
@@ -138,6 +139,7 @@ const App = () => (
                   <Route path="applications" element={<RequireRole allow={['admin', 'superadmin']}><Applications /></RequireRole>} />
                   <Route path="applications/:id/notice" element={<RequireRole allow={['admin', 'superadmin']}><ApplicationNoticePage /></RequireRole>} />
                   <Route path="settings" element={<RequireRole allow={['admin', 'superadmin']}><Settings /></RequireRole>} />
+                  <Route path="electricity-meters" element={<RequireRole allow={['admin', 'superadmin']}><ElectricityMeters /></RequireRole>} />
                 </Route>
               </>}
               {customDomainConfig.section === 'public' && <>
@@ -184,6 +186,7 @@ const App = () => (
                     <Route path="applications" element={<RequireRole allow={['admin', 'superadmin']}><Applications /></RequireRole>} />
                     <Route path="applications/:id/notice" element={<RequireRole allow={['admin', 'superadmin']}><ApplicationNoticePage /></RequireRole>} />
                     <Route path="settings" element={<RequireRole allow={['admin', 'superadmin']}><Settings /></RequireRole>} />
+                    <Route path="electricity-meters" element={<RequireRole allow={['admin', 'superadmin']}><ElectricityMeters /></RequireRole>} />
                   </Route>
                   <Route path="apply" element={<MembershipApplicationPage />} />
                   <Route path="portal/login" element={<PortalThemeProvider><PortalLogin /></PortalThemeProvider>} />
