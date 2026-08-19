@@ -45,10 +45,16 @@ interface MemberPrefill {
   last_name?: string;
   email?: string;
   phone?: string;
+  home_address?: string;
+  emergency_contact_name?: string;
+  emergency_contact_phone?: string;
   partner_first_name?: string;
   partner_last_name?: string;
   membership_type?: string;
 }
+
+interface PrefillBoat { name: string; reg?: string }
+interface PrefillChild { name: string; dob: string }
 
 export default function Members() {
   const navigate = useNavigate();
@@ -66,6 +72,8 @@ export default function Members() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editMember, setEditMember] = useState<Member | null>(null);
   const [prefillValues, setPrefillValues] = useState<MemberPrefill | undefined>(undefined);
+  const [prefillBoats, setPrefillBoats] = useState<PrefillBoat[] | undefined>(undefined);
+  const [prefillChildren, setPrefillChildren] = useState<PrefillChild[] | undefined>(undefined);
   const [pendingApplicationId, setPendingApplicationId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
@@ -75,10 +83,14 @@ export default function Members() {
   // application id in router state so we can open the Add Member drawer
   // pre-filled and link membership_applications.member_id back once saved.
   useEffect(() => {
-    const state = location.state as { prefill?: MemberPrefill & { application_id?: string } } | null;
+    const state = location.state as {
+      prefill?: MemberPrefill & { application_id?: string; boats?: PrefillBoat[]; children?: PrefillChild[] };
+    } | null;
     if (state?.prefill) {
-      const { application_id, ...values } = state.prefill;
+      const { application_id, boats, children, ...values } = state.prefill;
       setPrefillValues(values);
+      setPrefillBoats(boats);
+      setPrefillChildren(children);
       setPendingApplicationId(application_id ?? null);
       setEditMember(null);
       setDrawerOpen(true);
@@ -223,8 +235,9 @@ export default function Members() {
     return result;
   }, [members, searchQuery, typeFilter, statusFilter]);
 
-  const openAddDrawer = () => { setEditMember(null); setPrefillValues(undefined); setPendingApplicationId(null); setDrawerOpen(true); };
-  const openEditDrawer = (m: Member) => { setEditMember(m); setPrefillValues(undefined); setPendingApplicationId(null); setDrawerOpen(true); };
+  const clearPrefill = () => { setPrefillValues(undefined); setPrefillBoats(undefined); setPrefillChildren(undefined); setPendingApplicationId(null); };
+  const openAddDrawer = () => { setEditMember(null); clearPrefill(); setDrawerOpen(true); };
+  const openEditDrawer = (m: Member) => { setEditMember(m); clearPrefill(); setDrawerOpen(true); };
 
   const handleMemberDrawerSuccess = async (createdMemberId?: string) => {
     await fetchMembers();
@@ -516,10 +529,12 @@ export default function Members() {
 
       <MemberDrawer
         isOpen={drawerOpen}
-        onClose={() => { setDrawerOpen(false); setPendingApplicationId(null); setPrefillValues(undefined); }}
+        onClose={() => { setDrawerOpen(false); clearPrefill(); }}
         venueId={venueId}
         member={editMember}
         initialValues={prefillValues}
+        initialBoats={prefillBoats}
+        initialChildren={prefillChildren}
         onSuccess={handleMemberDrawerSuccess}
       />
 

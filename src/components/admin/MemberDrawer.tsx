@@ -36,6 +36,8 @@ interface MemberDrawerProps {
   venueId: string;
   member?: MemberRow | null;
   initialValues?: Partial<FormState>;
+  initialBoats?: { name: string; reg?: string }[];
+  initialChildren?: { name: string; dob: string }[];
   onSuccess: (createdMemberId?: string) => void;
 }
 
@@ -98,7 +100,7 @@ const emptyForm: FormState = {
   whatsapp_manual_opt_out: false,
 };
 
-export default function MemberDrawer({ isOpen, onClose, venueId, member, initialValues, onSuccess }: MemberDrawerProps) {
+export default function MemberDrawer({ isOpen, onClose, venueId, member, initialValues, initialBoats, initialChildren, onSuccess }: MemberDrawerProps) {
   const isEdit = !!member;
   const [form, setForm] = useState<FormState>(emptyForm);
   const [errors, setErrors] = useState<Partial<Record<keyof FormState, string>>>({});
@@ -195,8 +197,8 @@ export default function MemberDrawer({ isOpen, onClose, venueId, member, initial
         setForm({ ...emptyForm, ...initialValues });
         setSites([]);
         setSheds([]);
-        setKids([]);
-        setBoats([]);
+        setKids((initialChildren ?? []).map(c => ({ id: null, name: c.name, dob: c.dob })));
+        setBoats((initialBoats ?? []).map(b => ({ id: null, name: b.name, reg: b.reg ?? '' })));
       }
       setNewSite('');
       setNewShed('');
@@ -206,7 +208,7 @@ export default function MemberDrawer({ isOpen, onClose, venueId, member, initial
       setNewBoatReg('');
       setErrors({});
     }
-  }, [isOpen, member, venueId, initialValues]);
+  }, [isOpen, member, venueId, initialValues, initialBoats, initialChildren]);
 
   const set = (key: keyof FormState, value: string | boolean) =>
     setForm(prev => ({ ...prev, [key]: value }));

@@ -108,6 +108,7 @@ export default function Applications() {
       crew_visitor: 'associate',
     };
     const partnerParts = (app.partner_name ?? '').trim().split(/\s+/).filter(Boolean);
+    const homeAddress = [app.home_address?.trim(), app.home_code?.trim()].filter(Boolean).join(', ');
 
     // Navigate to members page with pre-fill state; Members.tsx opens the Add
     // Member drawer pre-filled and links membership_applications.member_id
@@ -119,10 +120,15 @@ export default function Applications() {
           last_name: app.surname.trim(),
           email: app.email,
           phone: app.contact_mobile,
+          home_address: homeAddress,
+          emergency_contact_name: app.emergency_contact_name?.trim() ?? '',
+          emergency_contact_phone: app.emergency_contact_number?.trim() ?? '',
           partner_first_name: partnerParts[0] ?? '',
           partner_last_name: partnerParts.slice(1).join(' '),
           membership_type: MEMBER_TYPE_FROM_CATEGORY[app.membership_category] ?? 'ordinary',
           application_id: app.id,
+          boats: (app.boats ?? []).map(b => ({ name: b.name, reg: b.reg_no })),
+          children: (app.children ?? []).map(c => ({ name: c.name, dob: c.dob })),
         },
       },
     });
