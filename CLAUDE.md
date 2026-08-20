@@ -77,7 +77,18 @@ bookings with event attendance: event attendance lives in `event_rsvps` and nowh
 ## Payment Rules — Critical
 
 - **Credit:** Auto-populates in PaymentModal as `MIN(credit_balance, tab_total)`. Bartenders
-  **confirm manually** — never auto-deplete on commit. This decision is final.
+  **confirm manually** — never auto-deplete on commit. This decision is final for the live
+  POS payment flow. Separately, a weekly batch job (below) settles credit against open tabs —
+  that's a deliberate, explicitly-requested exception, not a reversal of this rule.
+- **Weekly credit settlement:** `settle-tabs-with-credit` Edge Function, run by pg_cron
+  (`settle-tabs-with-credit-weekly`, Mondays 06:00 SAST / 04:00 UTC — see
+  [supabase/migrations/20260820120000_settle_tabs_with_credit_cron.sql](supabase/migrations/20260820120000_settle_tabs_with_credit_cron.sql)).
+  For every member with an open, non-cash tab and a positive credit balance, applies credit
+  against their open tabs oldest-first (partial application allowed — reduces the balance even
+  if credit doesn't cover it in full), via `process_payment` same as any other payment. Emails
+  each settled member a summary (amount applied + remaining balance or "fully paid off") through
+  the shared email shell. Unauthenticated like `expire-bookings` — idempotent, only ever applies
+  a member's own credit against their own debt, safe to re-invoke.
 - **Cash customers:** Handled via `is_cash_customer = true` on a tab. **Never create fake member
   records** for cash sales.
 - **Card (in-person):** Yoco in-person SDK is Android/iOS native only — impossible in browser.
@@ -155,6 +166,8 @@ Dashboard cards use: white background, `1px solid #E2E8F0` border, `8px` radius,
   `/reset-password` (custom domain) or `/:slug/portal/reset-password`, both rendering the shared
   `SetPasswordFromLink` component (also used by AcceptInvite). Redirect targets must be in the
   Supabase Auth URI allowlist (`portal.vaalcruising.co.za/**` and `pos.ledra.co.za/**` are).
+- **Weekly credit settlement:** pg_cron-driven `settle-tabs-with-credit` pays down/closes open
+  bar tabs with each member's own credit balance every Monday; see Payment Rules above
 - **Data:** 74 VCA members + boats/sites imported; product catalogue with ZAR pricing
 
 ---
