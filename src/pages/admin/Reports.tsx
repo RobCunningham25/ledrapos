@@ -11,7 +11,8 @@ import { useVenue } from '@/contexts/VenueContext';
 import { supabase } from '@/integrations/supabase/client';
 import { formatCents } from '@/utils/currency';
 import { getCategoryLabel, CATEGORY_COLORS } from '@/constants/productCategories';
-import { fetchMoneyReceived, summarizeMoney, CHANNEL_META } from '@/utils/moneyReceived';
+import { fetchMoneyReceived, summarizeMoney, CHANNEL_META, MoneyChannel, MoneyEvent } from '@/utils/moneyReceived';
+import { fetchYocoTransactions, batchYocoPayouts, PURPOSE_LABEL, YOCO_FEE_RATE, YocoPurpose } from '@/utils/yocoPayouts';
 import { cn } from '@/lib/utils';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -47,7 +48,16 @@ interface Col<T> {
   align?: 'left' | 'right';
 }
 
-function DataTable<T>({ columns, rows, empty }: { columns: Col<T>[]; rows: T[]; empty: string }) {
+function DataTable<T>({
+  columns, rows, empty, onRowClick, isSelected,
+}: {
+  columns: Col<T>[];
+  rows: T[];
+  empty: string;
+  /** When provided, rows become clickable (e.g. to filter a detail table below). */
+  onRowClick?: (row: T) => void;
+  isSelected?: (row: T) => boolean;
+}) {
   return (
     <SectionCard>
       <div className="overflow-x-auto">
@@ -70,7 +80,15 @@ function DataTable<T>({ columns, rows, empty }: { columns: Col<T>[]; rows: T[]; 
               <tr><td colSpan={columns.length} className="px-4 py-6 text-center text-muted-foreground">{empty}</td></tr>
             ) : (
               rows.map((row, i) => (
-                <tr key={i} className="h-12" style={{ background: i % 2 === 1 ? '#FAFAFA' : 'white', color: INK }}>
+                <tr
+                  key={i}
+                  onClick={onRowClick ? () => onRowClick(row) : undefined}
+                  className={cn('h-12', onRowClick && 'cursor-pointer hover:bg-accent/40')}
+                  style={{
+                    background: isSelected?.(row) ? '#E6F0FA' : (i % 2 === 1 ? '#FAFAFA' : 'white'),
+                    color: INK,
+                  }}
+                >
                   {columns.map((c) => (
                     <td key={c.key} className="px-4" style={{ textAlign: c.align ?? 'left' }}>{c.render(row)}</td>
                   ))}
@@ -183,6 +201,7 @@ async function fetchSoldItems(venueId: string, fromISO: string, toISO: string) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function OverviewReport({ venueId, fromISO, toISO }: RangeProps) {
+  const [channelFilter, setChannelFilter] = useState<MoneyChannel | null>(null);
   const state = useReportData(async () => {
     const events = await fetchMoneyReceived(venueId, fromISO, toISO);
     const summary = summarizeMoney(events);
@@ -194,33 +213,39 @@ function OverviewReport({ venueId, fromISO, toISO }: RangeProps) {
       daily.set(key, (daily.get(key) ?? 0) + e.amountCents);
     }
     const dailyRows = [...daily.entries()].map(([label, cents]) => ({ label, cents }));
-    return { summary, dailyRows };
+    return { summary, dailyRows, events };
   }, [venueId, fromISO, toISO]);
+  useEffect(() => { setChannelFilter(null); }, [venueId, fromISO, toISO]);
 
   if (state.status === 'loading') return <Loading />;
   if (state.status === 'error') return <ErrorNote />;
-  const { summary, dailyRows } = state.data;
+  const { summary, dailyRows, events } = state.data;
   const c = summary.byChannel;
+  const tabsPaidCents = c.bar_cash.totalCents + c.bar_card.totalCents + c.bar_credit.totalCents;
+  const tabsPaidCount = c.bar_cash.count + c.bar_card.count + c.bar_credit.count;
+  const filteredEvents: MoneyEvent[] = channelFilter ? events.filter((e) => e.channel === channelFilter) : [];
 
   return (
     <div className="space-y-6">
       <KpiGrid
         items={[
           { label: 'Total Received', value: formatCents(summary.receivedCents), hint: `${summary.count} payments` },
-          { label: 'Cash', value: formatCents(c.bar_cash.totalCents) },
-          { label: 'Card (incl. Yoco tab)', value: formatCents(c.bar_card.totalCents) },
+          { label: 'Tabs Paid', value: formatCents(tabsPaidCents), hint: `${tabsPaidCount} settlements · cash/card/credit` },
+          { label: 'Online Bookings', value: formatCents(c.yoco_booking.totalCents) },
           { label: 'Credit Top-ups', value: formatCents(c.yoco_credit_topup.totalCents) },
         ]}
       />
       <KpiGrid
         items={[
-          { label: 'Online Bookings', value: formatCents(c.yoco_booking.totalCents) },
+          { label: 'Cash', value: formatCents(c.bar_cash.totalCents) },
+          { label: 'Card', value: formatCents(c.bar_card.totalCents) },
+          { label: 'Credit (tab settlement)', value: formatCents(c.bar_credit.totalCents) },
           { label: 'Settled from Credit', value: formatCents(summary.creditRedeemedCents), hint: 'pre-paid, not new money' },
         ]}
       />
 
       <div>
-        <SectionHeader title="Received by channel" note="Cash, card and Yoco top-ups/bookings, de-duplicated across rails." />
+        <SectionHeader title="Received by channel" note="Cash, card and Yoco top-ups/bookings, de-duplicated across rails. Click a row to see who paid." />
         <DataTable
           columns={[
             { key: 'ch', label: 'Channel', render: (r: any) => (
@@ -232,10 +257,33 @@ function OverviewReport({ venueId, fromISO, toISO }: RangeProps) {
             { key: 't', label: 'Total', align: 'right', render: (r: any) => formatCents(r.total) },
           ]}
           rows={(Object.keys(CHANNEL_META) as Array<keyof typeof CHANNEL_META>)
-            .map((ch) => ({ label: CHANNEL_META[ch].label, color: CHANNEL_META[ch].color, count: c[ch].count, total: c[ch].totalCents }))
+            .map((ch) => ({ ch, label: CHANNEL_META[ch].label, color: CHANNEL_META[ch].color, count: c[ch].count, total: c[ch].totalCents }))
             .filter((r) => r.count > 0)}
+          onRowClick={(r: any) => setChannelFilter((prev) => (prev === r.ch ? null : r.ch))}
+          isSelected={(r: any) => r.ch === channelFilter}
           empty="No money received in this period."
         />
+      </div>
+
+      <div>
+        <SectionHeader
+          title="Transactions"
+          note={channelFilter ? `Showing ${CHANNEL_META[channelFilter].label} — click the row again to clear.` : 'Click a channel above to see who paid.'}
+        />
+        {channelFilter && (
+          <DataTable
+            columns={[
+              { key: 'at', label: 'When', render: (r: MoneyEvent) => format(new Date(r.at), 'dd MMM HH:mm') },
+              { key: 'who', label: 'Who', render: (r: MoneyEvent) => (
+                <span className="font-medium">{r.who}{r.membershipNumber && <span style={{ color: '#94A3B8' }}>{`  (${r.membershipNumber})`}</span>}</span>
+              ) },
+              { key: 'ref', label: 'Reference', render: (r: MoneyEvent) => r.reference ?? '—' },
+              { key: 'amt', label: 'Amount', align: 'right', render: (r: MoneyEvent) => formatCents(r.amountCents) },
+            ]}
+            rows={filteredEvents}
+            empty="No transactions for this channel in this period."
+          />
+        )}
       </div>
 
       <div>
@@ -341,50 +389,108 @@ function ProductsReport({ venueId, fromISO, toISO }: RangeProps) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function YocoReport({ venueId, fromISO, toISO }: RangeProps) {
+  const [filter, setFilter] = useState<{ type: 'purpose' | 'batch'; value: string } | null>(null);
   const state = useReportData(async () => {
-    const { data, error } = await supabase
-      .from('checkout_sessions')
-      .select('purpose, amount_cents')
-      .eq('venue_id', venueId)
-      .eq('status', 'completed')
-      .gte('completed_at', fromISO)
-      .lte('completed_at', toISO);
-    if (error) throw error;
-    const buckets = {
-      tab_payment: { count: 0, total: 0 },
-      credit_load: { count: 0, total: 0 },
-      booking_payment: { count: 0, total: 0 },
-    } as Record<string, { count: number; total: number }>;
-    for (const s of (data ?? []) as Array<{ purpose: string; amount_cents: number }>) {
-      const b = buckets[s.purpose];
-      if (b) { b.count += 1; b.total += s.amount_cents ?? 0; }
-    }
-    return buckets;
+    const transactions = await fetchYocoTransactions(venueId, fromISO, toISO);
+    const batches = batchYocoPayouts(transactions);
+    return { transactions, batches };
   }, [venueId, fromISO, toISO]);
+  useEffect(() => { setFilter(null); }, [venueId, fromISO, toISO]);
 
   if (state.status === 'loading') return <Loading />;
   if (state.status === 'error') return <ErrorNote />;
-  const b = state.data;
-  const rows = [
-    { label: 'Bar tab payments', ...b.tab_payment },
-    { label: 'Credit top-ups', ...b.credit_load },
-    { label: 'Caravan / site bookings', ...b.booking_payment },
-  ];
-  const totalCount = rows.reduce((s, r) => s + r.count, 0);
-  const totalCents = rows.reduce((s, r) => s + r.total, 0);
+  const { transactions, batches } = state.data;
+
+  const byPurpose = { tab_payment: { count: 0, gross: 0 }, credit_load: { count: 0, gross: 0 }, booking_payment: { count: 0, gross: 0 } } as Record<YocoPurpose, { count: number; gross: number }>;
+  let totalGross = 0, totalFee = 0;
+  for (const t of transactions) {
+    byPurpose[t.purpose].count += 1;
+    byPurpose[t.purpose].gross += t.grossCents;
+    totalGross += t.grossCents;
+    totalFee += t.feeCents;
+  }
+  const totalNet = totalGross - totalFee;
+
+  const purposeRows = (Object.keys(PURPOSE_LABEL) as YocoPurpose[])
+    .map((p) => ({ p, label: PURPOSE_LABEL[p], count: byPurpose[p].count, total: byPurpose[p].gross }))
+    .filter((r) => r.count > 0);
+
+  const filteredTransactions = filter
+    ? filter.type === 'purpose'
+      ? transactions.filter((t) => t.purpose === filter.value)
+      : (batches.find((b) => b.key === filter.value)?.transactions ?? [])
+    : [];
 
   return (
-    <div className="space-y-3">
-      <SectionHeader title="Yoco online income" note="Online card payments processed via Yoco, split by what was paid for. Use these figures to reconcile against your Yoco dashboard." />
-      <DataTable
-        columns={[
-          { key: 'c', label: 'Category', render: (r: any) => <span className="font-medium">{r.label}</span> },
-          { key: 'n', label: 'Transactions', align: 'right', render: (r: any) => r.count },
-          { key: 't', label: 'Total', align: 'right', render: (r: any) => formatCents(r.total) },
+    <div className="space-y-6">
+      <KpiGrid
+        items={[
+          { label: 'Yoco Gross', value: formatCents(totalGross), hint: `${transactions.length} transactions` },
+          { label: 'Estimated Fees', value: formatCents(totalFee), hint: `~${(YOCO_FEE_RATE * 100).toFixed(2)}%` },
+          { label: 'Expected Net Payout', value: formatCents(totalNet) },
         ]}
-        rows={[...rows, { label: 'Total online', count: totalCount, total: totalCents, _total: true }] as any}
-        empty="No online payments in this period."
       />
+      <p className="text-[13px] italic" style={{ color: MUTED }}>
+        Covers everything processed through a Yoco Checkout link — online bookings, credit top-ups, and "pay my tab" links.
+        Manual card swipes at the bar go through a separate card machine and aren't included; Yoco doesn't give us fee data for those.
+        Fees are an estimate based on your own Yoco export ({(YOCO_FEE_RATE * 100).toFixed(2)}% measured average) — check it against your first few real payouts.
+      </p>
+
+      <div>
+        <SectionHeader title="By category" note="Click a row to see who paid." />
+        <DataTable
+          columns={[
+            { key: 'c', label: 'Category', render: (r: any) => <span className="font-medium">{r.label}</span> },
+            { key: 'n', label: 'Transactions', align: 'right', render: (r: any) => r.count },
+            { key: 't', label: 'Total', align: 'right', render: (r: any) => formatCents(r.total) },
+          ]}
+          rows={purposeRows}
+          onRowClick={(r: any) => setFilter((prev) => (prev?.type === 'purpose' && prev.value === r.p ? null : { type: 'purpose', value: r.p }))}
+          isSelected={(r: any) => filter?.type === 'purpose' && filter.value === r.p}
+          empty="No online payments in this period."
+        />
+      </div>
+
+      <div>
+        <SectionHeader title="Expected payouts" note="Weekend transactions (Fri–Sun) land in one payout; weekday transactions pay out individually, 2 business days later. Estimated — click a batch to see its transactions, then check it against your bank statement." />
+        <DataTable
+          columns={[
+            { key: 'b', label: 'Batch', render: (r: any) => <span className="font-medium">{r.label}</span> },
+            { key: 'pd', label: 'Expected payout', render: (r: any) => format(new Date(r.payoutDate + 'T00:00:00'), 'EEE d MMM') },
+            { key: 'n', label: 'Txns', align: 'right', render: (r: any) => r.count },
+            { key: 'g', label: 'Gross', align: 'right', render: (r: any) => formatCents(r.grossCents) },
+            { key: 'f', label: 'Fee (est.)', align: 'right', render: (r: any) => formatCents(r.feeCents) },
+            { key: 'net', label: 'Net (est.)', align: 'right', render: (r: any) => <span className="font-semibold">{formatCents(r.netCents)}</span> },
+          ]}
+          rows={batches}
+          onRowClick={(r: any) => setFilter((prev) => (prev?.type === 'batch' && prev.value === r.key ? null : { type: 'batch', value: r.key }))}
+          isSelected={(r: any) => filter?.type === 'batch' && filter.value === r.key}
+          empty="No online payments in this period."
+        />
+      </div>
+
+      <div>
+        <SectionHeader
+          title="Transactions"
+          note={filter ? 'Click the selected row again, or another row above, to change what\'s shown.' : 'Click a category or payout batch above to see the underlying transactions.'}
+        />
+        {filter && (
+          <DataTable
+            columns={[
+              { key: 'at', label: 'When', render: (r: any) => format(new Date(r.at), 'dd MMM HH:mm') },
+              { key: 'p', label: 'Category', render: (r: any) => PURPOSE_LABEL[r.purpose as YocoPurpose] },
+              { key: 'who', label: 'Who', render: (r: any) => (
+                <span className="font-medium">{r.who}{r.membershipNumber && <span style={{ color: '#94A3B8' }}>{`  (${r.membershipNumber})`}</span>}</span>
+              ) },
+              { key: 'gross', label: 'Gross', align: 'right', render: (r: any) => formatCents(r.grossCents) },
+              { key: 'fee', label: 'Fee (est.)', align: 'right', render: (r: any) => formatCents(r.feeCents) },
+              { key: 'net', label: 'Net (est.)', align: 'right', render: (r: any) => formatCents(r.netCents) },
+            ]}
+            rows={filteredTransactions}
+            empty="No transactions for this selection."
+          />
+        )}
+      </div>
     </div>
   );
 }
@@ -539,12 +645,22 @@ function downloadCsv(filename: string, rows: BookingDetailRow[]) {
   URL.revokeObjectURL(url);
 }
 
+interface CreatedBookingRow {
+  booking_code: string;
+  guest_name: string;
+  created_at: string;
+  status: string;
+  method: string;
+  total_price_cents: number;
+}
+
 function AccommodationReport({ venueId, fromISO, toISO }: RangeProps) {
+  const [filter, setFilter] = useState<{ type: 'status' | 'method'; value: string } | null>(null);
   const state = useReportData(async () => {
     // Summary basis: bookings CREATED in the period (matches historical report).
     const { data, error } = await supabase
       .from('bookings')
-      .select('status, payment_method, total_price_cents')
+      .select('booking_code, guest_name, created_at, status, payment_method, total_price_cents')
       .eq('venue_id', venueId)
       .gte('created_at', fromISO)
       .lte('created_at', toISO);
@@ -552,13 +668,15 @@ function AccommodationReport({ venueId, fromISO, toISO }: RangeProps) {
     const byStatus = new Map<string, { count: number; total: number }>();
     const byMethod = new Map<string, { count: number; total: number }>();
     let paidCount = 0, paidTotal = 0;
-    for (const b of (data ?? []) as Array<{ status: string; payment_method: string | null; total_price_cents: number }>) {
+    const createdRows: CreatedBookingRow[] = [];
+    for (const b of (data ?? []) as Array<{ booking_code: string; guest_name: string; created_at: string; status: string; payment_method: string | null; total_price_cents: number }>) {
       const status = (b.status ?? 'unknown').toUpperCase();
       const method = b.payment_method ? b.payment_method.toUpperCase() : 'NOT CHOSEN';
       const cents = b.total_price_cents ?? 0;
       const s = byStatus.get(status) ?? { count: 0, total: 0 }; s.count++; s.total += cents; byStatus.set(status, s);
       const m = byMethod.get(method) ?? { count: 0, total: 0 }; m.count++; m.total += cents; byMethod.set(method, m);
       if (status === 'PAID') { paidCount++; paidTotal += cents; }
+      createdRows.push({ booking_code: b.booking_code, guest_name: b.guest_name, created_at: b.created_at, status, method, total_price_cents: cents });
     }
 
     // Detail basis: bookings whose STAY (check-in) falls in the period.
@@ -595,15 +713,17 @@ function AccommodationReport({ venueId, fromISO, toISO }: RangeProps) {
       statuses: [...byStatus.entries()].map(([k, v]) => ({ k, ...v })).sort((a, b) => b.total - a.total),
       methods: [...byMethod.entries()].map(([k, v]) => ({ k, ...v })).sort((a, b) => b.total - a.total),
       paidCount, paidTotal, total: (data ?? []).length,
-      detail, stayPaidRevenue,
+      detail, stayPaidRevenue, createdRows,
     };
   }, [venueId, fromISO, toISO]);
+  useEffect(() => { setFilter(null); }, [venueId, fromISO, toISO]);
 
   if (state.status === 'loading') return <Loading />;
   if (state.status === 'error') return <ErrorNote />;
-  const { statuses, methods, paidCount, paidTotal, total, detail, stayPaidRevenue } = state.data;
+  const { statuses, methods, paidCount, paidTotal, total, detail, stayPaidRevenue, createdRows } = state.data;
 
   const fmtDay = (d: string) => { try { return format(new Date(d + 'T12:00:00'), 'd MMM'); } catch { return d; } };
+  const filteredCreated = filter ? createdRows.filter((r) => (filter.type === 'status' ? r.status : r.method) === filter.value) : [];
 
   return (
     <div className="space-y-6">
@@ -617,7 +737,7 @@ function AccommodationReport({ venueId, fromISO, toISO }: RangeProps) {
       <p className="text-[13px] italic" style={{ color: MUTED }}>Bookings created in this period, by their current status.</p>
 
       <div>
-        <SectionHeader title="By status" />
+        <SectionHeader title="By status" note="Click a row to see which bookings." />
         <DataTable
           columns={[
             { key: 's', label: 'Status', render: (r: any) => <span className="font-medium">{r.k}</span> },
@@ -625,12 +745,14 @@ function AccommodationReport({ venueId, fromISO, toISO }: RangeProps) {
             { key: 't', label: 'Value', align: 'right', render: (r: any) => formatCents(r.total) },
           ]}
           rows={statuses}
+          onRowClick={(r: any) => setFilter((prev) => (prev?.type === 'status' && prev.value === r.k ? null : { type: 'status', value: r.k }))}
+          isSelected={(r: any) => filter?.type === 'status' && filter.value === r.k}
           empty="No bookings in this period."
         />
       </div>
 
       <div>
-        <SectionHeader title="By payment method" />
+        <SectionHeader title="By payment method" note="Click a row to see which bookings." />
         <DataTable
           columns={[
             { key: 'm', label: 'Method', render: (r: any) => <span className="font-medium">{r.k}</span> },
@@ -638,8 +760,31 @@ function AccommodationReport({ venueId, fromISO, toISO }: RangeProps) {
             { key: 't', label: 'Value', align: 'right', render: (r: any) => formatCents(r.total) },
           ]}
           rows={methods}
+          onRowClick={(r: any) => setFilter((prev) => (prev?.type === 'method' && prev.value === r.k ? null : { type: 'method', value: r.k }))}
+          isSelected={(r: any) => filter?.type === 'method' && filter.value === r.k}
           empty="No bookings in this period."
         />
+      </div>
+
+      <div>
+        <SectionHeader
+          title="Filtered bookings"
+          note={filter ? `Bookings created in this period — click the selected row again to clear.` : 'Click a status or payment method above to filter.'}
+        />
+        {filter && (
+          <DataTable
+            columns={[
+              { key: 'code', label: 'Code', render: (r: CreatedBookingRow) => <span className="font-mono text-[13px]">{r.booking_code}</span> },
+              { key: 'guest', label: 'Guest', render: (r: CreatedBookingRow) => <span className="font-medium">{r.guest_name}</span> },
+              { key: 'created', label: 'Created', render: (r: CreatedBookingRow) => format(new Date(r.created_at), 'dd MMM HH:mm') },
+              { key: 'st', label: 'Status', render: (r: CreatedBookingRow) => r.status },
+              { key: 'm', label: 'Method', render: (r: CreatedBookingRow) => r.method },
+              { key: 'amt', label: 'Amount', align: 'right', render: (r: CreatedBookingRow) => r.total_price_cents === 0 ? 'Free' : formatCents(r.total_price_cents) },
+            ]}
+            rows={filteredCreated}
+            empty="No bookings for this selection."
+          />
+        )}
       </div>
 
       <div>
