@@ -54,7 +54,7 @@ export default function AdminLogin() {
           .maybeSingle();
 
         if (admin) {
-          navigate(adminPath('products'), { replace: true });
+          navigate(adminPath(), { replace: true });
           return;
         }
       }
@@ -104,7 +104,7 @@ export default function AdminLogin() {
     if (data.user) {
       const linked = await linkAdminUser(data.user.id, data.user.email!);
       if (linked) {
-        navigate(adminPath('products'), { replace: true });
+        navigate(adminPath(), { replace: true });
       }
     }
     setLoading(false);
@@ -144,7 +144,7 @@ export default function AdminLogin() {
       if (signInData.user) {
         const linked = await linkAdminUser(signInData.user.id, signInData.user.email!);
         if (linked) {
-          navigate(adminPath('products'), { replace: true });
+          navigate(adminPath(), { replace: true });
         }
       }
     }
