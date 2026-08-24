@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useVenue } from '@/contexts/VenueContext';
 import { supabase } from '@/integrations/supabase/client';
 import { formatCents } from '@/utils/currency';
@@ -788,6 +789,157 @@ function InventoryReport({ venueId }: RangeProps) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Report: Electricity
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Purchases are monthly cumulative snapshots (one row per meter per calendar
+// month, see electricity_meters migration), not discrete transactions — so
+// this report picks a month rather than reusing the shared from/to range,
+// same reasoning as InventoryReport ignoring it for a current-stock snapshot.
+function ElectricityReport({ venueId }: RangeProps) {
+  const monthsState = useReportData(async () => {
+    const { data, error } = await supabase
+      .from('electricity_purchases')
+      .select('period_month')
+      .eq('venue_id', venueId)
+      .order('period_month', { ascending: false });
+    if (error) throw error;
+    return [...new Set((data ?? []).map((r) => r.period_month as string))];
+  }, [venueId]);
+
+  const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
+  useEffect(() => {
+    if (monthsState.status === 'ok' && monthsState.data.length > 0 && !selectedMonth) {
+      setSelectedMonth(monthsState.data[0]);
+    }
+  }, [monthsState, selectedMonth]);
+
+  const reportState = useReportData(async () => {
+    if (!selectedMonth) return null;
+
+    const { data: purchases, error: e1 } = await supabase
+      .from('electricity_purchases')
+      .select('amount_cents, member_id')
+      .eq('venue_id', venueId)
+      .eq('period_month', selectedMonth);
+    if (e1) throw e1;
+
+    // Every currently-mapped meter, regardless of period — this is what
+    // defines "hasn't bought this month" (a member with a meter but no/zero
+    // spend) vs. simply having no meter mapped at all (not trackable yet).
+    const { data: mappedMeters, error: e2 } = await supabase
+      .from('electricity_meters')
+      .select('member_id, unit_label, members(first_name, last_name, membership_number)')
+      .eq('venue_id', venueId)
+      .not('member_id', 'is', null);
+    if (e2) throw e2;
+
+    const byMember = new Map<string, { name: string; num: string | null; sites: Set<string>; cents: number }>();
+    for (const m of mappedMeters ?? []) {
+      const mem = m.members as unknown as { first_name: string; last_name: string; membership_number: string } | null;
+      const id = m.member_id as string;
+      const rec = byMember.get(id) ?? {
+        name: mem ? `${mem.first_name} ${mem.last_name}`.trim() : 'Member',
+        num: mem?.membership_number ?? null,
+        sites: new Set<string>(),
+        cents: 0,
+      };
+      if (m.unit_label) rec.sites.add(m.unit_label);
+      byMember.set(id, rec);
+    }
+
+    let unmappedCents = 0;
+    for (const p of purchases ?? []) {
+      const cents = p.amount_cents ?? 0;
+      if (p.member_id && byMember.has(p.member_id)) byMember.get(p.member_id)!.cents += cents;
+      else unmappedCents += cents;
+    }
+
+    const all = [...byMember.entries()].map(([id, r]) => ({
+      id,
+      name: r.name,
+      num: r.num,
+      sites: [...r.sites].sort((a, b) => Number(a) - Number(b)).join(', '),
+      cents: r.cents,
+    }));
+    const spenders = all.filter((r) => r.cents > 0).sort((a, b) => b.cents - a.cents);
+    const nonSpenders = all.filter((r) => r.cents === 0).sort((a, b) => a.name.localeCompare(b.name));
+    const totalSpend = spenders.reduce((s, r) => s + r.cents, 0);
+
+    return { spenders, nonSpenders, totalSpend, unmappedCents, mappedCount: all.length };
+  }, [venueId, selectedMonth]);
+
+  if (monthsState.status === 'loading') return <Loading />;
+  if (monthsState.status === 'error') return <ErrorNote />;
+  if (monthsState.data.length === 0) {
+    return <p className="text-sm text-muted-foreground">No electricity purchase data imported yet.</p>;
+  }
+
+  const monthLabel = (m: string) => {
+    try { return format(new Date(m + 'T00:00:00'), 'MMMM yyyy'); } catch { return m; }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center gap-3">
+        <label className="text-[13px] font-medium text-muted-foreground">Month</label>
+        <Select value={selectedMonth ?? undefined} onValueChange={setSelectedMonth}>
+          <SelectTrigger className="w-[200px]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {monthsState.data.map((m) => (
+              <SelectItem key={m} value={m}>{monthLabel(m)}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {reportState.status === 'loading' || !reportState.data ? <Loading /> : reportState.status === 'error' ? <ErrorNote /> : (() => {
+        const { spenders, nonSpenders, totalSpend, unmappedCents, mappedCount } = reportState.data;
+        return (
+          <div className="space-y-6">
+            <KpiGrid
+              items={[
+                { label: 'Total Spend', value: formatCents(totalSpend), hint: `${spenders.length} of ${mappedCount} mapped members` },
+                { label: 'Members Who Bought', value: String(spenders.length) },
+                { label: "Haven't Bought", value: String(nonSpenders.length) },
+                { label: 'Unmapped Meter Spend', value: formatCents(unmappedCents), hint: 'not yet linked to a member' },
+              ]}
+            />
+
+            <div>
+              <SectionHeader title="Spend by member" note="Biggest spender first. A member with two meters (site + shed, say) shows combined spend." />
+              <DataTable
+                columns={[
+                  { key: 'm', label: 'Member', render: (r: any) => <span className="font-medium">{r.name}{r.num && <span style={{ color: '#94A3B8' }}>{`  (${r.num})`}</span>}</span> },
+                  { key: 's', label: 'Site(s)', render: (r: any) => r.sites || '—' },
+                  { key: 'c', label: 'Spend', align: 'right', render: (r: any) => formatCents(r.cents) },
+                ]}
+                rows={spenders}
+                empty="No electricity purchases this month."
+              />
+            </div>
+
+            <div>
+              <SectionHeader title="Haven't bought this month" note="Members with a linked meter but no purchases recorded for this period." />
+              <DataTable
+                columns={[
+                  { key: 'm', label: 'Member', render: (r: any) => <span className="font-medium">{r.name}{r.num && <span style={{ color: '#94A3B8' }}>{`  (${r.num})`}</span>}</span> },
+                  { key: 's', label: 'Site(s)', render: (r: any) => r.sites || '—' },
+                ]}
+                rows={nonSpenders}
+                empty="Every mapped member bought electricity this month."
+              />
+            </div>
+          </div>
+        );
+      })()}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Shell
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -799,6 +951,7 @@ const REPORTS = [
   { key: 'accommodation', label: 'Accommodation', Comp: AccommodationReport },
   { key: 'trading', label: 'Trading Patterns', Comp: TradingReport },
   { key: 'inventory', label: 'Inventory', Comp: InventoryReport },
+  { key: 'electricity', label: 'Electricity', Comp: ElectricityReport },
 ] as const;
 
 function toRange(from: Date, to: Date) {

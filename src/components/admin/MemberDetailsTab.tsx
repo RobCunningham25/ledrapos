@@ -10,6 +10,7 @@ interface SiteRow { id: string; site_number: string }
 interface ShedRow { id: string; shed_number: string }
 interface BoatRow { id: string; boat_name: string; registration_number: string | null }
 interface ChildRow { id: string; full_name: string; date_of_birth: string }
+interface MeterRow { id: string; unit_label: string | null; meter_number: string }
 
 interface Props {
   memberId: string;
@@ -43,6 +44,7 @@ export default function MemberDetailsTab({ memberId, venueId, onMemberUpdated }:
   const [children, setChildren] = useState<ChildRow[]>([]);
   const [newChildName, setNewChildName] = useState('');
   const [newChildDob, setNewChildDob] = useState('');
+  const [meters, setMeters] = useState<MeterRow[]>([]);
 
   const fetchMemberData = useCallback(async () => {
     const { data } = await supabase
@@ -84,7 +86,12 @@ export default function MemberDetailsTab({ memberId, venueId, onMemberUpdated }:
     setChildren((data as ChildRow[]) || []);
   }, [memberId, venueId]);
 
-  useEffect(() => { fetchMemberData(); fetchSites(); fetchSheds(); fetchBoats(); fetchChildren(); }, [fetchMemberData, fetchSites, fetchSheds, fetchBoats, fetchChildren]);
+  const fetchMeters = useCallback(async () => {
+    const { data } = await supabase.from('electricity_meters').select('id, unit_label, meter_number').eq('member_id', memberId).eq('venue_id', venueId).order('unit_label');
+    setMeters((data as MeterRow[]) || []);
+  }, [memberId, venueId]);
+
+  useEffect(() => { fetchMemberData(); fetchSites(); fetchSheds(); fetchBoats(); fetchChildren(); fetchMeters(); }, [fetchMemberData, fetchSites, fetchSheds, fetchBoats, fetchChildren, fetchMeters]);
 
   const savePersonal = async () => {
     if (!personal.first_name.trim() || !personal.last_name.trim()) { toast.error('First and last name are required'); return; }
@@ -266,6 +273,21 @@ export default function MemberDetailsTab({ memberId, venueId, onMemberUpdated }:
           <Input placeholder="Site number" value={newSite} onChange={e => setNewSite(e.target.value)} style={{ ...inputStyle, width: 160 }} onKeyDown={e => e.key === 'Enter' && addSite()} />
           <Button onClick={addSite} style={{ height: 36, background: '#2E5FA3', color: '#FFFFFF', fontWeight: 500, borderRadius: 6, paddingLeft: 14, paddingRight: 14 }}>Add</Button>
         </div>
+      </div>
+
+      {/* Electricity Meters (read-only — managed from the Electricity Meters admin page) */}
+      <div style={cardStyle}>
+        <h3 style={sectionHeading}>Electricity Meters</h3>
+        {meters.length === 0 && <p style={{ fontSize: 13, color: '#718096', marginBottom: 12 }}>No meters linked</p>}
+        <div className="flex flex-wrap gap-2 mb-3">
+          {meters.map(m => (
+            <span key={m.id} className="inline-flex items-center gap-1.5" style={{ fontSize: 14, color: '#1A202C', background: '#F4F6F9', border: '1px solid #E2E8F0', borderRadius: 16, padding: '6px 14px' }}>
+              {m.unit_label && <span style={{ fontWeight: 600 }}>Site {m.unit_label}</span>}
+              <span style={{ fontFamily: 'monospace', fontSize: 13, color: '#718096' }}>{m.meter_number}</span>
+            </span>
+          ))}
+        </div>
+        <p style={{ fontSize: 12, color: '#718096' }}>To add, edit, or reassign a meter, use the Electricity Meters page.</p>
       </div>
 
       {/* Boat Shed Numbers */}
