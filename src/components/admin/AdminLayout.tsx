@@ -67,7 +67,7 @@ export default function AdminLayout({ children, title, action }: AdminLayoutProp
         <h1 className="text-base font-bold text-primary leading-snug">{venueName}</h1>
         <p className="text-xs text-muted-foreground mt-0.5">{isManager ? 'Manager Panel' : 'Admin Panel'}</p>
       </div>
-      <nav className="flex-1 py-4 space-y-1 px-3">
+      <nav className="flex-1 min-h-0 overflow-y-auto py-4 space-y-1 px-3">
         {navItems.map((item) => {
           const active = isActive(item.path);
           return (
