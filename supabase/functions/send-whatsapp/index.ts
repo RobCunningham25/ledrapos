@@ -5,13 +5,21 @@
 //
 // Inputs (POST JSON):
 //   venue_id        UUID
-//   member_id       UUID  (optional — only set if the recipient is a known member)
+//   member_id       UUID  (optional — set if the recipient is a known member)
+//   prospect_id     UUID  (optional — set if the recipient is a non-member prospect;
+//                          at most one of member_id/prospect_id should be set)
 //   to_e164         string (+27...) — recipient number
 //   template_sid?   string (HX...)  — required for messages outside a 24h session window
 //   template_variables?  Record<string, string|number> | Array<string|number>
 //   body?           string — only valid when template_sid is omitted (free-form session msg)
 //   related_kind?   string ('optin_invite' | 'tab_reminder' | 'link_request' | ...)
 //   related_id?     UUID
+//
+// The 24h session window (free-form `body` sends) is checked against
+// members.whatsapp_last_inbound_at when member_id is set, or
+// whatsapp_prospects.last_inbound_at when prospect_id is set. A send with
+// neither (e.g. a staff alert to a number with no contact record) can only
+// use template_sid.
 //
 // Auth: shared-secret header X-Whatsapp-Worker-Token (matches WHATSAPP_WORKER_TOKEN).
 // Configured in supabase/config.toml as verify_jwt = false.
@@ -30,6 +38,7 @@ const SESSION_WINDOW_MS = 24 * 60 * 60 * 1000; // 24 hours
 interface SendRequest {
   venue_id: string;
   member_id?: string | null;
+  prospect_id?: string | null;
   to_e164: string;
   template_sid?: string | null;
   template_variables?: Record<string, string | number> | Array<string | number> | null;
@@ -126,20 +135,31 @@ Deno.serve(async (req) => {
 
   // ===== 24h session window check (only for free-form body) =====
   if (!body.template_sid) {
-    if (!body.member_id) {
+    if (!body.member_id && !body.prospect_id) {
       return json(400, {
-        error: "Free-form (body) sends require a member_id so we can verify the 24h session window",
+        error: "Free-form (body) sends require a member_id or prospect_id so we can verify the 24h session window",
       });
     }
-    const { data: member } = await supabase
-      .from("members")
-      .select("whatsapp_last_inbound_at")
-      .eq("id", body.member_id)
-      .maybeSingle();
-
-    const lastInbound = member?.whatsapp_last_inbound_at
-      ? new Date(member.whatsapp_last_inbound_at).getTime()
-      : 0;
+    let lastInbound = 0;
+    if (body.member_id) {
+      const { data: member } = await supabase
+        .from("members")
+        .select("whatsapp_last_inbound_at")
+        .eq("id", body.member_id)
+        .maybeSingle();
+      lastInbound = member?.whatsapp_last_inbound_at
+        ? new Date(member.whatsapp_last_inbound_at).getTime()
+        : 0;
+    } else {
+      const { data: prospect } = await supabase
+        .from("whatsapp_prospects")
+        .select("last_inbound_at")
+        .eq("id", body.prospect_id)
+        .maybeSingle();
+      lastInbound = prospect?.last_inbound_at
+        ? new Date(prospect.last_inbound_at).getTime()
+        : 0;
+    }
     if (!lastInbound || Date.now() - lastInbound > SESSION_WINDOW_MS) {
       return json(409, {
         error: "Outside 24h customer-service window — must use template_sid",
@@ -161,6 +181,7 @@ Deno.serve(async (req) => {
   const auditPayload = {
     venue_id: body.venue_id,
     member_id: body.member_id ?? null,
+    prospect_id: body.prospect_id ?? null,
     direction: "outbound" as const,
     to_number: body.to_e164,
     from_number: fromAddr.replace("whatsapp:", ""),

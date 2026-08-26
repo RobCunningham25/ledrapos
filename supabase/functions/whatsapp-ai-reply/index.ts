@@ -20,11 +20,13 @@
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
 import {
+  PROSPECT_TOOL_DEFINITIONS,
   TOOL_DEFINITIONS,
   runTool,
   type ToolContext,
 } from "../_shared/aiTools.ts";
-import { buildSystemPrompt } from "../_shared/aiAssistantPrompt.ts";
+import { buildProspectSystemPrompt, buildSystemPrompt } from "../_shared/aiAssistantPrompt.ts";
+import { notifyNewFollowup } from "../_shared/whatsappFollowupNotify.ts";
 
 const ANTHROPIC_MESSAGES_URL = "https://api.anthropic.com/v1/messages";
 const ANTHROPIC_VERSION = "2023-06-01";
@@ -34,12 +36,15 @@ const REPLY_TRUNCATE_AT = 1400;
 
 interface RequestBody {
   venue_id: string;
-  member_id: string;
+  // Exactly one of member_id / prospect_id is required.
+  member_id?: string | null;
+  prospect_id?: string | null;
   inbound_body: string;
   inbound_message_sid: string;
   // Number the inbound came from — replies go here. Falls back to the member's
-  // whatsapp_number/phone when absent. Matters when a partner texts in: the
-  // reply must go to the partner's phone, not the member's.
+  // whatsapp_number/phone (or the prospect's whatsapp_number) when absent.
+  // Matters when a partner texts in: the reply must go to the partner's
+  // phone, not the member's.
   reply_to_e164?: string | null;
   dry_run?: boolean;
 }
@@ -73,7 +78,7 @@ async function callAnthropic(params: {
   model: string;
   system: string;
   messages: AnthropicMessage[];
-  tools: typeof TOOL_DEFINITIONS;
+  tools: Array<typeof TOOL_DEFINITIONS[number]>;
 }): Promise<AnthropicResponse> {
   // Prompt caching: the tool catalog and system prompt are static for the whole
   // tool-use loop (only the messages array grows), so mark both as cacheable.
@@ -115,7 +120,8 @@ async function logAiEvent(
   supabase: SupabaseClient,
   args: {
     venue_id: string;
-    member_id: string;
+    member_id: string | null;
+    prospect_id: string | null;
     direction: "outbound" | "inbound";
     related_kind: "ai_reply" | "ai_tool_call" | "ai_error";
     body: string;
@@ -127,6 +133,7 @@ async function logAiEvent(
   await supabase.from("whatsapp_messages").insert({
     venue_id: args.venue_id,
     member_id: args.member_id,
+    prospect_id: args.prospect_id,
     direction: args.direction,
     body: args.body,
     related_kind: args.related_kind,
@@ -168,12 +175,15 @@ async function preflight(
   }
 
   // 3. Idempotency on inbound MessageSid (stored in twilio_sid on the ai_reply row)
-  const { count: dupCount } = await supabase
+  let dupQuery = supabase
     .from("whatsapp_messages")
     .select("id", { count: "exact", head: true })
-    .eq("member_id", body.member_id)
     .eq("related_kind", "ai_reply")
     .eq("twilio_sid", body.inbound_message_sid);
+  dupQuery = body.member_id
+    ? dupQuery.eq("member_id", body.member_id)
+    : dupQuery.eq("prospect_id", body.prospect_id as string);
+  const { count: dupCount } = await dupQuery;
   if ((dupCount ?? 0) > 0) {
     return { ok: false, reason: "duplicate inbound (Twilio retry)", httpStatus: 200 };
   }
@@ -186,40 +196,55 @@ async function preflight(
 async function buildContext(
   supabase: SupabaseClient,
   venueId: string,
-  memberId: string,
+  contact: { memberId: string | null; prospectId: string | null },
 ): Promise<{
   venueName: string;
   venueSlug: string;
   memberFirstName: string | null;
   memberMembershipNumber: string | null;
-  memberE164: string | null;
+  displayName: string | null;
+  contactE164: string | null;
   recentMessages: string[];
   isFirstAiReplyEver: boolean;
 }> {
-  const [venueRes, memberRes, recentRes, priorAiReplies] = await Promise.all([
+  const { memberId, prospectId } = contact;
+  const messageMatch = memberId
+    ? { column: "member_id" as const, value: memberId, tag: "member" as const }
+    : { column: "prospect_id" as const, value: prospectId as string, tag: "them" as const };
+
+  const [venueRes, memberRes, prospectRes, recentRes, priorAiReplies] = await Promise.all([
     supabase.from("venues").select("name, slug").eq("id", venueId).maybeSingle(),
-    supabase
-      .from("members")
-      .select("first_name, membership_number, whatsapp_number, phone")
-      .eq("id", memberId)
-      .maybeSingle(),
+    memberId
+      ? supabase
+        .from("members")
+        .select("first_name, membership_number, whatsapp_number, phone")
+        .eq("id", memberId)
+        .maybeSingle()
+      : Promise.resolve({ data: null }),
+    prospectId
+      ? supabase
+        .from("whatsapp_prospects")
+        .select("display_name, whatsapp_number")
+        .eq("id", prospectId)
+        .maybeSingle()
+      : Promise.resolve({ data: null }),
     supabase
       .from("whatsapp_messages")
       .select("direction, body, related_kind, created_at")
-      .eq("member_id", memberId)
+      .eq(messageMatch.column, messageMatch.value)
       .order("created_at", { ascending: false })
       .limit(6),
     supabase
       .from("whatsapp_messages")
       .select("id", { count: "exact", head: true })
-      .eq("member_id", memberId)
+      .eq(messageMatch.column, messageMatch.value)
       .eq("related_kind", "ai_reply"),
   ]);
 
   const recent = (recentRes.data ?? [])
     .reverse()
     .map((m) => {
-      const tag = m.direction === "inbound" ? "member" : "assistant";
+      const tag = m.direction === "inbound" ? messageMatch.tag : "assistant";
       const text = (m.body ?? "").trim().slice(0, 200);
       return `${tag}: ${text}`;
     })
@@ -230,7 +255,9 @@ async function buildContext(
     venueSlug: venueRes.data?.slug ?? "",
     memberFirstName: memberRes.data?.first_name ?? null,
     memberMembershipNumber: memberRes.data?.membership_number ?? null,
-    memberE164: memberRes.data?.whatsapp_number ?? memberRes.data?.phone ?? null,
+    displayName: prospectRes.data?.display_name ?? null,
+    contactE164: memberRes.data?.whatsapp_number ?? memberRes.data?.phone
+      ?? prospectRes.data?.whatsapp_number ?? null,
     recentMessages: recent,
     isFirstAiReplyEver: (priorAiReplies.count ?? 0) === 0,
   };
@@ -240,7 +267,8 @@ async function buildContext(
 
 async function sendWhatsAppReply(args: {
   venueId: string;
-  memberId: string;
+  memberId: string | null;
+  prospectId: string | null;
   toE164: string;
   body: string;
   inboundMessageSid: string;
@@ -260,6 +288,7 @@ async function sendWhatsAppReply(args: {
       body: JSON.stringify({
         venue_id: args.venueId,
         member_id: args.memberId,
+        prospect_id: args.prospectId,
         to_e164: args.toE164,
         body: args.body,
         related_kind: "ai_reply",
@@ -332,11 +361,19 @@ Deno.serve(async (req) => {
     return json(400, { error: "Invalid JSON body" });
   }
 
-  if (!body.venue_id || !body.member_id || !body.inbound_body || !body.inbound_message_sid) {
+  if (!body.venue_id || !body.inbound_body || !body.inbound_message_sid) {
     return json(400, {
-      error: "venue_id, member_id, inbound_body, inbound_message_sid are required",
+      error: "venue_id, inbound_body, inbound_message_sid are required",
     });
   }
+  if (!body.member_id && !body.prospect_id) {
+    return json(400, { error: "Either member_id or prospect_id is required" });
+  }
+  if (body.member_id && body.prospect_id) {
+    return json(400, { error: "Provide member_id OR prospect_id, not both" });
+  }
+  const memberId = body.member_id ?? null;
+  const prospectId = body.prospect_id ?? null;
 
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,
@@ -354,7 +391,8 @@ Deno.serve(async (req) => {
     if (!pre.ok) {
       await logAiEvent(supabase, {
         venue_id: body.venue_id,
-        member_id: body.member_id,
+        member_id: memberId,
+        prospect_id: prospectId,
         direction: "outbound",
         related_kind: "ai_error",
         body: `preflight skipped: ${pre.reason}`,
@@ -369,7 +407,8 @@ Deno.serve(async (req) => {
   if (!apiKey) {
     await logAiEvent(supabase, {
       venue_id: body.venue_id,
-      member_id: body.member_id,
+      member_id: memberId,
+      prospect_id: prospectId,
       direction: "outbound",
       related_kind: "ai_error",
       body: "ANTHROPIC_API_KEY not configured",
@@ -378,8 +417,8 @@ Deno.serve(async (req) => {
     return json(500, { error: "ANTHROPIC_API_KEY not configured" });
   }
 
-  // Resolve venue model + slug + name + the member's E.164 + recent history.
-  const ctx = await buildContext(supabase, body.venue_id, body.member_id);
+  // Resolve venue model + slug + name + the contact's E.164 + recent history.
+  const ctx = await buildContext(supabase, body.venue_id, { memberId, prospectId });
   const { data: venueRow } = await supabase
     .from("venues")
     .select("whatsapp_ai_model")
@@ -387,20 +426,32 @@ Deno.serve(async (req) => {
     .maybeSingle();
   const model = venueRow?.whatsapp_ai_model ?? "claude-haiku-4-5-20251001";
 
-  const systemPrompt = buildSystemPrompt({
-    venueName: ctx.venueName,
-    memberFirstName: ctx.memberFirstName,
-    memberMembershipNumber: ctx.memberMembershipNumber,
-    nowSaIso: new Date().toLocaleString("en-ZA", { timeZone: "Africa/Johannesburg" }),
-    recentMessages: ctx.recentMessages,
-    isFirstAiReplyEver: ctx.isFirstAiReplyEver,
-  });
+  const systemPrompt = memberId
+    ? buildSystemPrompt({
+      venueName: ctx.venueName,
+      memberFirstName: ctx.memberFirstName,
+      memberMembershipNumber: ctx.memberMembershipNumber,
+      nowSaIso: new Date().toLocaleString("en-ZA", { timeZone: "Africa/Johannesburg" }),
+      recentMessages: ctx.recentMessages,
+      isFirstAiReplyEver: ctx.isFirstAiReplyEver,
+    })
+    : buildProspectSystemPrompt({
+      venueName: ctx.venueName,
+      venueSlug: ctx.venueSlug,
+      displayName: ctx.displayName,
+      nowSaIso: new Date().toLocaleString("en-ZA", { timeZone: "Africa/Johannesburg" }),
+      recentMessages: ctx.recentMessages,
+      isFirstAiReplyEver: ctx.isFirstAiReplyEver,
+    });
+
+  const toolDefinitions = memberId ? TOOL_DEFINITIONS : PROSPECT_TOOL_DEFINITIONS;
 
   const toolCtx: ToolContext = {
     supabase,
     venueId: body.venue_id,
     venueSlug: ctx.venueSlug,
-    memberId: body.member_id,
+    memberId,
+    prospectId,
     inboundBody: body.inbound_body,
     dryRun: isDryRun,
   };
@@ -423,13 +474,14 @@ Deno.serve(async (req) => {
         model,
         system: systemPrompt,
         messages,
-        tools: TOOL_DEFINITIONS,
+        tools: toolDefinitions,
       });
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : String(err);
       await logAiEvent(supabase, {
         venue_id: body.venue_id,
-        member_id: body.member_id,
+        member_id: memberId,
+        prospect_id: prospectId,
         direction: "outbound",
         related_kind: "ai_error",
         body: `Anthropic call failed: ${errMsg.slice(0, 500)}`,
@@ -478,7 +530,8 @@ Deno.serve(async (req) => {
       if (!isDryRun) {
         await logAiEvent(supabase, {
           venue_id: body.venue_id,
-          member_id: body.member_id,
+          member_id: memberId,
+          prospect_id: prospectId,
           direction: "outbound",
           related_kind: "ai_tool_call",
           body: result.logSummary,
@@ -502,16 +555,38 @@ Deno.serve(async (req) => {
     // this as an automatic escalation so the member doesn't get a dead reply
     // and admins notice it in the follow-ups queue.
     if (!isDryRun) {
+      const summary = "Assistant could not generate a reply — automatic escalation.";
       try {
-        await supabase.from("whatsapp_followups").insert({
-          venue_id: body.venue_id,
-          member_id: body.member_id,
-          summary: "Assistant could not generate a reply — automatic escalation.",
-          original_message: body.inbound_body.slice(0, 2000),
-          urgency: "normal",
-          status: "open",
-          reason: "knowledge_gap",
-        });
+        const { data: followup, error } = await supabase
+          .from("whatsapp_followups")
+          .insert({
+            venue_id: body.venue_id,
+            member_id: memberId,
+            prospect_id: prospectId,
+            summary,
+            original_message: body.inbound_body.slice(0, 2000),
+            urgency: "normal",
+            status: "open",
+            reason: "knowledge_gap",
+          })
+          .select("id")
+          .single();
+        if (error || !followup) {
+          console.error("auto-escalation insert failed:", error?.message);
+        } else {
+          await notifyNewFollowup({
+            supabase,
+            venueId: body.venue_id,
+            venueSlug: ctx.venueSlug,
+            memberId,
+            prospectId,
+            followupId: followup.id as string,
+            summary,
+            urgency: "normal",
+            reason: "knowledge_gap",
+            originalMessage: body.inbound_body,
+          });
+        }
       } catch (err) {
         console.error(
           "auto-escalation insert failed:",
@@ -538,23 +613,25 @@ Deno.serve(async (req) => {
     });
   }
 
-  const replyTo = body.reply_to_e164 || ctx.memberE164;
+  const replyTo = body.reply_to_e164 || ctx.contactE164;
 
   if (!replyTo) {
     await logAiEvent(supabase, {
       venue_id: body.venue_id,
-      member_id: body.member_id,
+      member_id: memberId,
+      prospect_id: prospectId,
       direction: "outbound",
       related_kind: "ai_error",
-      body: "member has no resolvable E.164 — cannot send reply",
+      body: "no resolvable E.164 — cannot send reply",
       status: "failed",
     });
-    return json(500, { error: "no member phone on file" });
+    return json(500, { error: "no phone number on file" });
   }
 
   const sendRes = await sendWhatsAppReply({
     venueId: body.venue_id,
-    memberId: body.member_id,
+    memberId,
+    prospectId,
     toE164: replyTo,
     body: finalText,
     inboundMessageSid: body.inbound_message_sid,
@@ -562,7 +639,8 @@ Deno.serve(async (req) => {
 
   await logAiEvent(supabase, {
     venue_id: body.venue_id,
-    member_id: body.member_id,
+    member_id: memberId,
+    prospect_id: prospectId,
     direction: "outbound",
     related_kind: "ai_reply",
     body: finalText,

@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.4"
+    PostgrestVersion: "14.17"
   }
   public: {
     Tables: {
@@ -1526,6 +1526,8 @@ export type Database = {
       }
       members: {
         Row: {
+          ai_paused: boolean
+          ai_paused_at: string | null
           auth_user_id: string | null
           created_at: string | null
           email: string | null
@@ -1558,6 +1560,8 @@ export type Database = {
           whatsapp_opt_out_at: string | null
         }
         Insert: {
+          ai_paused?: boolean
+          ai_paused_at?: string | null
           auth_user_id?: string | null
           created_at?: string | null
           email?: string | null
@@ -1590,6 +1594,8 @@ export type Database = {
           whatsapp_opt_out_at?: string | null
         }
         Update: {
+          ai_paused?: boolean
+          ai_paused_at?: string | null
           auth_user_id?: string | null
           created_at?: string | null
           email?: string | null
@@ -2349,6 +2355,7 @@ export type Database = {
           whatsapp_ai_model: string
           whatsapp_business_number: string | null
           whatsapp_daily_cap: number
+          whatsapp_staff_alert_number: string | null
         }
         Insert: {
           accent_color?: string
@@ -2389,6 +2396,7 @@ export type Database = {
           whatsapp_ai_model?: string
           whatsapp_business_number?: string | null
           whatsapp_daily_cap?: number
+          whatsapp_staff_alert_number?: string | null
         }
         Update: {
           accent_color?: string
@@ -2429,6 +2437,7 @@ export type Database = {
           whatsapp_ai_model?: string
           whatsapp_business_number?: string | null
           whatsapp_daily_cap?: number
+          whatsapp_staff_alert_number?: string | null
         }
         Relationships: []
       }
@@ -2439,6 +2448,7 @@ export type Database = {
           member_id: string | null
           notes: string | null
           original_message: string
+          prospect_id: string | null
           reason: string
           resolved_at: string | null
           resolved_by: string | null
@@ -2453,6 +2463,7 @@ export type Database = {
           member_id?: string | null
           notes?: string | null
           original_message: string
+          prospect_id?: string | null
           reason?: string
           resolved_at?: string | null
           resolved_by?: string | null
@@ -2467,6 +2478,7 @@ export type Database = {
           member_id?: string | null
           notes?: string | null
           original_message?: string
+          prospect_id?: string | null
           reason?: string
           resolved_at?: string | null
           resolved_by?: string | null
@@ -2481,6 +2493,13 @@ export type Database = {
             columns: ["member_id"]
             isOneToOne: false
             referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_followups_prospect_id_fkey"
+            columns: ["prospect_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_prospects"
             referencedColumns: ["id"]
           },
           {
@@ -2508,6 +2527,7 @@ export type Database = {
           from_number: string | null
           id: string
           member_id: string | null
+          prospect_id: string | null
           related_id: string | null
           related_kind: string | null
           status: string
@@ -2525,6 +2545,7 @@ export type Database = {
           from_number?: string | null
           id?: string
           member_id?: string | null
+          prospect_id?: string | null
           related_id?: string | null
           related_kind?: string | null
           status?: string
@@ -2542,6 +2563,7 @@ export type Database = {
           from_number?: string | null
           id?: string
           member_id?: string | null
+          prospect_id?: string | null
           related_id?: string | null
           related_kind?: string | null
           status?: string
@@ -2560,7 +2582,64 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "whatsapp_messages_prospect_id_fkey"
+            columns: ["prospect_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_prospects"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "whatsapp_messages_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_prospects: {
+        Row: {
+          ai_paused: boolean
+          ai_paused_at: string | null
+          created_at: string
+          display_name: string | null
+          first_seen_at: string
+          id: string
+          last_inbound_at: string
+          opted_out: boolean
+          opted_out_at: string | null
+          venue_id: string
+          whatsapp_number: string
+        }
+        Insert: {
+          ai_paused?: boolean
+          ai_paused_at?: string | null
+          created_at?: string
+          display_name?: string | null
+          first_seen_at?: string
+          id?: string
+          last_inbound_at?: string
+          opted_out?: boolean
+          opted_out_at?: string | null
+          venue_id: string
+          whatsapp_number: string
+        }
+        Update: {
+          ai_paused?: boolean
+          ai_paused_at?: string | null
+          created_at?: string
+          display_name?: string | null
+          first_seen_at?: string
+          id?: string
+          last_inbound_at?: string
+          opted_out?: boolean
+          opted_out_at?: string | null
+          venue_id?: string
+          whatsapp_number?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_prospects_venue_id_fkey"
             columns: ["venue_id"]
             isOneToOne: false
             referencedRelation: "venues"
@@ -2803,3 +2882,5 @@ export const Constants = {
     Enums: {},
   },
 } as const
+A new version of Supabase CLI is available: v2.115.0 (currently installed v2.90.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli

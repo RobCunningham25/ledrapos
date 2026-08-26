@@ -1,9 +1,15 @@
 // whatsapp-webhook — Receives Twilio inbound message webhooks. Validates the
 // X-Twilio-Signature header, records every inbound in whatsapp_messages, opens the
-// 24-hour customer-service window on the member, and routes STOP/START consent
-// keywords + button payloads. Consent is opt-OUT: members are subscribed by
-// default; STOP (exact-match keywords) opts them out, START/YES re-subscribes.
-// Anything else falls through to the tab buttons or the AI assistant.
+// 24-hour customer-service window on the member (or prospect), and routes STOP/START
+// consent keywords + button payloads. Consent is opt-OUT: members and prospects are
+// subscribed by default; STOP (exact-match keywords) opts them out, START/YES
+// re-subscribes. Anything else falls through to the tab buttons or the AI assistant.
+//
+// Unmatched numbers (nobody who has ever messaged this venue before) are treated as
+// prospects — people enquiring about the club from outside membership — rather than
+// dropped. A whatsapp_prospects row tracks them the way `members` tracks the WhatsApp
+// state of an actual member, and the AI hand-off runs a much smaller, non-member tool
+// catalog for them (see whatsapp-ai-reply + _shared/aiTools.ts PROSPECT_TOOL_DEFINITIONS).
 //
 // Twilio sends form-encoded POST. Key fields: From, To, Body, ButtonText,
 // ButtonPayload, ProfileName, MessageSid, NumMedia, etc.
@@ -20,6 +26,7 @@ import {
   parseFormBody,
   validateTwilioSignature,
 } from "../_shared/twilio.ts";
+import { notifyNewFollowup } from "../_shared/whatsappFollowupNotify.ts";
 
 interface MemberRow {
   id: string;
@@ -29,6 +36,7 @@ interface MemberRow {
   phone: string | null;
   partner_phone: string | null;
   whatsapp_opt_in: boolean;
+  ai_paused: boolean;
 }
 
 // How the inbound number was matched. Partner matches get full conversational
@@ -37,6 +45,15 @@ interface MemberRow {
 interface MemberMatch {
   member: MemberRow;
   matchedVia: "member" | "partner";
+}
+
+interface ProspectRow {
+  id: string;
+  venue_id: string;
+  whatsapp_number: string;
+  display_name: string | null;
+  opted_out: boolean;
+  ai_paused: boolean;
 }
 
 function twiml(status: number, body = ""): Response {
@@ -53,7 +70,7 @@ async function findMember(
   supabase: SupabaseClient,
   fromE164: string,
 ): Promise<MemberMatch | null> {
-  const SELECT = "id, venue_id, first_name, whatsapp_number, phone, partner_phone, whatsapp_opt_in";
+  const SELECT = "id, venue_id, first_name, whatsapp_number, phone, partner_phone, whatsapp_opt_in, ai_paused";
 
   // 1. Match on whatsapp_number first.
   const { data: byWa } = await supabase
@@ -90,9 +107,59 @@ async function findMember(
   return null;
 }
 
+// Look up or create the whatsapp_prospects row for an inbound number that
+// didn't match any member. Returns isNew=true only the very first time this
+// number has ever contacted this venue — used to trigger the one-time "new
+// enquiry" staff notification.
+async function findOrCreateProspect(
+  supabase: SupabaseClient,
+  venueId: string,
+  fromE164: string,
+  profileName: string,
+): Promise<{ prospect: ProspectRow; isNew: boolean }> {
+  const { data: existing } = await supabase
+    .from("whatsapp_prospects")
+    .select("id, venue_id, whatsapp_number, display_name, opted_out, ai_paused")
+    .eq("venue_id", venueId)
+    .eq("whatsapp_number", fromE164)
+    .maybeSingle();
+
+  if (existing) {
+    const updates: Record<string, unknown> = { last_inbound_at: new Date().toISOString() };
+    if (!existing.display_name && profileName) updates.display_name = profileName;
+    await supabase.from("whatsapp_prospects").update(updates).eq("id", existing.id);
+    return { prospect: existing as unknown as ProspectRow, isNew: false };
+  }
+
+  const { data: created, error } = await supabase
+    .from("whatsapp_prospects")
+    .insert({
+      venue_id: venueId,
+      whatsapp_number: fromE164,
+      display_name: profileName || null,
+    })
+    .select("id, venue_id, whatsapp_number, display_name, opted_out, ai_paused")
+    .single();
+
+  if (error || !created) {
+    // Extremely unlikely (unique constraint race). Best-effort re-fetch.
+    const { data: refetched } = await supabase
+      .from("whatsapp_prospects")
+      .select("id, venue_id, whatsapp_number, display_name, opted_out, ai_paused")
+      .eq("venue_id", venueId)
+      .eq("whatsapp_number", fromE164)
+      .maybeSingle();
+    return { prospect: (refetched ?? {
+      id: "", venue_id: venueId, whatsapp_number: fromE164, display_name: null, opted_out: false, ai_paused: false,
+    }) as ProspectRow, isNew: false };
+  }
+
+  return { prospect: created as unknown as ProspectRow, isNew: true };
+}
+
 async function sendSessionReply(
   venueId: string,
-  memberId: string,
+  contact: { memberId?: string; prospectId?: string },
   toE164: string,
   body: string,
   relatedKind: string,
@@ -114,7 +181,8 @@ async function sendSessionReply(
       },
       body: JSON.stringify({
         venue_id: venueId,
-        member_id: memberId,
+        member_id: contact.memberId ?? null,
+        prospect_id: contact.prospectId ?? null,
         to_e164: toE164,
         body,
         related_kind: relatedKind,
@@ -207,10 +275,20 @@ Deno.serve(async (req) => {
     return twiml(200);
   }
 
+  // ===== No member matched: this is a prospect (or a returning prospect) =====
+  let prospect: ProspectRow | null = null;
+  let isNewProspect = false;
+  if (!member) {
+    const result = await findOrCreateProspect(supabase, venueId, fromE164, profileName);
+    prospect = result.prospect;
+    isNewProspect = result.isNew;
+  }
+
   // ===== Persist inbound row =====
   await supabase.from("whatsapp_messages").insert({
     venue_id: venueId,
     member_id: member?.id ?? null,
+    prospect_id: prospect?.id ?? null,
     direction: "inbound",
     to_number: normaliseE164(toRaw),
     from_number: fromE164,
@@ -219,7 +297,8 @@ Deno.serve(async (req) => {
     related_kind: buttonPayload ? "button_reply" : "inbound_query",
   });
 
-  // ===== Open / refresh the 24h session window =====
+  // ===== Open / refresh the 24h session window (members only — prospects were
+  // already refreshed inside findOrCreateProspect) =====
   if (member) {
     const updates: Record<string, unknown> = {
       whatsapp_last_inbound_at: new Date().toISOString(),
@@ -231,8 +310,48 @@ Deno.serve(async (req) => {
     await supabase.from("members").update(updates).eq("id", member.id);
   }
 
+  // ===== New prospect: alert staff so a first-ever enquiry doesn't sit
+  // unnoticed. Reuses the follow-up queue/notify path rather than a separate
+  // mechanism, so it shows up in the same admin page as everything else. =====
+  if (isNewProspect && prospect) {
+    const summary = `New WhatsApp enquiry${profileName ? ` from ${profileName}` : ""} (not a member).`;
+    try {
+      const { data: followup, error } = await supabase
+        .from("whatsapp_followups")
+        .insert({
+          venue_id: venueId,
+          prospect_id: prospect.id,
+          summary,
+          original_message: (body || (buttonText ? `[button] ${buttonText}` : "(no text)")).slice(0, 2000),
+          urgency: "normal",
+          status: "open",
+          reason: "new_prospect",
+        })
+        .select("id")
+        .single();
+      if (!error && followup) {
+        const { data: venueSlugRow } = await supabase
+          .from("venues").select("slug").eq("id", venueId).maybeSingle();
+        await notifyNewFollowup({
+          supabase,
+          venueId,
+          venueSlug: venueSlugRow?.slug ?? "",
+          memberId: null,
+          prospectId: prospect.id,
+          followupId: followup.id as string,
+          summary,
+          urgency: "normal",
+          reason: "new_prospect",
+          originalMessage: body || "(no text)",
+        });
+      }
+    } catch (err) {
+      console.error("new-prospect notify failed:", err instanceof Error ? err.message : String(err));
+    }
+  }
+
   // ===== Opt-out / re-subscribe routing =====
-  // Consent is opt-OUT: every member is subscribed unless they say stop.
+  // Consent is opt-OUT: every member/prospect is subscribed unless they say stop.
   // Keywords match the ENTIRE message (exact, case-insensitive) — the earlier
   // prefix match would have opted members out for chatting "stop by the bar..."
   // or "no worries". "NO" is deliberately not an opt-out keyword: it's far too
@@ -240,12 +359,14 @@ Deno.serve(async (req) => {
   const lower = body.toLowerCase().replace(/[.!?]+$/, "").trim();
   const isOptOut = buttonPayload === "optin_no"
     || ["stop", "stopall", "stop all", "unsub", "unsubscribe", "opt out", "optout"].includes(lower);
-  // Re-subscribe keywords only act on members who are currently opted out —
-  // otherwise a plain "yes" (e.g. answering the AI assistant) must fall through
-  // to the conversation router below. The old opt-in template's Yes button
-  // stays authoritative either way.
+  // Re-subscribe keywords only act on a member/prospect who is currently opted
+  // out — otherwise a plain "yes" (e.g. answering the AI assistant) must fall
+  // through to the conversation router below. The old opt-in template's Yes
+  // button stays authoritative either way.
   const isResubscribe = buttonPayload === "optin_yes"
     || (member && !member.whatsapp_opt_in
+        && ["start", "unstop", "yes", "opt in", "optin"].includes(lower))
+    || (prospect?.opted_out
         && ["start", "unstop", "yes", "opt in", "optin"].includes(lower));
 
   // Opt-out/re-subscribe only applies to the member's own number — a partner
@@ -260,7 +381,7 @@ Deno.serve(async (req) => {
 
     await sendSessionReply(
       venueId,
-      member.id,
+      { memberId: member.id },
       fromE164,
       "You've been opted out of WhatsApp messages from the club. We won't send any more. Reply START if you change your mind.",
       "optout_reply",
@@ -279,7 +400,7 @@ Deno.serve(async (req) => {
     const greeting = member.first_name ? `Thanks ${member.first_name}!` : "Thanks!";
     await sendSessionReply(
       venueId,
-      member.id,
+      { memberId: member.id },
       fromE164,
       `${greeting} You're subscribed again. You'll get bar-tab reminders and club updates here. Reply STOP any time to opt out.`,
       "optin_reply",
@@ -287,7 +408,39 @@ Deno.serve(async (req) => {
     return twiml(200);
   }
 
-  // ===== Tab-reminder button replies =====
+  if (prospect && isOptOut) {
+    await supabase.from("whatsapp_prospects").update({
+      opted_out: true,
+      opted_out_at: new Date().toISOString(),
+    }).eq("id", prospect.id);
+
+    await sendSessionReply(
+      venueId,
+      { prospectId: prospect.id },
+      fromE164,
+      "You've been opted out — we won't message this number again. Reply START if you change your mind.",
+      "optout_reply",
+    );
+    return twiml(200);
+  }
+
+  if (prospect && isResubscribe) {
+    await supabase.from("whatsapp_prospects").update({
+      opted_out: false,
+      opted_out_at: null,
+    }).eq("id", prospect.id);
+
+    await sendSessionReply(
+      venueId,
+      { prospectId: prospect.id },
+      fromE164,
+      "Thanks! You're all set — ask away.",
+      "optin_reply",
+    );
+    return twiml(200);
+  }
+
+  // ===== Tab-reminder button replies (members only) =====
   // The tab-reminder template carries two quick-reply buttons:
   //   tab_send_link  → mint a Yoco checkout URL and send it
   //   tab_use_portal → reply with the portal URL
@@ -315,7 +468,7 @@ Deno.serve(async (req) => {
         : venue?.slug ? `${siteUrl}/${venue.slug}/portal` : siteUrl;
       await sendSessionReply(
         venueId,
-        member.id,
+        { memberId: member.id },
         fromE164,
         `Great — see you in the portal: ${portalUrl}`,
         "portal_reply",
@@ -328,7 +481,7 @@ Deno.serve(async (req) => {
     if (!tabId) {
       await sendSessionReply(
         venueId,
-        member.id,
+        { memberId: member.id },
         fromE164,
         "Sorry, I couldn't find a recent tab reminder to bill against. Please ask the bar to send a fresh reminder.",
         "link_request_failed",
@@ -351,7 +504,7 @@ Deno.serve(async (req) => {
     if (outstanding <= 0) {
       await sendSessionReply(
         venueId,
-        member.id,
+        { memberId: member.id },
         fromE164,
         "Looks like this tab has already been settled — no payment needed. Thanks!",
         "link_request_settled",
@@ -401,7 +554,7 @@ Deno.serve(async (req) => {
     if (!checkoutUrl) {
       await sendSessionReply(
         venueId,
-        member.id,
+        { memberId: member.id },
         fromE164,
         "Sorry, I couldn't generate a payment link right now. Please try again in a few minutes or pay through the member portal.",
         "link_request_failed",
@@ -412,7 +565,7 @@ Deno.serve(async (req) => {
 
     await sendSessionReply(
       venueId,
-      member.id,
+      { memberId: member.id },
       fromE164,
       `Here's your payment link:\n${checkoutUrl}\n\nThanks!`,
       "link_request",
@@ -422,9 +575,12 @@ Deno.serve(async (req) => {
   }
 
   // Anything else: hand off to the Claude Haiku assistant if it's enabled for
-  // this venue and we know who the member is. We fire-and-forget so Twilio gets
-  // its 200 inside its retry budget — the agent can take a few seconds to run.
-  if (member) {
+  // this venue, we know who's messaging (member or prospect), and nobody has
+  // taken over the conversation from the admin UI. We fire-and-forget so
+  // Twilio gets its 200 inside its retry budget — the agent can take a few
+  // seconds to run.
+  const aiPaused = member?.ai_paused ?? prospect?.ai_paused ?? false;
+  if ((member || prospect) && !aiPaused) {
     const { data: venueAi } = await supabase
       .from("venues")
       .select("whatsapp_ai_enabled")
@@ -443,7 +599,8 @@ Deno.serve(async (req) => {
           },
           body: JSON.stringify({
             venue_id: venueId,
-            member_id: member.id,
+            member_id: member?.id ?? null,
+            prospect_id: prospect?.id ?? null,
             inbound_body: body,
             inbound_message_sid: messageSid,
             reply_to_e164: fromE164,

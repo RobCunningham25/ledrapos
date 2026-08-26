@@ -15,6 +15,7 @@ interface VenueAiSettings {
   whatsapp_ai_enabled: boolean;
   whatsapp_ai_daily_cap: number;
   whatsapp_ai_model: string;
+  whatsapp_staff_alert_number: string;
 }
 
 interface VenueDocument {
@@ -64,12 +65,14 @@ interface DryRunResult {
   trace: Array<{ tool: string; input: unknown; output: unknown }>;
 }
 
-interface ConversationMember {
-  member_id: string;
-  first_name: string | null;
-  last_name: string | null;
-  membership_number: string | null;
+interface ConversationContact {
+  contact_type: 'member' | 'prospect';
+  contact_id: string;
+  label: string;
   last_message_at: string;
+  e164: string | null;
+  last_inbound_at: string | null;
+  ai_paused: boolean;
 }
 
 interface ConversationMessage {
@@ -92,6 +95,7 @@ export default function WhatsAppAssistant() {
     whatsapp_ai_enabled: false,
     whatsapp_ai_daily_cap: 200,
     whatsapp_ai_model: 'claude-haiku-4-5-20251001',
+    whatsapp_staff_alert_number: '',
   });
   const [savingSettings, setSavingSettings] = useState(false);
 
@@ -112,11 +116,14 @@ export default function WhatsAppAssistant() {
   const [testResult, setTestResult] = useState<DryRunResult | null>(null);
   const [testError, setTestError] = useState<string | null>(null);
 
-  const [conversations, setConversations] = useState<ConversationMember[]>([]);
+  const [conversations, setConversations] = useState<ConversationContact[]>([]);
   const [conversationsLoading, setConversationsLoading] = useState(false);
-  const [selectedConvMemberId, setSelectedConvMemberId] = useState<string | null>(null);
+  const [selectedContact, setSelectedContact] = useState<{ type: 'member' | 'prospect'; id: string } | null>(null);
   const [conversationMessages, setConversationMessages] = useState<ConversationMessage[]>([]);
   const [messagesLoading, setMessagesLoading] = useState(false);
+  const [replyText, setReplyText] = useState('');
+  const [sendingReply, setSendingReply] = useState(false);
+  const [togglingTakeover, setTogglingTakeover] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -125,7 +132,7 @@ export default function WhatsAppAssistant() {
       const [venueRes, docsRes, membersRes] = await Promise.all([
         supabase
           .from('venues')
-          .select('whatsapp_ai_enabled, whatsapp_ai_daily_cap, whatsapp_ai_model')
+          .select('whatsapp_ai_enabled, whatsapp_ai_daily_cap, whatsapp_ai_model, whatsapp_staff_alert_number')
           .eq('id', venueId)
           .maybeSingle(),
         supabase
@@ -147,6 +154,7 @@ export default function WhatsAppAssistant() {
           whatsapp_ai_enabled: !!venueRes.data.whatsapp_ai_enabled,
           whatsapp_ai_daily_cap: venueRes.data.whatsapp_ai_daily_cap ?? 200,
           whatsapp_ai_model: venueRes.data.whatsapp_ai_model ?? 'claude-haiku-4-5-20251001',
+          whatsapp_staff_alert_number: venueRes.data.whatsapp_staff_alert_number ?? '',
         });
       }
 
@@ -185,6 +193,7 @@ export default function WhatsAppAssistant() {
         whatsapp_ai_enabled: settings.whatsapp_ai_enabled,
         whatsapp_ai_daily_cap: settings.whatsapp_ai_daily_cap,
         whatsapp_ai_model: settings.whatsapp_ai_model,
+        whatsapp_staff_alert_number: settings.whatsapp_staff_alert_number.trim() || null,
       })
       .eq('id', venueId);
     setSavingSettings(false);
@@ -342,57 +351,92 @@ export default function WhatsAppAssistant() {
 
   const loadConversations = async () => {
     setConversationsLoading(true);
-    // Pull recent whatsapp_messages with member_id, group client-side to get the
-    // most-recently-active distinct members.
+    // Pull recent whatsapp_messages for either a member or a prospect, group
+    // client-side to get the most-recently-active distinct contacts.
     const { data } = await supabase
       .from('whatsapp_messages')
-      .select('member_id, created_at')
+      .select('member_id, prospect_id, created_at')
       .eq('venue_id', venueId)
-      .not('member_id', 'is', null)
+      .or('member_id.not.is.null,prospect_id.not.is.null')
       .order('created_at', { ascending: false })
       .limit(500);
-    const seen = new Map<string, string>();
-    for (const row of (data ?? []) as Array<{ member_id: string; created_at: string }>) {
-      if (!seen.has(row.member_id)) seen.set(row.member_id, row.created_at);
+
+    const seenMembers = new Map<string, string>();
+    const seenProspects = new Map<string, string>();
+    for (const row of (data ?? []) as Array<{ member_id: string | null; prospect_id: string | null; created_at: string }>) {
+      if (row.member_id && !seenMembers.has(row.member_id)) seenMembers.set(row.member_id, row.created_at);
+      else if (row.prospect_id && !seenProspects.has(row.prospect_id)) seenProspects.set(row.prospect_id, row.created_at);
     }
-    const memberIds = Array.from(seen.keys()).slice(0, 30);
-    if (memberIds.length === 0) {
-      setConversations([]);
-      setConversationsLoading(false);
-      return;
-    }
-    const { data: memberRows } = await supabase
-      .from('members')
-      .select('id, first_name, last_name, membership_number')
-      .in('id', memberIds);
-    const byId = new Map(
-      ((memberRows ?? []) as Array<{ id: string; first_name: string | null; last_name: string | null; membership_number: string | null }>)
+    const memberIds = Array.from(seenMembers.keys()).slice(0, 30);
+    const prospectIds = Array.from(seenProspects.keys()).slice(0, 30);
+
+    const [memberRes, prospectRes] = await Promise.all([
+      memberIds.length
+        ? supabase
+          .from('members')
+          .select('id, first_name, last_name, membership_number, whatsapp_number, phone, whatsapp_last_inbound_at, ai_paused')
+          .in('id', memberIds)
+        : Promise.resolve({ data: [] as Array<Record<string, unknown>> }),
+      prospectIds.length
+        ? supabase
+          .from('whatsapp_prospects')
+          .select('id, display_name, whatsapp_number, last_inbound_at, ai_paused')
+          .in('id', prospectIds)
+        : Promise.resolve({ data: [] as Array<Record<string, unknown>> }),
+    ]);
+
+    const memberById = new Map(
+      ((memberRes.data ?? []) as Array<{ id: string; first_name: string | null; last_name: string | null; membership_number: string | null; whatsapp_number: string | null; phone: string | null; whatsapp_last_inbound_at: string | null; ai_paused: boolean }>)
         .map((m) => [m.id, m]),
     );
-    const convs: ConversationMember[] = memberIds.map((id) => {
-      const m = byId.get(id);
+    const prospectById = new Map(
+      ((prospectRes.data ?? []) as Array<{ id: string; display_name: string | null; whatsapp_number: string; last_inbound_at: string; ai_paused: boolean }>)
+        .map((p) => [p.id, p]),
+    );
+
+    const memberContacts: ConversationContact[] = memberIds.map((id) => {
+      const m = memberById.get(id);
+      const name = [m?.first_name, m?.last_name].filter(Boolean).join(' ') || 'Unknown member';
       return {
-        member_id: id,
-        first_name: m?.first_name ?? null,
-        last_name: m?.last_name ?? null,
-        membership_number: m?.membership_number ?? null,
-        last_message_at: seen.get(id)!,
+        contact_type: 'member',
+        contact_id: id,
+        label: m?.membership_number ? `${name} (#${m.membership_number})` : name,
+        last_message_at: seenMembers.get(id)!,
+        e164: m?.whatsapp_number ?? m?.phone ?? null,
+        last_inbound_at: m?.whatsapp_last_inbound_at ?? null,
+        ai_paused: !!m?.ai_paused,
       };
     });
+    const prospectContacts: ConversationContact[] = prospectIds.map((id) => {
+      const p = prospectById.get(id);
+      return {
+        contact_type: 'prospect',
+        contact_id: id,
+        label: (p?.display_name || 'Prospective member') + ' · not a member',
+        last_message_at: seenProspects.get(id)!,
+        e164: p?.whatsapp_number ?? null,
+        last_inbound_at: p?.last_inbound_at ?? null,
+        ai_paused: !!p?.ai_paused,
+      };
+    });
+
+    const convs = [...memberContacts, ...prospectContacts]
+      .sort((a, b) => (a.last_message_at < b.last_message_at ? 1 : -1));
     setConversations(convs);
-    if (!selectedConvMemberId && convs.length > 0) {
-      setSelectedConvMemberId(convs[0].member_id);
+    if (!selectedContact && convs.length > 0) {
+      setSelectedContact({ type: convs[0].contact_type, id: convs[0].contact_id });
     }
     setConversationsLoading(false);
   };
 
-  const loadMessagesForMember = async (memberId: string) => {
+  const loadMessagesForContact = async (contact: { type: 'member' | 'prospect'; id: string }) => {
     setMessagesLoading(true);
+    const column = contact.type === 'member' ? 'member_id' : 'prospect_id';
     const { data } = await supabase
       .from('whatsapp_messages')
       .select('id, direction, body, related_kind, status, error, created_at, template_sid')
       .eq('venue_id', venueId)
-      .eq('member_id', memberId)
+      .eq(column, contact.id)
       .order('created_at', { ascending: true })
       .limit(200);
     setConversationMessages(((data ?? []) as ConversationMessage[]));
@@ -406,14 +450,78 @@ export default function WhatsAppAssistant() {
   }, [venueId]);
 
   useEffect(() => {
-    if (!venueId || !selectedConvMemberId) return;
-    loadMessagesForMember(selectedConvMemberId);
+    if (!venueId || !selectedContact) return;
+    loadMessagesForContact(selectedContact);
+    setReplyText('');
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedConvMemberId, venueId]);
+  }, [selectedContact?.type, selectedContact?.id, venueId]);
 
-  const convMemberLabel = (c: ConversationMember) => {
-    const name = [c.first_name, c.last_name].filter(Boolean).join(' ') || 'Unknown member';
-    return c.membership_number ? `${name} (#${c.membership_number})` : name;
+  const selectedConv = conversations.find(
+    (c) => c.contact_type === selectedContact?.type && c.contact_id === selectedContact?.id,
+  ) ?? null;
+
+  const withinSessionWindow = (c: ConversationContact | null) => {
+    if (!c?.last_inbound_at) return false;
+    return Date.now() - new Date(c.last_inbound_at).getTime() < 24 * 60 * 60 * 1000;
+  };
+
+  const toggleTakeover = async () => {
+    if (!selectedConv) return;
+    setTogglingTakeover(true);
+    const nextPaused = !selectedConv.ai_paused;
+    const table = selectedConv.contact_type === 'member' ? 'members' : 'whatsapp_prospects';
+    const { error } = await supabase
+      .from(table)
+      .update({ ai_paused: nextPaused, ai_paused_at: nextPaused ? new Date().toISOString() : null })
+      .eq('id', selectedConv.contact_id);
+    setTogglingTakeover(false);
+    if (error) {
+      toast.error('Failed to update: ' + error.message);
+      return;
+    }
+    toast.success(nextPaused ? 'Took over — the AI will stay quiet on this conversation.' : 'Handed back to the AI assistant.');
+    loadConversations();
+  };
+
+  const sendAdminReply = async () => {
+    if (!selectedConv || !replyText.trim() || !selectedConv.e164) return;
+    setSendingReply(true);
+    const { data, error } = await supabase.functions.invoke('send-whatsapp-admin-reply', {
+      body: {
+        venue_id: venueId,
+        member_id: selectedConv.contact_type === 'member' ? selectedConv.contact_id : null,
+        prospect_id: selectedConv.contact_type === 'prospect' ? selectedConv.contact_id : null,
+        to_e164: selectedConv.e164,
+        body: replyText.trim(),
+      },
+    });
+    setSendingReply(false);
+    // On a non-2xx response, supabase-js sets `error` (a FunctionsHttpError)
+    // and leaves `data` null — the actual { error: "..." } body the function
+    // returned lives on error.context (the raw Response), not in `data`.
+    let errMsg = (data as { error?: string } | null)?.error ?? null;
+    if (!errMsg && error) {
+      errMsg = error.message;
+      const ctx = (error as { context?: Response }).context;
+      if (ctx && typeof ctx.json === 'function') {
+        try {
+          const body = await ctx.clone().json();
+          if (body?.error) errMsg = body.error;
+        } catch {
+          // Non-JSON body — fall back to error.message above.
+        }
+      }
+    }
+    if (errMsg) {
+      toast.error(
+        errMsg.includes('24h')
+          ? "This conversation's 24h window has closed — reply by phone or email instead."
+          : `Failed to send: ${errMsg}`,
+      );
+      return;
+    }
+    setReplyText('');
+    loadMessagesForContact(selectedContact!);
   };
 
   const formatTimestamp = (iso: string) => {
@@ -443,6 +551,8 @@ export default function WhatsAppAssistant() {
     if (kind === 'optin_reply' || kind === 'optout_reply' || kind === 'portal_reply' || kind === 'link_request' || kind === 'link_request_failed' || kind === 'link_request_settled') {
       return { lane: 'assistant' as const, label: 'Reply' };
     }
+    if (kind === 'admin_reply') return { lane: 'admin' as const, label: 'Admin (you)' };
+    if (kind === 'staff_alert') return { lane: 'system' as const, label: 'Staff alert' };
     if (m.template_sid || kind === 'tab_reminder' || kind === 'optin_invite' || kind === 'broadcast' || kind?.startsWith('template')) {
       return { lane: 'system' as const, label: 'Template send' };
     }
@@ -452,6 +562,7 @@ export default function WhatsAppAssistant() {
   const laneStyles: Record<string, string> = {
     member: 'bg-blue-50 border-blue-200',
     assistant: 'bg-emerald-50 border-emerald-200',
+    admin: 'bg-violet-50 border-violet-200',
     tool: 'bg-amber-50 border-amber-200 font-mono text-xs',
     error: 'bg-red-50 border-red-200',
     system: 'bg-muted/40 border-border',
@@ -512,6 +623,22 @@ export default function WhatsAppAssistant() {
                     Anthropic model ID. Default: claude-haiku-4-5-20251001.
                   </p>
                 </div>
+              </div>
+
+              <div>
+                <Label htmlFor="staff-alert-number" className="text-sm font-medium">Staff WhatsApp alert number</Label>
+                <Input
+                  id="staff-alert-number"
+                  value={settings.whatsapp_staff_alert_number}
+                  onChange={(e) => setSettings(s => ({ ...s, whatsapp_staff_alert_number: e.target.value }))}
+                  placeholder="+27821234567"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Gets a best-effort WhatsApp ping whenever a new follow-up is logged (any urgency).
+                  This only lands if this number has messaged the club's WhatsApp number within the
+                  last 24 hours — the email alert (to the venue's contact email) is the reliable
+                  channel and always fires regardless of this setting.
+                </p>
               </div>
 
               <div className="flex justify-end">
@@ -770,8 +897,10 @@ export default function WhatsAppAssistant() {
               <div>
                 <h3 className="text-base font-semibold">Recent conversations</h3>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  Live WhatsApp activity per member: inbound messages, assistant replies, tool calls,
-                  template sends, and errors. Tool calls show the one-line summary the assistant
+                  Live WhatsApp activity per member or prospect (non-member enquiry): inbound
+                  messages, assistant replies, tool calls, template sends, and errors. Take over a
+                  conversation to pause the AI and reply yourself while inside the 24h window — hand
+                  it back when you're done. Tool calls show the one-line summary the assistant
                   logged — for full tool input/output, use the dry-run tester below.
                 </p>
               </div>
@@ -780,7 +909,7 @@ export default function WhatsAppAssistant() {
                 size="sm"
                 onClick={() => {
                   loadConversations();
-                  if (selectedConvMemberId) loadMessagesForMember(selectedConvMemberId);
+                  if (selectedContact) loadMessagesForContact(selectedContact);
                 }}
               >
                 Refresh
@@ -797,21 +926,28 @@ export default function WhatsAppAssistant() {
               <div className="grid grid-cols-1 md:grid-cols-[260px_1fr] gap-4 mt-4">
                 <div className="border border-border rounded-md overflow-hidden">
                   <div className="px-3 py-2 text-xs font-semibold text-muted-foreground border-b border-border bg-muted/30">
-                    Recently active members
+                    Recently active (members + prospects)
                   </div>
                   <div className="max-h-[480px] overflow-y-auto divide-y divide-border">
                     {conversations.map((c) => {
-                      const isActive = c.member_id === selectedConvMemberId;
+                      const isActive = c.contact_type === selectedContact?.type && c.contact_id === selectedContact?.id;
                       return (
                         <button
-                          key={c.member_id}
+                          key={`${c.contact_type}-${c.contact_id}`}
                           type="button"
-                          onClick={() => setSelectedConvMemberId(c.member_id)}
+                          onClick={() => setSelectedContact({ type: c.contact_type, id: c.contact_id })}
                           className={`w-full text-left px-3 py-2 text-sm hover:bg-muted/40 ${
                             isActive ? 'bg-muted/60' : ''
                           }`}
                         >
-                          <div className="font-medium truncate">{convMemberLabel(c)}</div>
+                          <div className="font-medium truncate flex items-center gap-1.5">
+                            {c.label}
+                            {c.ai_paused && (
+                              <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-violet-100 text-violet-800 shrink-0">
+                                taken over
+                              </span>
+                            )}
+                          </div>
                           <div className="text-xs text-muted-foreground">
                             {formatTimestamp(c.last_message_at)}
                           </div>
@@ -821,40 +957,86 @@ export default function WhatsAppAssistant() {
                   </div>
                 </div>
 
-                <div className="border border-border rounded-md p-3 max-h-[480px] overflow-y-auto">
-                  {messagesLoading && (
-                    <p className="text-xs text-muted-foreground">Loading messages…</p>
-                  )}
-                  {!messagesLoading && conversationMessages.length === 0 && (
-                    <p className="text-xs text-muted-foreground">No messages.</p>
-                  )}
-                  <div className="space-y-2">
-                    {conversationMessages.map((m) => {
-                      const c = classifyMessage(m);
-                      return (
-                        <div
-                          key={m.id}
-                          className={`rounded-md border px-3 py-2 text-sm ${laneStyles[c.lane]}`}
-                        >
-                          <div className="flex items-center justify-between gap-2 mb-1">
-                            <span className="text-xs font-semibold uppercase tracking-wide">
-                              {c.label}
-                            </span>
-                            <span className="text-xs text-muted-foreground">
-                              {formatTimestamp(m.created_at)}
-                              {m.status && m.status !== 'delivered' ? ` · ${m.status}` : ''}
-                            </span>
+                <div className="border border-border rounded-md flex flex-col max-h-[600px]">
+                  <div className="p-3 overflow-y-auto flex-1">
+                    {messagesLoading && (
+                      <p className="text-xs text-muted-foreground">Loading messages…</p>
+                    )}
+                    {!messagesLoading && conversationMessages.length === 0 && (
+                      <p className="text-xs text-muted-foreground">No messages.</p>
+                    )}
+                    <div className="space-y-2">
+                      {conversationMessages.map((m) => {
+                        const c = classifyMessage(m);
+                        return (
+                          <div
+                            key={m.id}
+                            className={`rounded-md border px-3 py-2 text-sm ${laneStyles[c.lane]}`}
+                          >
+                            <div className="flex items-center justify-between gap-2 mb-1">
+                              <span className="text-xs font-semibold uppercase tracking-wide">
+                                {c.label}
+                              </span>
+                              <span className="text-xs text-muted-foreground">
+                                {formatTimestamp(m.created_at)}
+                                {m.status && m.status !== 'delivered' ? ` · ${m.status}` : ''}
+                              </span>
+                            </div>
+                            <div className="whitespace-pre-wrap break-words">
+                              {m.body || (m.template_sid ? `[template ${m.template_sid}]` : '[no body]')}
+                            </div>
+                            {m.error && (
+                              <div className="text-xs text-red-700 mt-1">Error: {m.error}</div>
+                            )}
                           </div>
-                          <div className="whitespace-pre-wrap break-words">
-                            {m.body || (m.template_sid ? `[template ${m.template_sid}]` : '[no body]')}
-                          </div>
-                          {m.error && (
-                            <div className="text-xs text-red-700 mt-1">Error: {m.error}</div>
-                          )}
-                        </div>
-                      );
-                    })}
+                        );
+                      })}
+                    </div>
                   </div>
+
+                  {selectedConv && (
+                    <div className="border-t border-border p-3 space-y-2 bg-muted/20">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-xs text-muted-foreground">
+                          {withinSessionWindow(selectedConv)
+                            ? '24h window open — you can reply directly.'
+                            : "24h window closed — reply won't send until they message again."}
+                        </p>
+                        <Button
+                          size="sm"
+                          variant={selectedConv.ai_paused ? 'default' : 'outline'}
+                          onClick={toggleTakeover}
+                          disabled={togglingTakeover}
+                        >
+                          {togglingTakeover
+                            ? 'Saving…'
+                            : selectedConv.ai_paused
+                              ? 'Hand back to bot'
+                              : 'Take over conversation'}
+                        </Button>
+                      </div>
+                      <div className="flex gap-2">
+                        <Textarea
+                          rows={2}
+                          value={replyText}
+                          onChange={(e) => setReplyText(e.target.value)}
+                          placeholder={
+                            selectedConv.e164
+                              ? 'Type a reply…'
+                              : 'No phone number on file for this contact.'
+                          }
+                          disabled={!withinSessionWindow(selectedConv) || !selectedConv.e164}
+                          className="text-sm"
+                        />
+                        <Button
+                          onClick={sendAdminReply}
+                          disabled={sendingReply || !replyText.trim() || !withinSessionWindow(selectedConv) || !selectedConv.e164}
+                        >
+                          {sendingReply ? 'Sending…' : 'Send'}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             )}

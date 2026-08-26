@@ -15,16 +15,7 @@ import {
   type EventSeries,
   expandAllOccurrences,
 } from "./eventOccurrences.ts";
-import {
-  emailButton,
-  emailHeading,
-  emailParagraph,
-  emailShell,
-  escapeHtml,
-  venueFooterLines,
-  VENUE_EMAIL_COLUMNS,
-  type EmailVenue,
-} from "./emailTemplate.ts";
+import { notifyNewFollowup } from "./whatsappFollowupNotify.ts";
 
 // ===== Anthropic tool definitions (passed verbatim to messages.create) =====
 
@@ -282,14 +273,29 @@ export const TOOL_DEFINITIONS = [
 
 export type ToolName = typeof TOOL_DEFINITIONS[number]["name"];
 
+// Trimmed catalog for prospects (people who aren't club members — see
+// whatsapp-ai-reply's prospect path). No member-scoped data/action tools:
+// a prospect has no tab, credit, bookings, or club account to look up.
+const PROSPECT_TOOL_NAMES: ToolName[] = [
+  "search_knowledge",
+  "read_constitution",
+  "read_club_rules",
+  "escalate_to_admin",
+];
+export const PROSPECT_TOOL_DEFINITIONS = TOOL_DEFINITIONS.filter((t) =>
+  (PROSPECT_TOOL_NAMES as readonly string[]).includes(t.name)
+);
+
 // ===== Dispatcher =====
 
 export interface ToolContext {
   supabase: SupabaseClient;
   venueId: string;
   venueSlug: string;
-  memberId: string;
-  /** Verbatim text the member sent — needed for escalate_to_admin to record original_message. */
+  /** Exactly one of memberId / prospectId is set. */
+  memberId: string | null;
+  prospectId: string | null;
+  /** Verbatim text the contact sent — needed for escalate_to_admin to record original_message. */
   inboundBody: string;
   dryRun: boolean;
 }
@@ -615,6 +621,7 @@ async function tool_get_my_club_balance(ctx: ToolContext): Promise<ToolResult> {
     .eq("venue_id", ctx.venueId)
     .eq("member_id", ctx.memberId)
     .order("as_of_date", { ascending: false })
+    .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
 
@@ -1448,120 +1455,12 @@ async function tool_create_caravan_booking(
   };
 }
 
-/**
- * Best-effort: when an `urgent` escalation is created, email the venue's
- * configured recipient (Settings → "Report recipient email") so they don't
- * have to refresh the admin page to notice. Failures are logged but never
- * propagate — the followup row is the source of truth.
- */
-async function maybeSendUrgentEscalationEmail(
-  ctx: ToolContext,
-  args: { followupId: string; summary: string },
-): Promise<void> {
-  const apiKey = Deno.env.get("RESEND_API_KEY");
-  if (!apiKey) return;
-
-  // Recipient: prefer venue_settings.report_recipient_email, fall back to
-  // venues.contact_email. If neither is set, skip silently.
-  const [{ data: setting }, { data: venue }] = await Promise.all([
-    ctx.supabase
-      .from("venue_settings")
-      .select("value")
-      .eq("venue_id", ctx.venueId)
-      .eq("key", "report_recipient_email")
-      .maybeSingle(),
-    ctx.supabase
-      .from("venues")
-      .select(VENUE_EMAIL_COLUMNS)
-      .eq("id", ctx.venueId)
-      .maybeSingle<EmailVenue>(),
-  ]);
-
-  const recipient = (setting?.value as string | undefined)
-    ?? (venue?.contact_email as string | undefined);
-  if (!recipient) return;
-
-  const fromEmail = (venue?.broadcast_from_email as string | undefined)
-    ?? Deno.env.get("INVITE_FROM_EMAIL")
-    ?? "noreply@ledra.co.za";
-  const emailVenue: EmailVenue = venue ?? { name: "Club" };
-  const venueName = emailVenue.name;
-
-  const { data: member } = await ctx.supabase
-    .from("members")
-    .select("first_name, last_name, membership_number, phone, whatsapp_number")
-    .eq("id", ctx.memberId)
-    .maybeSingle();
-
-  const memberName = member
-    ? `${(member.first_name as string | null) ?? ""} ${(member.last_name as string | null) ?? ""}`.trim() || "Unknown member"
-    : "Unknown member";
-  const memberRef = (member?.membership_number as string | null | undefined) ? `#${member.membership_number}` : "";
-  const memberPhone = (member?.whatsapp_number as string | null | undefined)
-    ?? (member?.phone as string | null | undefined)
-    ?? "";
-
-  const adminUrl = `${SITE_URL}/${ctx.venueSlug}/admin/whatsapp/followups`;
-
-  const subject = `[${venueName}] Urgent WhatsApp follow-up: ${args.summary.slice(0, 80)}`;
-  const bodyHtml = [
-    emailHeading("Urgent WhatsApp follow-up"),
-    emailParagraph("An urgent follow-up has been logged from the WhatsApp assistant."),
-    emailParagraph(
-      `<strong>Member:</strong> ${escapeHtml(memberName)} ${escapeHtml(memberRef)}${memberPhone ? ` &middot; ${escapeHtml(memberPhone)}` : ""}`,
-    ),
-    emailParagraph(`<strong>Summary:</strong> ${escapeHtml(args.summary)}`),
-    emailParagraph("<strong>Original message:</strong>"),
-    `<blockquote style="margin:0 0 16px;padding:12px 16px;border-left:3px solid #D4A574;background:#FAF8F5;font-size:14px;line-height:1.6;color:#334155;">${escapeHtml(ctx.inboundBody).replace(/\n/g, "<br>")}</blockquote>`,
-    emailButton({ href: adminUrl, label: "Open in admin" }),
-  ].join("\n      ");
-
-  const html = emailShell({
-    venue: emailVenue,
-    title: "Urgent WhatsApp follow-up",
-    preheader: args.summary.slice(0, 120),
-    bodyHtml,
-    footerLines: [
-      ...venueFooterLines(emailVenue),
-      `Sent automatically by the ${escapeHtml(venueName)} WhatsApp AI assistant.`,
-    ],
-  });
-
-  try {
-    const res = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        from: fromEmail,
-        to: recipient,
-        subject,
-        html,
-      }),
-    });
-    if (!res.ok) {
-      console.error(
-        "urgent escalation email failed:",
-        res.status,
-        await res.text().catch(() => ""),
-      );
-    }
-  } catch (err) {
-    console.error(
-      "urgent escalation email threw:",
-      err instanceof Error ? err.message : String(err),
-    );
-  }
-}
-
 async function tool_escalate_to_admin(
   ctx: ToolContext,
   input: { summary: string; urgency: string },
 ): Promise<ToolResult> {
   const urgency = input.urgency === "urgent" ? "urgent" : "normal";
-  const summary = (input.summary ?? "").slice(0, 500) || "Member needs help with something outside the assistant's scope.";
+  const summary = (input.summary ?? "").slice(0, 500) || "Needs help with something outside the assistant's scope.";
   if (ctx.dryRun) {
     return {
       output: {
@@ -1578,6 +1477,7 @@ async function tool_escalate_to_admin(
     .insert({
       venue_id: ctx.venueId,
       member_id: ctx.memberId,
+      prospect_id: ctx.prospectId,
       summary,
       original_message: ctx.inboundBody.slice(0, 2000),
       urgency,
@@ -1592,21 +1492,29 @@ async function tool_escalate_to_admin(
     };
   }
 
-  // Fire urgent email side-effect after the row is committed. Best-effort —
-  // any failure stays in console logs, never rolls back the follow-up.
-  if (urgency === "urgent") {
-    await maybeSendUrgentEscalationEmail(ctx, {
-      followupId: data.id as string,
-      summary,
-    });
-  }
+  // Notify staff after the row is committed — every escalation, not just
+  // urgent ones, so nobody has to keep refreshing the admin page to notice.
+  // Best-effort — any failure stays in console logs, never rolls back the
+  // follow-up.
+  await notifyNewFollowup({
+    supabase: ctx.supabase,
+    venueId: ctx.venueId,
+    venueSlug: ctx.venueSlug,
+    memberId: ctx.memberId,
+    prospectId: ctx.prospectId,
+    followupId: data.id as string,
+    summary,
+    urgency,
+    reason: "escalation",
+    originalMessage: ctx.inboundBody,
+  });
 
   return {
     output: {
       status: "ok",
       followup_id: data.id,
       urgency,
-      note: "A follow-up has been logged. Confirm to the member that someone from the club will be in touch shortly.",
+      note: "A follow-up has been logged. Confirm that someone from the club will be in touch shortly.",
     },
     logSummary: `escalate_to_admin: ${urgency} created`,
   };

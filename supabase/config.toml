@@ -48,6 +48,9 @@ verify_jwt = false
 [functions.send-tab-reminder-whatsapp]
 verify_jwt = false
 
+[functions.send-whatsapp-admin-reply]
+verify_jwt = false
+
 [functions.whatsapp-ai-reply]
 verify_jwt = false
 

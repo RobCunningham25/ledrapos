@@ -12,15 +12,24 @@ import { format } from 'date-fns';
 interface FollowupRow {
   id: string;
   member_id: string | null;
+  prospect_id: string | null;
   summary: string;
   original_message: string;
   urgency: 'normal' | 'urgent';
   status: 'open' | 'in_progress' | 'resolved';
+  reason: string;
   notes: string | null;
   created_at: string;
   resolved_at: string | null;
   member?: { first_name: string | null; last_name: string | null; membership_number: string | null } | null;
+  prospect?: { display_name: string | null; whatsapp_number: string | null } | null;
 }
+
+const REASON_LABELS: Record<string, string> = {
+  escalation: 'Escalation',
+  knowledge_gap: "Couldn't answer",
+  new_prospect: 'New enquiry',
+};
 
 const STATUS_FILTERS = ['open', 'in_progress', 'resolved'] as const;
 type StatusFilter = typeof STATUS_FILTERS[number];
@@ -40,9 +49,10 @@ export default function WhatsAppFollowups() {
     const { data, error } = await supabase
       .from('whatsapp_followups')
       .select(`
-        id, member_id, summary, original_message, urgency, status, notes,
+        id, member_id, prospect_id, summary, original_message, urgency, status, reason, notes,
         created_at, resolved_at,
-        member:members(first_name, last_name, membership_number)
+        member:members(first_name, last_name, membership_number),
+        prospect:whatsapp_prospects(display_name, whatsapp_number)
       `)
       .eq('venue_id', venueId)
       .eq('status', statusFilter)
@@ -88,6 +98,10 @@ export default function WhatsAppFollowups() {
   };
 
   const memberName = (r: FollowupRow) => {
+    if (r.prospect_id) {
+      const label = r.prospect?.display_name || 'Prospective member';
+      return r.prospect?.whatsapp_number ? `${label} (${r.prospect.whatsapp_number})` : label;
+    }
     if (!r.member) return r.member_id ? 'Unknown member' : 'No member';
     const name = [r.member.first_name, r.member.last_name].filter(Boolean).join(' ') || 'Unnamed';
     return r.member.membership_number ? `${name} (#${r.member.membership_number})` : name;
@@ -114,8 +128,9 @@ export default function WhatsAppFollowups() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border bg-muted/50">
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Member</th>
+                <th className="text-left px-4 py-3 font-medium text-muted-foreground">From</th>
                 <th className="text-left px-4 py-3 font-medium text-muted-foreground">Summary</th>
+                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Reason</th>
                 <th className="text-left px-4 py-3 font-medium text-muted-foreground">Urgency</th>
                 <th className="text-left px-4 py-3 font-medium text-muted-foreground">Created</th>
                 <th className="text-right px-4 py-3 font-medium text-muted-foreground">Actions</th>
@@ -124,12 +139,12 @@ export default function WhatsAppFollowups() {
             <tbody>
               {loading && [1, 2, 3].map(i => (
                 <tr key={i} className="border-b border-border">
-                  <td className="px-4 py-3" colSpan={5}><Skeleton className="h-5 w-full" /></td>
+                  <td className="px-4 py-3" colSpan={6}><Skeleton className="h-5 w-full" /></td>
                 </tr>
               ))}
               {!loading && rows.length === 0 && (
                 <tr>
-                  <td className="px-4 py-6 text-center text-muted-foreground" colSpan={5}>
+                  <td className="px-4 py-6 text-center text-muted-foreground" colSpan={6}>
                     No follow-ups in {statusFilter.replace('_', ' ')}.
                   </td>
                 </tr>
@@ -138,6 +153,7 @@ export default function WhatsAppFollowups() {
                 <tr key={r.id} className="border-b border-border hover:bg-muted/20">
                   <td className="px-4 py-3">{memberName(r)}</td>
                   <td className="px-4 py-3 max-w-md truncate">{r.summary}</td>
+                  <td className="px-4 py-3 text-muted-foreground text-xs">{REASON_LABELS[r.reason] ?? r.reason}</td>
                   <td className="px-4 py-3">
                     <span
                       className="inline-block px-2 py-0.5 text-xs font-medium rounded"
