@@ -16,10 +16,11 @@
 //   related_id?     UUID
 //
 // The 24h session window (free-form `body` sends) is checked against
-// members.whatsapp_last_inbound_at when member_id is set, or
-// whatsapp_prospects.last_inbound_at when prospect_id is set. A send with
-// neither (e.g. a staff alert to a number with no contact record) can only
-// use template_sid.
+// members.whatsapp_last_inbound_at when member_id is set, whatsapp_prospects
+// .last_inbound_at when prospect_id is set, or — with neither, e.g. a staff
+// alert number that isn't a member or a prospect — the most recent inbound
+// whatsapp_messages row from to_e164. WhatsApp's window is per phone number,
+// not per app-level "contact", so that fallback is the general case.
 //
 // Auth: shared-secret header X-Whatsapp-Worker-Token (matches WHATSAPP_WORKER_TOKEN).
 // Configured in supabase/config.toml as verify_jwt = false.
@@ -135,11 +136,6 @@ Deno.serve(async (req) => {
 
   // ===== 24h session window check (only for free-form body) =====
   if (!body.template_sid) {
-    if (!body.member_id && !body.prospect_id) {
-      return json(400, {
-        error: "Free-form (body) sends require a member_id or prospect_id so we can verify the 24h session window",
-      });
-    }
     let lastInbound = 0;
     if (body.member_id) {
       const { data: member } = await supabase
@@ -150,7 +146,7 @@ Deno.serve(async (req) => {
       lastInbound = member?.whatsapp_last_inbound_at
         ? new Date(member.whatsapp_last_inbound_at).getTime()
         : 0;
-    } else {
+    } else if (body.prospect_id) {
       const { data: prospect } = await supabase
         .from("whatsapp_prospects")
         .select("last_inbound_at")
@@ -159,6 +155,21 @@ Deno.serve(async (req) => {
       lastInbound = prospect?.last_inbound_at
         ? new Date(prospect.last_inbound_at).getTime()
         : 0;
+    } else {
+      // No contact record at all (e.g. a staff alert number that isn't a
+      // member or a prospect) — fall back to the raw message history for
+      // this phone number. WhatsApp's 24h window is per number, not per
+      // "contact", so this is the general case, not a special case.
+      const { data: lastMsg } = await supabase
+        .from("whatsapp_messages")
+        .select("created_at")
+        .eq("venue_id", body.venue_id)
+        .eq("direction", "inbound")
+        .eq("from_number", body.to_e164)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      lastInbound = lastMsg?.created_at ? new Date(lastMsg.created_at).getTime() : 0;
     }
     if (!lastInbound || Date.now() - lastInbound > SESSION_WINDOW_MS) {
       return json(409, {
