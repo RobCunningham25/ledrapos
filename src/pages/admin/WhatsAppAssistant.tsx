@@ -10,6 +10,17 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useVenue } from '@/contexts/VenueContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import {
+  classifyWhatsAppMessage,
+  fetchWhatsAppMessages,
+  formatWhatsAppTimestamp,
+  isWithinSessionWindow,
+  sendWhatsAppAdminReply,
+  setWhatsAppTakeover,
+  whatsAppSessionWindowErrorMessage,
+  WHATSAPP_LANE_STYLES,
+  type WhatsAppMessageRow,
+} from '@/lib/whatsappConversation';
 
 interface VenueAiSettings {
   whatsapp_ai_enabled: boolean;
@@ -75,17 +86,6 @@ interface ConversationContact {
   ai_paused: boolean;
 }
 
-interface ConversationMessage {
-  id: string;
-  direction: 'inbound' | 'outbound';
-  body: string | null;
-  related_kind: string | null;
-  status: string;
-  error: string | null;
-  created_at: string;
-  template_sid: string | null;
-}
-
 const DOC_KINDS: VenueDocument['kind'][] = ['constitution', 'club_rules'];
 
 export default function WhatsAppAssistant() {
@@ -119,7 +119,7 @@ export default function WhatsAppAssistant() {
   const [conversations, setConversations] = useState<ConversationContact[]>([]);
   const [conversationsLoading, setConversationsLoading] = useState(false);
   const [selectedContact, setSelectedContact] = useState<{ type: 'member' | 'prospect'; id: string } | null>(null);
-  const [conversationMessages, setConversationMessages] = useState<ConversationMessage[]>([]);
+  const [conversationMessages, setConversationMessages] = useState<WhatsAppMessageRow[]>([]);
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [replyText, setReplyText] = useState('');
   const [sendingReply, setSendingReply] = useState(false);
@@ -431,15 +431,7 @@ export default function WhatsAppAssistant() {
 
   const loadMessagesForContact = async (contact: { type: 'member' | 'prospect'; id: string }) => {
     setMessagesLoading(true);
-    const column = contact.type === 'member' ? 'member_id' : 'prospect_id';
-    const { data } = await supabase
-      .from('whatsapp_messages')
-      .select('id, direction, body, related_kind, status, error, created_at, template_sid')
-      .eq('venue_id', venueId)
-      .eq(column, contact.id)
-      .order('created_at', { ascending: true })
-      .limit(200);
-    setConversationMessages(((data ?? []) as ConversationMessage[]));
+    setConversationMessages(await fetchWhatsAppMessages(venueId, contact));
     setMessagesLoading(false);
   };
 
@@ -460,23 +452,14 @@ export default function WhatsAppAssistant() {
     (c) => c.contact_type === selectedContact?.type && c.contact_id === selectedContact?.id,
   ) ?? null;
 
-  const withinSessionWindow = (c: ConversationContact | null) => {
-    if (!c?.last_inbound_at) return false;
-    return Date.now() - new Date(c.last_inbound_at).getTime() < 24 * 60 * 60 * 1000;
-  };
-
   const toggleTakeover = async () => {
-    if (!selectedConv) return;
+    if (!selectedConv || !selectedContact) return;
     setTogglingTakeover(true);
     const nextPaused = !selectedConv.ai_paused;
-    const table = selectedConv.contact_type === 'member' ? 'members' : 'whatsapp_prospects';
-    const { error } = await supabase
-      .from(table)
-      .update({ ai_paused: nextPaused, ai_paused_at: nextPaused ? new Date().toISOString() : null })
-      .eq('id', selectedConv.contact_id);
+    const { error } = await setWhatsAppTakeover(selectedContact, nextPaused);
     setTogglingTakeover(false);
     if (error) {
-      toast.error('Failed to update: ' + error.message);
+      toast.error('Failed to update: ' + error);
       return;
     }
     toast.success(nextPaused ? 'Took over — the AI will stay quiet on this conversation.' : 'Handed back to the AI assistant.');
@@ -484,88 +467,21 @@ export default function WhatsAppAssistant() {
   };
 
   const sendAdminReply = async () => {
-    if (!selectedConv || !replyText.trim() || !selectedConv.e164) return;
+    if (!selectedConv || !selectedContact || !replyText.trim() || !selectedConv.e164) return;
     setSendingReply(true);
-    const { data, error } = await supabase.functions.invoke('send-whatsapp-admin-reply', {
-      body: {
-        venue_id: venueId,
-        member_id: selectedConv.contact_type === 'member' ? selectedConv.contact_id : null,
-        prospect_id: selectedConv.contact_type === 'prospect' ? selectedConv.contact_id : null,
-        to_e164: selectedConv.e164,
-        body: replyText.trim(),
-      },
+    const res = await sendWhatsAppAdminReply({
+      venueId,
+      contact: selectedContact,
+      toE164: selectedConv.e164,
+      body: replyText.trim(),
     });
     setSendingReply(false);
-    // On a non-2xx response, supabase-js sets `error` (a FunctionsHttpError)
-    // and leaves `data` null — the actual { error: "..." } body the function
-    // returned lives on error.context (the raw Response), not in `data`.
-    let errMsg = (data as { error?: string } | null)?.error ?? null;
-    if (!errMsg && error) {
-      errMsg = error.message;
-      const ctx = (error as { context?: Response }).context;
-      if (ctx && typeof ctx.json === 'function') {
-        try {
-          const body = await ctx.clone().json();
-          if (body?.error) errMsg = body.error;
-        } catch {
-          // Non-JSON body — fall back to error.message above.
-        }
-      }
-    }
-    if (errMsg) {
-      toast.error(
-        errMsg.includes('24h')
-          ? "This conversation's 24h window has closed — reply by phone or email instead."
-          : `Failed to send: ${errMsg}`,
-      );
+    if (!res.ok && res.error) {
+      toast.error(whatsAppSessionWindowErrorMessage(res.error));
       return;
     }
     setReplyText('');
-    loadMessagesForContact(selectedContact!);
-  };
-
-  const formatTimestamp = (iso: string) => {
-    try {
-      return new Date(iso).toLocaleString('en-ZA', {
-        timeZone: 'Africa/Johannesburg',
-        month: 'short',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-      });
-    } catch {
-      return iso;
-    }
-  };
-
-  // Categorise a row for rendering. The same body field carries: member text,
-  // assistant text, tool-call summaries, error notes, and template sends.
-  const classifyMessage = (m: ConversationMessage) => {
-    const kind = m.related_kind ?? '';
-    if (m.direction === 'inbound') {
-      return { lane: 'member' as const, label: 'Member' };
-    }
-    if (kind === 'ai_reply') return { lane: 'assistant' as const, label: 'Assistant' };
-    if (kind === 'ai_tool_call') return { lane: 'tool' as const, label: 'Tool call' };
-    if (kind === 'ai_error') return { lane: 'error' as const, label: 'Assistant error' };
-    if (kind === 'optin_reply' || kind === 'optout_reply' || kind === 'portal_reply' || kind === 'link_request' || kind === 'link_request_failed' || kind === 'link_request_settled') {
-      return { lane: 'assistant' as const, label: 'Reply' };
-    }
-    if (kind === 'admin_reply') return { lane: 'admin' as const, label: 'Admin (you)' };
-    if (kind === 'staff_alert') return { lane: 'system' as const, label: 'Staff alert' };
-    if (m.template_sid || kind === 'tab_reminder' || kind === 'optin_invite' || kind === 'broadcast' || kind?.startsWith('template')) {
-      return { lane: 'system' as const, label: 'Template send' };
-    }
-    return { lane: 'system' as const, label: kind || 'outbound' };
-  };
-
-  const laneStyles: Record<string, string> = {
-    member: 'bg-blue-50 border-blue-200',
-    assistant: 'bg-emerald-50 border-emerald-200',
-    admin: 'bg-violet-50 border-violet-200',
-    tool: 'bg-amber-50 border-amber-200 font-mono text-xs',
-    error: 'bg-red-50 border-red-200',
-    system: 'bg-muted/40 border-border',
+    loadMessagesForContact(selectedContact);
   };
 
   return (
@@ -949,7 +865,7 @@ export default function WhatsAppAssistant() {
                             )}
                           </div>
                           <div className="text-xs text-muted-foreground">
-                            {formatTimestamp(c.last_message_at)}
+                            {formatWhatsAppTimestamp(c.last_message_at)}
                           </div>
                         </button>
                       );
@@ -967,18 +883,18 @@ export default function WhatsAppAssistant() {
                     )}
                     <div className="space-y-2">
                       {conversationMessages.map((m) => {
-                        const c = classifyMessage(m);
+                        const c = classifyWhatsAppMessage(m, selectedContact?.type === 'prospect' ? 'Prospect' : 'Member');
                         return (
                           <div
                             key={m.id}
-                            className={`rounded-md border px-3 py-2 text-sm ${laneStyles[c.lane]}`}
+                            className={`rounded-md border px-3 py-2 text-sm ${WHATSAPP_LANE_STYLES[c.lane]}`}
                           >
                             <div className="flex items-center justify-between gap-2 mb-1">
                               <span className="text-xs font-semibold uppercase tracking-wide">
                                 {c.label}
                               </span>
                               <span className="text-xs text-muted-foreground">
-                                {formatTimestamp(m.created_at)}
+                                {formatWhatsAppTimestamp(m.created_at)}
                                 {m.status && m.status !== 'delivered' ? ` · ${m.status}` : ''}
                               </span>
                             </div>
@@ -998,7 +914,7 @@ export default function WhatsAppAssistant() {
                     <div className="border-t border-border p-3 space-y-2 bg-muted/20">
                       <div className="flex items-center justify-between gap-2">
                         <p className="text-xs text-muted-foreground">
-                          {withinSessionWindow(selectedConv)
+                          {isWithinSessionWindow(selectedConv.last_inbound_at)
                             ? '24h window open — you can reply directly.'
                             : "24h window closed — reply won't send until they message again."}
                         </p>
@@ -1025,12 +941,12 @@ export default function WhatsAppAssistant() {
                               ? 'Type a reply…'
                               : 'No phone number on file for this contact.'
                           }
-                          disabled={!withinSessionWindow(selectedConv) || !selectedConv.e164}
+                          disabled={!isWithinSessionWindow(selectedConv.last_inbound_at) || !selectedConv.e164}
                           className="text-sm"
                         />
                         <Button
                           onClick={sendAdminReply}
-                          disabled={sendingReply || !replyText.trim() || !withinSessionWindow(selectedConv) || !selectedConv.e164}
+                          disabled={sendingReply || !replyText.trim() || !isWithinSessionWindow(selectedConv.last_inbound_at) || !selectedConv.e164}
                         >
                           {sendingReply ? 'Sending…' : 'Send'}
                         </Button>

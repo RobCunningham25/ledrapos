@@ -8,6 +8,20 @@ import { useAdminAuth } from '@/contexts/AdminAuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
+import {
+  classifyWhatsAppMessage,
+  fetchWhatsAppContactState,
+  fetchWhatsAppMessages,
+  formatWhatsAppTimestamp,
+  isWithinSessionWindow,
+  sendWhatsAppAdminReply,
+  setWhatsAppTakeover,
+  whatsAppSessionWindowErrorMessage,
+  WHATSAPP_LANE_STYLES,
+  type WhatsAppContactRef,
+  type WhatsAppContactState,
+  type WhatsAppMessageRow,
+} from '@/lib/whatsappConversation';
 
 interface FollowupRow {
   id: string;
@@ -44,6 +58,13 @@ export default function WhatsAppFollowups() {
   const [notesDraft, setNotesDraft] = useState('');
   const [saving, setSaving] = useState(false);
 
+  const [contactState, setContactState] = useState<WhatsAppContactState | null>(null);
+  const [messages, setMessages] = useState<WhatsAppMessageRow[]>([]);
+  const [messagesLoading, setMessagesLoading] = useState(false);
+  const [replyText, setReplyText] = useState('');
+  const [sendingReply, setSendingReply] = useState(false);
+  const [togglingTakeover, setTogglingTakeover] = useState(false);
+
   const fetchRows = async () => {
     setLoading(true);
     const { data, error } = await supabase
@@ -67,10 +88,76 @@ export default function WhatsAppFollowups() {
   }, [venueId, statusFilter]);
 
   const selected = rows.find(r => r.id === selectedId) ?? null;
+  const selectedContact: WhatsAppContactRef | null = selected
+    ? selected.prospect_id
+      ? { type: 'prospect', id: selected.prospect_id }
+      : selected.member_id
+        ? { type: 'member', id: selected.member_id }
+        : null
+    : null;
 
   useEffect(() => {
     setNotesDraft(selected?.notes ?? '');
   }, [selectedId, selected?.notes]);
+
+  useEffect(() => {
+    if (!selectedContact) {
+      setContactState(null);
+      setMessages([]);
+      return;
+    }
+    let cancelled = false;
+    setReplyText('');
+    setMessagesLoading(true);
+    Promise.all([
+      fetchWhatsAppContactState(selectedContact),
+      fetchWhatsAppMessages(venueId, selectedContact),
+    ]).then(([state, msgs]) => {
+      if (cancelled) return;
+      setContactState(state);
+      setMessages(msgs);
+      setMessagesLoading(false);
+    });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedContact?.type, selectedContact?.id, venueId]);
+
+  const reloadMessages = async () => {
+    if (!selectedContact) return;
+    setMessages(await fetchWhatsAppMessages(venueId, selectedContact));
+  };
+
+  const toggleTakeover = async () => {
+    if (!selectedContact || !contactState) return;
+    setTogglingTakeover(true);
+    const nextPaused = !contactState.aiPaused;
+    const { error } = await setWhatsAppTakeover(selectedContact, nextPaused);
+    setTogglingTakeover(false);
+    if (error) {
+      toast.error('Failed to update: ' + error);
+      return;
+    }
+    setContactState({ ...contactState, aiPaused: nextPaused });
+    toast.success(nextPaused ? 'Took over — the AI will stay quiet on this conversation.' : 'Handed back to the AI assistant.');
+  };
+
+  const sendReply = async () => {
+    if (!selectedContact || !contactState?.e164 || !replyText.trim()) return;
+    setSendingReply(true);
+    const res = await sendWhatsAppAdminReply({
+      venueId,
+      contact: selectedContact,
+      toE164: contactState.e164,
+      body: replyText.trim(),
+    });
+    setSendingReply(false);
+    if (!res.ok && res.error) {
+      toast.error(whatsAppSessionWindowErrorMessage(res.error));
+      return;
+    }
+    setReplyText('');
+    reloadMessages();
+  };
 
   const updateStatus = async (newStatus: FollowupRow['status']) => {
     if (!selected) return;
@@ -183,7 +270,7 @@ export default function WhatsAppFollowups() {
         {selected && (
           <div className="fixed inset-0 z-40">
             <div className="absolute inset-0 bg-black/30" onClick={() => setSelectedId(null)} />
-            <aside className="absolute right-0 top-0 h-full w-full max-w-md bg-card shadow-lg overflow-y-auto">
+            <aside className="absolute right-0 top-0 h-full w-full max-w-2xl bg-card shadow-lg overflow-y-auto">
               <div className="p-6 space-y-4">
                 <div className="flex items-start justify-between">
                   <div>
@@ -201,21 +288,94 @@ export default function WhatsAppFollowups() {
                 </div>
 
                 <div>
-                  <p className="text-xs font-semibold text-muted-foreground uppercase">Original message</p>
-                  <p className="mt-1 text-sm whitespace-pre-wrap rounded border border-border p-3 bg-muted/20">
-                    {selected.original_message}
-                  </p>
+                  <p className="text-xs font-semibold text-muted-foreground uppercase">Status</p>
+                  <p className="mt-1 text-sm">{selected.status} · {selected.urgency} · {REASON_LABELS[selected.reason] ?? selected.reason}</p>
                 </div>
 
+                {/* === Conversation: view the thread, take over, and reply === */}
                 <div>
-                  <p className="text-xs font-semibold text-muted-foreground uppercase">Status</p>
-                  <p className="mt-1 text-sm">{selected.status} · {selected.urgency}</p>
+                  <p className="text-xs font-semibold text-muted-foreground uppercase mb-1">Conversation</p>
+                  <div className="border border-border rounded-md flex flex-col max-h-[420px]">
+                    <div className="p-3 overflow-y-auto flex-1 space-y-2">
+                      {messagesLoading && (
+                        <p className="text-xs text-muted-foreground">Loading messages…</p>
+                      )}
+                      {!messagesLoading && messages.length === 0 && (
+                        <p className="text-xs text-muted-foreground whitespace-pre-wrap">{selected.original_message}</p>
+                      )}
+                      {messages.map((m) => {
+                        const c = classifyWhatsAppMessage(m, selectedContact?.type === 'prospect' ? 'Prospect' : 'Member');
+                        return (
+                          <div
+                            key={m.id}
+                            className={`rounded-md border px-3 py-2 text-sm ${WHATSAPP_LANE_STYLES[c.lane]}`}
+                          >
+                            <div className="flex items-center justify-between gap-2 mb-1">
+                              <span className="text-xs font-semibold uppercase tracking-wide">{c.label}</span>
+                              <span className="text-xs text-muted-foreground">
+                                {formatWhatsAppTimestamp(m.created_at)}
+                                {m.status && m.status !== 'delivered' ? ` · ${m.status}` : ''}
+                              </span>
+                            </div>
+                            <div className="whitespace-pre-wrap break-words">
+                              {m.body || (m.template_sid ? `[template ${m.template_sid}]` : '[no body]')}
+                            </div>
+                            {m.error && (
+                              <div className="text-xs text-red-700 mt-1">Error: {m.error}</div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {contactState && (
+                      <div className="border-t border-border p-3 space-y-2 bg-muted/20">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-xs text-muted-foreground">
+                            {isWithinSessionWindow(contactState.lastInboundAt)
+                              ? '24h window open — you can reply directly.'
+                              : "24h window closed — reply won't send until they message again."}
+                          </p>
+                          <Button
+                            size="sm"
+                            variant={contactState.aiPaused ? 'default' : 'outline'}
+                            onClick={toggleTakeover}
+                            disabled={togglingTakeover}
+                          >
+                            {togglingTakeover
+                              ? 'Saving…'
+                              : contactState.aiPaused
+                                ? 'Hand back to bot'
+                                : 'Take over conversation'}
+                          </Button>
+                        </div>
+                        <div className="flex gap-2">
+                          <Textarea
+                            rows={2}
+                            value={replyText}
+                            onChange={(e) => setReplyText(e.target.value)}
+                            placeholder={
+                              contactState.e164 ? 'Type a reply…' : 'No phone number on file for this contact.'
+                            }
+                            disabled={!isWithinSessionWindow(contactState.lastInboundAt) || !contactState.e164}
+                            className="text-sm"
+                          />
+                          <Button
+                            onClick={sendReply}
+                            disabled={sendingReply || !replyText.trim() || !isWithinSessionWindow(contactState.lastInboundAt) || !contactState.e164}
+                          >
+                            {sendingReply ? 'Sending…' : 'Send'}
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 <div>
                   <p className="text-xs font-semibold text-muted-foreground uppercase">Notes</p>
                   <Textarea
-                    rows={5}
+                    rows={4}
                     value={notesDraft}
                     onChange={(e) => setNotesDraft(e.target.value)}
                     placeholder="Add internal notes about how this was handled…"
