@@ -13,6 +13,8 @@ export interface ConversationPanelProps {
   onToggleTakeover: () => void;
   togglingTakeover: boolean;
   headerActions?: ReactNode;
+  /** Extra context row rendered between the header and the thread — e.g. an open follow-up's summary + resolve action. */
+  banner?: ReactNode;
 
   messages: WhatsAppMessageRow[];
   messagesLoading: boolean;
@@ -60,6 +62,7 @@ export function ConversationPanel({
   onToggleTakeover,
   togglingTakeover,
   headerActions,
+  banner,
   messages,
   messagesLoading,
   emptyPlaceholder,
@@ -111,7 +114,7 @@ export function ConversationPanel({
   };
 
   return (
-    <div className="flex flex-col overflow-hidden rounded-md border border-border bg-background">
+    <div className="flex h-full flex-col overflow-hidden rounded-md border border-border bg-background">
       {/* Header */}
       <header className="flex items-center justify-between gap-3 border-b border-border bg-card/40 px-4 py-3">
         <div className="min-w-0">
@@ -129,8 +132,10 @@ export function ConversationPanel({
         </div>
       </header>
 
+      {banner}
+
       {/* Thread */}
-      <div className="max-h-[420px] flex-1 overflow-y-auto bg-background px-4 py-3">
+      <div className="min-h-0 flex-1 overflow-y-auto bg-background px-4 py-3">
         {messagesLoading && (
           <p className="text-sm text-muted-foreground">Loading messages…</p>
         )}

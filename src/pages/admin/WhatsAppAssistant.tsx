@@ -7,23 +7,12 @@ import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Link } from 'react-router-dom';
 import { useVenue } from '@/contexts/VenueContext';
+import { useVenueNav } from '@/hooks/useVenueNav';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { ConversationPanel } from '@/components/whatsapp/ConversationPanel';
-import { WhatsAppAvatar } from '@/components/whatsapp/WhatsAppAvatar';
-import { whatsAppRelativeTime } from '@/lib/whatsappAvatar';
-import {
-  fetchWhatsAppMessages,
-  isWithinSessionWindow,
-  mergeWhatsAppMessage,
-  sendWhatsAppAdminReply,
-  sendWhatsAppTemplateRestart,
-  setWhatsAppTakeover,
-  subscribeToWhatsAppMessages,
-  whatsAppSessionWindowErrorMessage,
-  type WhatsAppMessageRow,
-} from '@/lib/whatsappConversation';
+import { MessageSquare } from 'lucide-react';
 
 interface VenueAiSettings {
   whatsapp_ai_enabled: boolean;
@@ -79,20 +68,11 @@ interface DryRunResult {
   trace: Array<{ tool: string; input: unknown; output: unknown }>;
 }
 
-interface ConversationContact {
-  contact_type: 'member' | 'prospect';
-  contact_id: string;
-  label: string;
-  last_message_at: string;
-  e164: string | null;
-  last_inbound_at: string | null;
-  ai_paused: boolean;
-}
-
 const DOC_KINDS: VenueDocument['kind'][] = ['constitution', 'club_rules'];
 
 export default function WhatsAppAssistant() {
   const { venueId } = useVenue();
+  const { adminPath } = useVenueNav();
   const [loading, setLoading] = useState(true);
   const [settings, setSettings] = useState<VenueAiSettings>({
     whatsapp_ai_enabled: false,
@@ -118,16 +98,6 @@ export default function WhatsAppAssistant() {
   const [testRunning, setTestRunning] = useState(false);
   const [testResult, setTestResult] = useState<DryRunResult | null>(null);
   const [testError, setTestError] = useState<string | null>(null);
-
-  const [conversations, setConversations] = useState<ConversationContact[]>([]);
-  const [conversationsLoading, setConversationsLoading] = useState(false);
-  const [selectedContact, setSelectedContact] = useState<{ type: 'member' | 'prospect'; id: string } | null>(null);
-  const [conversationMessages, setConversationMessages] = useState<WhatsAppMessageRow[]>([]);
-  const [messagesLoading, setMessagesLoading] = useState(false);
-  const [replyText, setReplyText] = useState('');
-  const [sendingReply, setSendingReply] = useState(false);
-  const [sendingTemplateRestart, setSendingTemplateRestart] = useState(false);
-  const [togglingTakeover, setTogglingTakeover] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -351,177 +321,6 @@ export default function WhatsAppAssistant() {
   const memberLabel = (m: MemberLite) => {
     const name = [m.first_name, m.last_name].filter(Boolean).join(' ') || 'Unnamed';
     return m.membership_number ? `${name} (#${m.membership_number})` : name;
-  };
-
-  const loadConversations = async () => {
-    setConversationsLoading(true);
-    // Pull recent whatsapp_messages for either a member or a prospect, group
-    // client-side to get the most-recently-active distinct contacts.
-    const { data } = await supabase
-      .from('whatsapp_messages')
-      .select('member_id, prospect_id, created_at')
-      .eq('venue_id', venueId)
-      .or('member_id.not.is.null,prospect_id.not.is.null')
-      .order('created_at', { ascending: false })
-      .limit(500);
-
-    const seenMembers = new Map<string, string>();
-    const seenProspects = new Map<string, string>();
-    for (const row of (data ?? []) as Array<{ member_id: string | null; prospect_id: string | null; created_at: string }>) {
-      if (row.member_id && !seenMembers.has(row.member_id)) seenMembers.set(row.member_id, row.created_at);
-      else if (row.prospect_id && !seenProspects.has(row.prospect_id)) seenProspects.set(row.prospect_id, row.created_at);
-    }
-    const memberIds = Array.from(seenMembers.keys()).slice(0, 30);
-    const prospectIds = Array.from(seenProspects.keys()).slice(0, 30);
-
-    const [memberRes, prospectRes] = await Promise.all([
-      memberIds.length
-        ? supabase
-          .from('members')
-          .select('id, first_name, last_name, membership_number, whatsapp_number, phone, whatsapp_last_inbound_at, ai_paused')
-          .in('id', memberIds)
-        : Promise.resolve({ data: [] as Array<Record<string, unknown>> }),
-      prospectIds.length
-        ? supabase
-          .from('whatsapp_prospects')
-          .select('id, display_name, whatsapp_number, last_inbound_at, ai_paused')
-          .in('id', prospectIds)
-        : Promise.resolve({ data: [] as Array<Record<string, unknown>> }),
-    ]);
-
-    const memberById = new Map(
-      ((memberRes.data ?? []) as Array<{ id: string; first_name: string | null; last_name: string | null; membership_number: string | null; whatsapp_number: string | null; phone: string | null; whatsapp_last_inbound_at: string | null; ai_paused: boolean }>)
-        .map((m) => [m.id, m]),
-    );
-    const prospectById = new Map(
-      ((prospectRes.data ?? []) as Array<{ id: string; display_name: string | null; whatsapp_number: string; last_inbound_at: string; ai_paused: boolean }>)
-        .map((p) => [p.id, p]),
-    );
-
-    const memberContacts: ConversationContact[] = memberIds.map((id) => {
-      const m = memberById.get(id);
-      const name = [m?.first_name, m?.last_name].filter(Boolean).join(' ') || 'Unknown member';
-      return {
-        contact_type: 'member',
-        contact_id: id,
-        label: m?.membership_number ? `${name} (#${m.membership_number})` : name,
-        last_message_at: seenMembers.get(id)!,
-        e164: m?.whatsapp_number ?? m?.phone ?? null,
-        last_inbound_at: m?.whatsapp_last_inbound_at ?? null,
-        ai_paused: !!m?.ai_paused,
-      };
-    });
-    const prospectContacts: ConversationContact[] = prospectIds.map((id) => {
-      const p = prospectById.get(id);
-      return {
-        contact_type: 'prospect',
-        contact_id: id,
-        label: (p?.display_name || 'Prospective member') + ' · not a member',
-        last_message_at: seenProspects.get(id)!,
-        e164: p?.whatsapp_number ?? null,
-        last_inbound_at: p?.last_inbound_at ?? null,
-        ai_paused: !!p?.ai_paused,
-      };
-    });
-
-    const convs = [...memberContacts, ...prospectContacts]
-      .sort((a, b) => (a.last_message_at < b.last_message_at ? 1 : -1));
-    setConversations(convs);
-    if (!selectedContact && convs.length > 0) {
-      setSelectedContact({ type: convs[0].contact_type, id: convs[0].contact_id });
-    }
-    setConversationsLoading(false);
-  };
-
-  const loadMessagesForContact = async (contact: { type: 'member' | 'prospect'; id: string }) => {
-    setMessagesLoading(true);
-    setConversationMessages(await fetchWhatsAppMessages(venueId, contact));
-    setMessagesLoading(false);
-  };
-
-  useEffect(() => {
-    if (!venueId) return;
-    loadConversations();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [venueId]);
-
-  useEffect(() => {
-    if (!venueId || !selectedContact) return;
-    loadMessagesForContact(selectedContact);
-    setReplyText('');
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedContact?.type, selectedContact?.id, venueId]);
-
-  // Live updates: fold new inbound/outbound messages and status changes into
-  // the open conversation as they happen, instead of only on next refetch.
-  // A fresh inbound message also extends the session window shown for this
-  // contact in the sidebar (last_message_at + last_inbound_at).
-  useEffect(() => {
-    if (!selectedContact) return;
-    const unsubscribe = subscribeToWhatsAppMessages(selectedContact, (row) => {
-      setConversationMessages((prev) => mergeWhatsAppMessage(prev, row));
-      if (row.direction === 'inbound') {
-        setConversations((prev) => prev.map((c) =>
-          c.contact_type === selectedContact.type && c.contact_id === selectedContact.id
-            ? { ...c, last_inbound_at: row.created_at, last_message_at: row.created_at }
-            : c
-        ));
-      }
-    });
-    return unsubscribe;
-  }, [selectedContact?.type, selectedContact?.id]);
-
-  const selectedConv = conversations.find(
-    (c) => c.contact_type === selectedContact?.type && c.contact_id === selectedContact?.id,
-  ) ?? null;
-
-  const toggleTakeover = async () => {
-    if (!selectedConv || !selectedContact) return;
-    setTogglingTakeover(true);
-    const nextPaused = !selectedConv.ai_paused;
-    const { error } = await setWhatsAppTakeover(selectedContact, nextPaused);
-    setTogglingTakeover(false);
-    if (error) {
-      toast.error('Failed to update: ' + error);
-      return;
-    }
-    toast.success(nextPaused ? 'Took over — the AI will stay quiet on this conversation.' : 'Handed back to the AI assistant.');
-    loadConversations();
-  };
-
-  const sendAdminReply = async () => {
-    if (!selectedConv || !selectedContact || !replyText.trim() || !selectedConv.e164) return;
-    setSendingReply(true);
-    const res = await sendWhatsAppAdminReply({
-      venueId,
-      contact: selectedContact,
-      toE164: selectedConv.e164,
-      body: replyText.trim(),
-    });
-    setSendingReply(false);
-    if (!res.ok && res.error) {
-      toast.error(whatsAppSessionWindowErrorMessage(res.error));
-      return;
-    }
-    setReplyText('');
-    loadMessagesForContact(selectedContact);
-  };
-
-  const sendTemplateRestart = async () => {
-    if (!selectedConv || !selectedContact || !selectedConv.e164) return;
-    setSendingTemplateRestart(true);
-    const res = await sendWhatsAppTemplateRestart({
-      venueId,
-      contact: selectedContact,
-      toE164: selectedConv.e164,
-    });
-    setSendingTemplateRestart(false);
-    if (!res.ok && res.error) {
-      toast.error(whatsAppSessionWindowErrorMessage(res.error));
-      return;
-    }
-    toast.success('Template sent — they can reply to reopen the conversation.');
-    loadMessagesForContact(selectedContact);
   };
 
   return (
@@ -847,101 +646,23 @@ export default function WhatsAppAssistant() {
             </div>
           </section>
 
-          {/* === Recent conversations === */}
+          {/* === Live conversations pointer === */}
           <section className="bg-card rounded-lg border border-border p-6">
-            <div className="flex items-start justify-between mb-1">
-              <div>
-                <h3 className="text-base font-semibold">Recent conversations</h3>
+            <div className="flex items-center gap-4">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                <MessageSquare className="h-5 w-5" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-base font-semibold">Live conversations</h3>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  Live WhatsApp activity per member or prospect (non-member enquiry): inbound
-                  messages, assistant replies, tool calls, template sends, and errors. Take over a
-                  conversation to pause the AI and reply yourself while inside the 24h window — hand
-                  it back when you're done. Tool calls show the one-line summary the assistant
-                  logged — for full tool input/output, use the dry-run tester below.
+                  Viewing, replying to, and taking over member/prospect WhatsApp conversations now
+                  lives on its own page, with a persistent list and a dot for anything waiting on you.
                 </p>
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  loadConversations();
-                  if (selectedContact) loadMessagesForContact(selectedContact);
-                }}
-              >
-                Refresh
+              <Button asChild variant="outline" size="sm">
+                <Link to={adminPath('whatsapp/followups')}>Open WhatsApp Follow-ups</Link>
               </Button>
             </div>
-
-            {conversations.length === 0 && !conversationsLoading && (
-              <p className="text-sm text-muted-foreground mt-4">
-                No WhatsApp activity yet for this venue.
-              </p>
-            )}
-
-            {conversations.length > 0 && (
-              <div className="grid grid-cols-1 md:grid-cols-[280px_1fr] gap-4 mt-4">
-                <div className="border border-border rounded-md overflow-hidden">
-                  <div className="px-3 py-2 text-xs font-semibold text-muted-foreground border-b border-border bg-muted/30">
-                    Recently active (members + prospects)
-                  </div>
-                  <div className="max-h-[560px] overflow-y-auto divide-y divide-border">
-                    {conversations.map((c) => {
-                      const isActive = c.contact_type === selectedContact?.type && c.contact_id === selectedContact?.id;
-                      return (
-                        <button
-                          key={`${c.contact_type}-${c.contact_id}`}
-                          type="button"
-                          onClick={() => setSelectedContact({ type: c.contact_type, id: c.contact_id })}
-                          className={`flex w-full items-start gap-3 text-left px-3 py-2.5 transition-colors ${
-                            isActive ? 'bg-primary/10' : 'hover:bg-accent/40'
-                          }`}
-                        >
-                          <WhatsAppAvatar
-                            label={c.label}
-                            dotClassName={c.ai_paused ? 'bg-violet-500' : undefined}
-                          />
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-baseline justify-between gap-2">
-                              <span className="truncate text-sm font-medium text-foreground">{c.label}</span>
-                              <span className="shrink-0 text-[10px] text-muted-foreground">
-                                {whatsAppRelativeTime(c.last_message_at)}
-                              </span>
-                            </div>
-                            <div className="truncate text-xs text-muted-foreground">
-                              {c.contact_type === 'prospect' ? 'Not a member' : 'Member'}
-                            </div>
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {selectedContact && selectedConv ? (
-                  <ConversationPanel
-                    label={selectedConv.label}
-                    phoneE164={selectedConv.e164}
-                    inboundLabel={selectedContact.type === 'prospect' ? 'Prospect' : 'Member'}
-                    aiPaused={selectedConv.ai_paused}
-                    onToggleTakeover={toggleTakeover}
-                    togglingTakeover={togglingTakeover}
-                    messages={conversationMessages}
-                    messagesLoading={messagesLoading}
-                    withinWindow={isWithinSessionWindow(selectedConv.last_inbound_at)}
-                    replyText={replyText}
-                    onReplyChange={setReplyText}
-                    onSend={sendAdminReply}
-                    sending={sendingReply}
-                    onSendTemplateRestart={sendTemplateRestart}
-                    sendingTemplateRestart={sendingTemplateRestart}
-                  />
-                ) : (
-                  <div className="flex items-center justify-center rounded-md border border-border text-sm text-muted-foreground">
-                    Select a conversation to view it.
-                  </div>
-                )}
-              </div>
-            )}
           </section>
 
           {/* === Test in chat === */}
