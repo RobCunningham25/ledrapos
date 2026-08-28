@@ -128,6 +128,46 @@ export async function fetchWhatsAppMessages(
   return (data ?? []) as WhatsAppMessageRow[];
 }
 
+// ===== Live updates =====
+//
+// Subscribes to INSERT/UPDATE on whatsapp_messages for one contact (a new
+// inbound message, a status flip like queued→delivered, etc.) so an open
+// conversation view updates itself instead of relying on the next manual
+// refresh. Requires whatsapp_messages to be added to the supabase_realtime
+// publication (see migration 20260828120000_whatsapp_messages_realtime.sql).
+// Call the returned function to unsubscribe (e.g. in a useEffect cleanup).
+export function subscribeToWhatsAppMessages(
+  contact: WhatsAppContactRef,
+  onChange: (row: WhatsAppMessageRow) => void,
+): () => void {
+  const column = contact.type === 'member' ? 'member_id' : 'prospect_id';
+  const channel = supabase
+    .channel(`wa-messages-${contact.type}-${contact.id}`)
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'whatsapp_messages', filter: `${column}=eq.${contact.id}` },
+      (payload) => {
+        const row = (payload.new ?? payload.old) as WhatsAppMessageRow | null;
+        if (row) onChange(row);
+      },
+    )
+    .subscribe();
+  return () => {
+    supabase.removeChannel(channel);
+  };
+}
+
+// Upsert a message into a list by id, keeping it sorted oldest → newest.
+// Used to fold a realtime INSERT/UPDATE into local state without a refetch.
+export function mergeWhatsAppMessage(
+  list: WhatsAppMessageRow[],
+  incoming: WhatsAppMessageRow,
+): WhatsAppMessageRow[] {
+  const idx = list.findIndex((m) => m.id === incoming.id);
+  const next = idx === -1 ? [...list, incoming] : list.map((m, i) => (i === idx ? incoming : m));
+  return next.sort((a, b) => a.created_at.localeCompare(b.created_at));
+}
+
 export async function setWhatsAppTakeover(
   contact: WhatsAppContactRef,
   paused: boolean,

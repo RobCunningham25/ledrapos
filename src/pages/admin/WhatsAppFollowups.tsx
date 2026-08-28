@@ -14,8 +14,10 @@ import {
   fetchWhatsAppMessages,
   formatWhatsAppTimestamp,
   isWithinSessionWindow,
+  mergeWhatsAppMessage,
   sendWhatsAppAdminReply,
   setWhatsAppTakeover,
+  subscribeToWhatsAppMessages,
   whatsAppSessionWindowErrorMessage,
   WHATSAPP_LANE_STYLES,
   type WhatsAppContactRef,
@@ -121,6 +123,19 @@ export default function WhatsAppFollowups() {
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedContact?.type, selectedContact?.id, venueId]);
+
+  // Live updates: fold new inbound/outbound messages and status changes into
+  // the open conversation as they happen, instead of only on next refetch.
+  useEffect(() => {
+    if (!selectedContact) return;
+    const unsubscribe = subscribeToWhatsAppMessages(selectedContact, (row) => {
+      setMessages((prev) => mergeWhatsAppMessage(prev, row));
+      if (row.direction === 'inbound') {
+        setContactState((prev) => (prev ? { ...prev, lastInboundAt: row.created_at } : prev));
+      }
+    });
+    return unsubscribe;
+  }, [selectedContact?.type, selectedContact?.id]);
 
   const reloadMessages = async () => {
     if (!selectedContact) return;

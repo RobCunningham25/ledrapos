@@ -15,8 +15,10 @@ import {
   fetchWhatsAppMessages,
   formatWhatsAppTimestamp,
   isWithinSessionWindow,
+  mergeWhatsAppMessage,
   sendWhatsAppAdminReply,
   setWhatsAppTakeover,
+  subscribeToWhatsAppMessages,
   whatsAppSessionWindowErrorMessage,
   WHATSAPP_LANE_STYLES,
   type WhatsAppMessageRow,
@@ -447,6 +449,25 @@ export default function WhatsAppAssistant() {
     setReplyText('');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedContact?.type, selectedContact?.id, venueId]);
+
+  // Live updates: fold new inbound/outbound messages and status changes into
+  // the open conversation as they happen, instead of only on next refetch.
+  // A fresh inbound message also extends the session window shown for this
+  // contact in the sidebar (last_message_at + last_inbound_at).
+  useEffect(() => {
+    if (!selectedContact) return;
+    const unsubscribe = subscribeToWhatsAppMessages(selectedContact, (row) => {
+      setConversationMessages((prev) => mergeWhatsAppMessage(prev, row));
+      if (row.direction === 'inbound') {
+        setConversations((prev) => prev.map((c) =>
+          c.contact_type === selectedContact.type && c.contact_id === selectedContact.id
+            ? { ...c, last_inbound_at: row.created_at, last_message_at: row.created_at }
+            : c
+        ));
+      }
+    });
+    return unsubscribe;
+  }, [selectedContact?.type, selectedContact?.id]);
 
   const selectedConv = conversations.find(
     (c) => c.contact_type === selectedContact?.type && c.contact_id === selectedContact?.id,
