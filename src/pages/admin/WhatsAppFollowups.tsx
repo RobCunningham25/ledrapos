@@ -8,18 +8,18 @@ import { useAdminAuth } from '@/contexts/AdminAuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
+import { CheckCircle2, RotateCcw } from 'lucide-react';
+import { ConversationPanel } from '@/components/whatsapp/ConversationPanel';
 import {
-  classifyWhatsAppMessage,
   fetchWhatsAppContactState,
   fetchWhatsAppMessages,
-  formatWhatsAppTimestamp,
   isWithinSessionWindow,
   mergeWhatsAppMessage,
   sendWhatsAppAdminReply,
+  sendWhatsAppTemplateRestart,
   setWhatsAppTakeover,
   subscribeToWhatsAppMessages,
   whatsAppSessionWindowErrorMessage,
-  WHATSAPP_LANE_STYLES,
   type WhatsAppContactRef,
   type WhatsAppContactState,
   type WhatsAppMessageRow,
@@ -65,6 +65,7 @@ export default function WhatsAppFollowups() {
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [replyText, setReplyText] = useState('');
   const [sendingReply, setSendingReply] = useState(false);
+  const [sendingTemplateRestart, setSendingTemplateRestart] = useState(false);
   const [togglingTakeover, setTogglingTakeover] = useState(false);
 
   const fetchRows = async () => {
@@ -174,14 +175,32 @@ export default function WhatsAppFollowups() {
     reloadMessages();
   };
 
+  const sendTemplateRestart = async () => {
+    if (!selectedContact || !contactState?.e164) return;
+    setSendingTemplateRestart(true);
+    const res = await sendWhatsAppTemplateRestart({
+      venueId,
+      contact: selectedContact,
+      toE164: contactState.e164,
+    });
+    setSendingTemplateRestart(false);
+    if (!res.ok && res.error) {
+      toast.error(whatsAppSessionWindowErrorMessage(res.error));
+      return;
+    }
+    toast.success('Template sent — they can reply to reopen the conversation.');
+    reloadMessages();
+  };
+
   const updateStatus = async (newStatus: FollowupRow['status']) => {
     if (!selected) return;
+    const statusChanged = newStatus !== selected.status;
     setSaving(true);
     const update: Record<string, unknown> = {
       status: newStatus,
       notes: notesDraft || null,
     };
-    if (newStatus === 'resolved') {
+    if (statusChanged && newStatus === 'resolved') {
       update.resolved_at = new Date().toISOString();
       update.resolved_by = adminUser?.id ?? null;
     }
@@ -192,9 +211,14 @@ export default function WhatsAppFollowups() {
     setSaving(false);
     if (error) {
       toast.error('Failed to update follow-up: ' + error.message);
-    } else {
+      return;
+    }
+    if (statusChanged) {
       toast.success('Follow-up updated.');
       setSelectedId(null);
+      fetchRows();
+    } else {
+      toast.success('Notes saved.');
       fetchRows();
     }
   };
@@ -308,116 +332,62 @@ export default function WhatsAppFollowups() {
                 </div>
 
                 {/* === Conversation: view the thread, take over, and reply === */}
-                <div>
-                  <p className="text-xs font-semibold text-muted-foreground uppercase mb-1">Conversation</p>
-                  <div className="border border-border rounded-md flex flex-col max-h-[420px]">
-                    <div className="p-3 overflow-y-auto flex-1 space-y-2">
-                      {messagesLoading && (
-                        <p className="text-xs text-muted-foreground">Loading messages…</p>
-                      )}
-                      {!messagesLoading && messages.length === 0 && (
-                        <p className="text-xs text-muted-foreground whitespace-pre-wrap">{selected.original_message}</p>
-                      )}
-                      {messages.map((m) => {
-                        const c = classifyWhatsAppMessage(m, selectedContact?.type === 'prospect' ? 'Prospect' : 'Member');
-                        return (
-                          <div
-                            key={m.id}
-                            className={`rounded-md border px-3 py-2 text-sm ${WHATSAPP_LANE_STYLES[c.lane]}`}
-                          >
-                            <div className="flex items-center justify-between gap-2 mb-1">
-                              <span className="text-xs font-semibold uppercase tracking-wide">{c.label}</span>
-                              <span className="text-xs text-muted-foreground">
-                                {formatWhatsAppTimestamp(m.created_at)}
-                                {m.status && m.status !== 'delivered' ? ` · ${m.status}` : ''}
-                              </span>
-                            </div>
-                            <div className="whitespace-pre-wrap break-words">
-                              {m.body || (m.template_sid ? `[template ${m.template_sid}]` : '[no body]')}
-                            </div>
-                            {m.error && (
-                              <div className="text-xs text-red-700 mt-1">Error: {m.error}</div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-
-                    {contactState && (
-                      <div className="border-t border-border p-3 space-y-2 bg-muted/20">
-                        <div className="flex items-center justify-between gap-2">
-                          <p className="text-xs text-muted-foreground">
-                            {isWithinSessionWindow(contactState.lastInboundAt)
-                              ? '24h window open — you can reply directly.'
-                              : "24h window closed — reply won't send until they message again."}
-                          </p>
-                          <Button
-                            size="sm"
-                            variant={contactState.aiPaused ? 'default' : 'outline'}
-                            onClick={toggleTakeover}
-                            disabled={togglingTakeover}
-                          >
-                            {togglingTakeover
-                              ? 'Saving…'
-                              : contactState.aiPaused
-                                ? 'Hand back to bot'
-                                : 'Take over conversation'}
+                {selectedContact && (
+                  <ConversationPanel
+                    label={memberName(selected)}
+                    phoneE164={contactState?.e164 ?? null}
+                    avatarKey={selectedContact.id}
+                    inboundLabel={selectedContact.type === 'prospect' ? 'Prospect' : 'Member'}
+                    aiPaused={!!contactState?.aiPaused}
+                    onToggleTakeover={toggleTakeover}
+                    togglingTakeover={togglingTakeover}
+                    headerActions={
+                      <>
+                        {selected.status === 'open' && (
+                          <Button size="sm" variant="ghost" onClick={() => updateStatus('in_progress')} disabled={saving}>
+                            In progress
                           </Button>
-                        </div>
-                        <div className="flex gap-2">
-                          <Textarea
-                            rows={2}
-                            value={replyText}
-                            onChange={(e) => setReplyText(e.target.value)}
-                            placeholder={
-                              contactState.e164 ? 'Type a reply…' : 'No phone number on file for this contact.'
-                            }
-                            disabled={!isWithinSessionWindow(contactState.lastInboundAt) || !contactState.e164}
-                            className="text-sm"
-                          />
-                          <Button
-                            onClick={sendReply}
-                            disabled={sendingReply || !replyText.trim() || !isWithinSessionWindow(contactState.lastInboundAt) || !contactState.e164}
-                          >
-                            {sendingReply ? 'Sending…' : 'Send'}
+                        )}
+                        {selected.status !== 'resolved' ? (
+                          <Button size="sm" variant="secondary" onClick={() => updateStatus('resolved')} disabled={saving}>
+                            <CheckCircle2 className="h-3.5 w-3.5" />
+                            Resolve
                           </Button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
+                        ) : (
+                          <Button size="sm" variant="secondary" onClick={() => updateStatus('open')} disabled={saving}>
+                            <RotateCcw className="h-3.5 w-3.5" />
+                            Reopen
+                          </Button>
+                        )}
+                      </>
+                    }
+                    messages={messages}
+                    messagesLoading={messagesLoading}
+                    emptyPlaceholder={selected.original_message}
+                    withinWindow={isWithinSessionWindow(contactState?.lastInboundAt ?? null)}
+                    replyText={replyText}
+                    onReplyChange={setReplyText}
+                    onSend={sendReply}
+                    sending={sendingReply}
+                    onSendTemplateRestart={sendTemplateRestart}
+                    sendingTemplateRestart={sendingTemplateRestart}
+                  />
+                )}
 
                 <div>
                   <p className="text-xs font-semibold text-muted-foreground uppercase">Notes</p>
                   <Textarea
-                    rows={4}
+                    rows={3}
                     value={notesDraft}
                     onChange={(e) => setNotesDraft(e.target.value)}
                     placeholder="Add internal notes about how this was handled…"
                     className="mt-1"
                   />
-                </div>
-
-                <div className="flex flex-col gap-2 pt-2">
-                  {selected.status === 'open' && (
-                    <Button
-                      onClick={() => updateStatus('in_progress')}
-                      disabled={saving}
-                      variant="outline"
-                    >
-                      Mark in progress
+                  <div className="mt-2 flex justify-end">
+                    <Button size="sm" variant="outline" onClick={() => updateStatus(selected.status)} disabled={saving}>
+                      {saving ? 'Saving…' : 'Save notes'}
                     </Button>
-                  )}
-                  {selected.status !== 'resolved' && (
-                    <Button onClick={() => updateStatus('resolved')} disabled={saving}>
-                      {saving ? 'Saving…' : 'Mark resolved'}
-                    </Button>
-                  )}
-                  {selected.status === 'resolved' && (
-                    <Button onClick={() => updateStatus('open')} disabled={saving} variant="outline">
-                      Re-open
-                    </Button>
-                  )}
+                  </div>
                 </div>
               </div>
             </aside>

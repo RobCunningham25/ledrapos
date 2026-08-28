@@ -4,13 +4,22 @@
 // for follow-ups: escalate_to_admin flags a conversation, but until now there
 // was no way to actually respond on WhatsApp from LedraPOS.
 //
-// Free-form only (no template) — only works inside the 24h session window,
-// which send-whatsapp enforces. Outside the window this returns send-whatsapp's
-// 409 unchanged; the admin UI shows that as "the window has closed, contact
-// them another way" rather than silently failing.
+// Free-form (no template) by default — only works inside the 24h session
+// window, which send-whatsapp enforces. Outside the window this returns
+// send-whatsapp's 409 unchanged; the admin UI shows that as "the window has
+// closed, contact them another way" rather than silently failing.
 //
-// Inputs (POST JSON): { venue_id, member_id?, prospect_id?, to_e164, body }
-// Exactly one of member_id / prospect_id is required.
+// restart_template: true switches to a template send instead, using the
+// venue's configured generic reopening template (TWILIO_TEMPLATE_GENERIC_SID)
+// — resolved server-side, never client-supplied, same reasoning as rule 20
+// (never let the browser name what gets sent as whom). This is how an admin
+// reopens a conversation whose 24h window has closed. Best-effort: if the
+// approved template expects different variables than we send, Twilio will
+// reject it and the error surfaces to the admin UI as-is.
+//
+// Inputs (POST JSON): { venue_id, member_id?, prospect_id?, to_e164, body?, restart_template? }
+// Exactly one of member_id / prospect_id is required. body is required unless
+// restart_template is true.
 //
 // Auth: Bearer JWT → admin_users cross-check on venue_id (mirrors
 // send-tab-reminder-whatsapp). The browser never sees WHATSAPP_WORKER_TOKEN —
@@ -25,7 +34,8 @@ interface ReplyRequest {
   member_id?: string | null;
   prospect_id?: string | null;
   to_e164: string;
-  body: string;
+  body?: string;
+  restart_template?: boolean;
 }
 
 function json(status: number, body: unknown): Response {
@@ -63,8 +73,11 @@ Deno.serve(async (req) => {
   } catch {
     return json(400, { error: "Invalid JSON body" });
   }
-  if (!body.venue_id || !body.to_e164 || !body.body?.trim()) {
-    return json(400, { error: "venue_id, to_e164, and body are required" });
+  if (!body.venue_id || !body.to_e164) {
+    return json(400, { error: "venue_id and to_e164 are required" });
+  }
+  if (!body.restart_template && !body.body?.trim()) {
+    return json(400, { error: "body is required unless restart_template is set" });
   }
   if (!body.member_id && !body.prospect_id) {
     return json(400, { error: "Either member_id or prospect_id is required" });
@@ -87,6 +100,35 @@ Deno.serve(async (req) => {
   const workerToken = Deno.env.get("WHATSAPP_WORKER_TOKEN");
   if (!workerToken) return json(500, { error: "WHATSAPP_WORKER_TOKEN not configured" });
 
+  let sendPayload: Record<string, unknown>;
+  if (body.restart_template) {
+    const templateSid = Deno.env.get("TWILIO_TEMPLATE_GENERIC_SID");
+    if (!templateSid) {
+      return json(500, {
+        error: "TWILIO_TEMPLATE_GENERIC_SID not configured — submit + approve a generic reopening template in Twilio first",
+      });
+    }
+    sendPayload = {
+      venue_id: body.venue_id,
+      member_id: body.member_id ?? null,
+      prospect_id: body.prospect_id ?? null,
+      to_e164: body.to_e164,
+      template_sid: templateSid,
+      related_kind: "admin_reply",
+      related_id: adminUser.id,
+    };
+  } else {
+    sendPayload = {
+      venue_id: body.venue_id,
+      member_id: body.member_id ?? null,
+      prospect_id: body.prospect_id ?? null,
+      to_e164: body.to_e164,
+      body: body.body!.trim(),
+      related_kind: "admin_reply",
+      related_id: adminUser.id,
+    };
+  }
+
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const res = await fetch(`${supabaseUrl}/functions/v1/send-whatsapp`, {
     method: "POST",
@@ -94,15 +136,7 @@ Deno.serve(async (req) => {
       "Content-Type": "application/json",
       "X-Whatsapp-Worker-Token": workerToken,
     },
-    body: JSON.stringify({
-      venue_id: body.venue_id,
-      member_id: body.member_id ?? null,
-      prospect_id: body.prospect_id ?? null,
-      to_e164: body.to_e164,
-      body: body.body.trim(),
-      related_kind: "admin_reply",
-      related_id: adminUser.id,
-    }),
+    body: JSON.stringify(sendPayload),
   });
   const resBody = await res.json().catch(() => ({}));
   return json(res.status, resBody);

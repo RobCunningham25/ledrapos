@@ -180,21 +180,8 @@ export async function setWhatsAppTakeover(
   return { error: error?.message ?? null };
 }
 
-export async function sendWhatsAppAdminReply(args: {
-  venueId: string;
-  contact: WhatsAppContactRef;
-  toE164: string;
-  body: string;
-}): Promise<{ ok: boolean; error?: string }> {
-  const { data, error } = await supabase.functions.invoke('send-whatsapp-admin-reply', {
-    body: {
-      venue_id: args.venueId,
-      member_id: args.contact.type === 'member' ? args.contact.id : null,
-      prospect_id: args.contact.type === 'prospect' ? args.contact.id : null,
-      to_e164: args.toE164,
-      body: args.body,
-    },
-  });
+async function invokeAdminReply(payload: Record<string, unknown>): Promise<{ ok: boolean; error?: string }> {
+  const { data, error } = await supabase.functions.invoke('send-whatsapp-admin-reply', { body: payload });
   // On a non-2xx response, supabase-js sets `error` (a FunctionsHttpError) and
   // leaves `data` null — the actual { error: "..." } body the function
   // returned lives on error.context (the raw Response), not in `data`.
@@ -212,6 +199,38 @@ export async function sendWhatsAppAdminReply(args: {
     }
   }
   return errMsg ? { ok: false, error: errMsg } : { ok: true };
+}
+
+export async function sendWhatsAppAdminReply(args: {
+  venueId: string;
+  contact: WhatsAppContactRef;
+  toE164: string;
+  body: string;
+}): Promise<{ ok: boolean; error?: string }> {
+  return invokeAdminReply({
+    venue_id: args.venueId,
+    member_id: args.contact.type === 'member' ? args.contact.id : null,
+    prospect_id: args.contact.type === 'prospect' ? args.contact.id : null,
+    to_e164: args.toE164,
+    body: args.body,
+  });
+}
+
+// Reopens a conversation whose 24h window has closed by sending the venue's
+// approved generic template (resolved server-side — see
+// send-whatsapp-admin-reply for why this isn't a client-supplied SID).
+export async function sendWhatsAppTemplateRestart(args: {
+  venueId: string;
+  contact: WhatsAppContactRef;
+  toE164: string;
+}): Promise<{ ok: boolean; error?: string }> {
+  return invokeAdminReply({
+    venue_id: args.venueId,
+    member_id: args.contact.type === 'member' ? args.contact.id : null,
+    prospect_id: args.contact.type === 'prospect' ? args.contact.id : null,
+    to_e164: args.toE164,
+    restart_template: true,
+  });
 }
 
 export function whatsAppSessionWindowErrorMessage(errMsg: string): string {

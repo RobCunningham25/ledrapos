@@ -10,17 +10,18 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useVenue } from '@/contexts/VenueContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { ConversationPanel } from '@/components/whatsapp/ConversationPanel';
+import { WhatsAppAvatar } from '@/components/whatsapp/WhatsAppAvatar';
+import { whatsAppRelativeTime } from '@/lib/whatsappAvatar';
 import {
-  classifyWhatsAppMessage,
   fetchWhatsAppMessages,
-  formatWhatsAppTimestamp,
   isWithinSessionWindow,
   mergeWhatsAppMessage,
   sendWhatsAppAdminReply,
+  sendWhatsAppTemplateRestart,
   setWhatsAppTakeover,
   subscribeToWhatsAppMessages,
   whatsAppSessionWindowErrorMessage,
-  WHATSAPP_LANE_STYLES,
   type WhatsAppMessageRow,
 } from '@/lib/whatsappConversation';
 
@@ -125,6 +126,7 @@ export default function WhatsAppAssistant() {
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [replyText, setReplyText] = useState('');
   const [sendingReply, setSendingReply] = useState(false);
+  const [sendingTemplateRestart, setSendingTemplateRestart] = useState(false);
   const [togglingTakeover, setTogglingTakeover] = useState(false);
 
   useEffect(() => {
@@ -505,6 +507,23 @@ export default function WhatsAppAssistant() {
     loadMessagesForContact(selectedContact);
   };
 
+  const sendTemplateRestart = async () => {
+    if (!selectedConv || !selectedContact || !selectedConv.e164) return;
+    setSendingTemplateRestart(true);
+    const res = await sendWhatsAppTemplateRestart({
+      venueId,
+      contact: selectedContact,
+      toE164: selectedConv.e164,
+    });
+    setSendingTemplateRestart(false);
+    if (!res.ok && res.error) {
+      toast.error(whatsAppSessionWindowErrorMessage(res.error));
+      return;
+    }
+    toast.success('Template sent — they can reply to reopen the conversation.');
+    loadMessagesForContact(selectedContact);
+  };
+
   return (
     <AdminLayout title="WhatsApp Assistant">
       {loading ? (
@@ -860,12 +879,12 @@ export default function WhatsAppAssistant() {
             )}
 
             {conversations.length > 0 && (
-              <div className="grid grid-cols-1 md:grid-cols-[260px_1fr] gap-4 mt-4">
+              <div className="grid grid-cols-1 md:grid-cols-[280px_1fr] gap-4 mt-4">
                 <div className="border border-border rounded-md overflow-hidden">
                   <div className="px-3 py-2 text-xs font-semibold text-muted-foreground border-b border-border bg-muted/30">
                     Recently active (members + prospects)
                   </div>
-                  <div className="max-h-[480px] overflow-y-auto divide-y divide-border">
+                  <div className="max-h-[560px] overflow-y-auto divide-y divide-border">
                     {conversations.map((c) => {
                       const isActive = c.contact_type === selectedContact?.type && c.contact_id === selectedContact?.id;
                       return (
@@ -873,20 +892,30 @@ export default function WhatsAppAssistant() {
                           key={`${c.contact_type}-${c.contact_id}`}
                           type="button"
                           onClick={() => setSelectedContact({ type: c.contact_type, id: c.contact_id })}
-                          className={`w-full text-left px-3 py-2 text-sm hover:bg-muted/40 ${
-                            isActive ? 'bg-muted/60' : ''
+                          className={`flex w-full items-center gap-3 text-left px-3 py-2.5 transition-colors ${
+                            isActive ? 'bg-accent' : 'hover:bg-accent/40'
                           }`}
                         >
-                          <div className="font-medium truncate flex items-center gap-1.5">
-                            {c.label}
-                            {c.ai_paused && (
-                              <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-violet-100 text-violet-800 shrink-0">
-                                taken over
+                          <WhatsAppAvatar label={c.label} colorKey={c.contact_id} />
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="truncate text-sm font-medium text-foreground">{c.label}</span>
+                              <span className="shrink-0 text-[11px] text-muted-foreground">
+                                {whatsAppRelativeTime(c.last_message_at)}
                               </span>
-                            )}
-                          </div>
-                          <div className="text-xs text-muted-foreground">
-                            {formatWhatsAppTimestamp(c.last_message_at)}
+                            </div>
+                            <div className="mt-0.5 flex items-center gap-1.5">
+                              <span
+                                className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium ${
+                                  c.ai_paused ? 'bg-violet-100 text-violet-800' : 'bg-teal-100 text-teal-800'
+                                }`}
+                              >
+                                {c.ai_paused ? 'Taken over' : 'Bot active'}
+                              </span>
+                              {c.contact_type === 'prospect' && (
+                                <span className="text-[10px] text-muted-foreground">Not a member</span>
+                              )}
+                            </div>
                           </div>
                         </button>
                       );
@@ -894,87 +923,30 @@ export default function WhatsAppAssistant() {
                   </div>
                 </div>
 
-                <div className="border border-border rounded-md flex flex-col max-h-[600px]">
-                  <div className="p-3 overflow-y-auto flex-1">
-                    {messagesLoading && (
-                      <p className="text-xs text-muted-foreground">Loading messages…</p>
-                    )}
-                    {!messagesLoading && conversationMessages.length === 0 && (
-                      <p className="text-xs text-muted-foreground">No messages.</p>
-                    )}
-                    <div className="space-y-2">
-                      {conversationMessages.map((m) => {
-                        const c = classifyWhatsAppMessage(m, selectedContact?.type === 'prospect' ? 'Prospect' : 'Member');
-                        return (
-                          <div
-                            key={m.id}
-                            className={`rounded-md border px-3 py-2 text-sm ${WHATSAPP_LANE_STYLES[c.lane]}`}
-                          >
-                            <div className="flex items-center justify-between gap-2 mb-1">
-                              <span className="text-xs font-semibold uppercase tracking-wide">
-                                {c.label}
-                              </span>
-                              <span className="text-xs text-muted-foreground">
-                                {formatWhatsAppTimestamp(m.created_at)}
-                                {m.status && m.status !== 'delivered' ? ` · ${m.status}` : ''}
-                              </span>
-                            </div>
-                            <div className="whitespace-pre-wrap break-words">
-                              {m.body || (m.template_sid ? `[template ${m.template_sid}]` : '[no body]')}
-                            </div>
-                            {m.error && (
-                              <div className="text-xs text-red-700 mt-1">Error: {m.error}</div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
+                {selectedContact && selectedConv ? (
+                  <ConversationPanel
+                    label={selectedConv.label}
+                    phoneE164={selectedConv.e164}
+                    avatarKey={selectedContact.id}
+                    inboundLabel={selectedContact.type === 'prospect' ? 'Prospect' : 'Member'}
+                    aiPaused={selectedConv.ai_paused}
+                    onToggleTakeover={toggleTakeover}
+                    togglingTakeover={togglingTakeover}
+                    messages={conversationMessages}
+                    messagesLoading={messagesLoading}
+                    withinWindow={isWithinSessionWindow(selectedConv.last_inbound_at)}
+                    replyText={replyText}
+                    onReplyChange={setReplyText}
+                    onSend={sendAdminReply}
+                    sending={sendingReply}
+                    onSendTemplateRestart={sendTemplateRestart}
+                    sendingTemplateRestart={sendingTemplateRestart}
+                  />
+                ) : (
+                  <div className="flex items-center justify-center rounded-md border border-border text-sm text-muted-foreground">
+                    Select a conversation to view it.
                   </div>
-
-                  {selectedConv && (
-                    <div className="border-t border-border p-3 space-y-2 bg-muted/20">
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="text-xs text-muted-foreground">
-                          {isWithinSessionWindow(selectedConv.last_inbound_at)
-                            ? '24h window open — you can reply directly.'
-                            : "24h window closed — reply won't send until they message again."}
-                        </p>
-                        <Button
-                          size="sm"
-                          variant={selectedConv.ai_paused ? 'default' : 'outline'}
-                          onClick={toggleTakeover}
-                          disabled={togglingTakeover}
-                        >
-                          {togglingTakeover
-                            ? 'Saving…'
-                            : selectedConv.ai_paused
-                              ? 'Hand back to bot'
-                              : 'Take over conversation'}
-                        </Button>
-                      </div>
-                      <div className="flex gap-2">
-                        <Textarea
-                          rows={2}
-                          value={replyText}
-                          onChange={(e) => setReplyText(e.target.value)}
-                          placeholder={
-                            selectedConv.e164
-                              ? 'Type a reply…'
-                              : 'No phone number on file for this contact.'
-                          }
-                          disabled={!isWithinSessionWindow(selectedConv.last_inbound_at) || !selectedConv.e164}
-                          className="text-sm"
-                        />
-                        <Button
-                          onClick={sendAdminReply}
-                          disabled={sendingReply || !replyText.trim() || !isWithinSessionWindow(selectedConv.last_inbound_at) || !selectedConv.e164}
-                        >
-                          {sendingReply ? 'Sending…' : 'Send'}
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-                </div>
+                )}
               </div>
             )}
           </section>
