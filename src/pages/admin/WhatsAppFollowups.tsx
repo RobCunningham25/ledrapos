@@ -336,7 +336,6 @@ export default function WhatsAppFollowups() {
                   <ConversationPanel
                     label={memberName(selected)}
                     phoneE164={contactState?.e164 ?? null}
-                    avatarKey={selectedContact.id}
                     inboundLabel={selectedContact.type === 'prospect' ? 'Prospect' : 'Member'}
                     aiPaused={!!contactState?.aiPaused}
                     onToggleTakeover={toggleTakeover}

@@ -1,16 +1,13 @@
-import { useEffect, useRef, type KeyboardEvent, type ReactNode } from 'react';
-import { Bot, FileText, Lock, Phone, Send, UserCog } from 'lucide-react';
+import { useEffect, useMemo, useRef, type KeyboardEvent, type ReactNode } from 'react';
+import { FileText, Lock, Send } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { cn } from '@/lib/utils';
-import { WhatsAppAvatar } from './WhatsAppAvatar';
 import { WhatsAppMessageBubble } from './WhatsAppMessageBubble';
 import type { WhatsAppMessageRow } from '@/lib/whatsappConversation';
 
 export interface ConversationPanelProps {
   label: string;
   phoneE164: string | null;
-  avatarKey: string;
   inboundLabel: string;
   aiPaused: boolean;
   onToggleTakeover: () => void;
@@ -31,14 +28,33 @@ export interface ConversationPanelProps {
   sendingTemplateRestart?: boolean;
 }
 
-// A LedraDesk-style two-part conversation view (header + scrolling chat
-// thread + composer) shared by the WhatsApp Follow-ups drawer and the
-// WhatsApp Assistant conversations panel, so both look and behave the same
-// way instead of drifting into two ad-hoc designs.
+function dayLabel(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const now = new Date();
+  const sameDay = (a: Date, b: Date) =>
+    a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  if (sameDay(d, now)) return 'Today';
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  if (sameDay(d, yesterday)) return 'Yesterday';
+  return d.toLocaleDateString('en-ZA', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    year: d.getFullYear() === now.getFullYear() ? undefined : 'numeric',
+  });
+}
+
+type ThreadItem = { kind: 'separator'; label: string; key: string } | { kind: 'message'; row: WhatsAppMessageRow };
+
+// A conversation view matching LedraPulse's Conversations page (plain
+// name/phone header, day-grouped message list, lightly-tinted bubbles) —
+// shared by the WhatsApp Follow-ups drawer and the WhatsApp Assistant
+// conversations panel so both look and behave the same way.
 export function ConversationPanel({
   label,
   phoneE164,
-  avatarKey,
   inboundLabel,
   aiPaused,
   onToggleTakeover,
@@ -58,6 +74,20 @@ export function ConversationPanel({
   const bottomRef = useRef<HTMLDivElement>(null);
   const lastCountRef = useRef(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const threadItems = useMemo<ThreadItem[]>(() => {
+    const items: ThreadItem[] = [];
+    let lastKey = '';
+    for (const row of messages) {
+      const key = row.created_at.slice(0, 10);
+      if (key !== lastKey) {
+        lastKey = key;
+        items.push({ kind: 'separator', label: dayLabel(row.created_at), key });
+      }
+      items.push({ kind: 'message', row });
+    }
+    return items;
+  }, [messages]);
 
   useEffect(() => {
     if (messages.length !== lastCountRef.current) {
@@ -83,65 +113,51 @@ export function ConversationPanel({
   return (
     <div className="flex flex-col overflow-hidden rounded-md border border-border bg-background">
       {/* Header */}
-      <header className="flex items-center justify-between gap-3 border-b border-border bg-card px-4 py-3">
-        <div className="flex min-w-0 items-center gap-3">
-          <WhatsAppAvatar label={label} colorKey={avatarKey} size="lg" />
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <h3 className="truncate text-sm font-semibold text-foreground">{label}</h3>
-              <span
-                className={cn(
-                  'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium',
-                  aiPaused ? 'bg-violet-100 text-violet-800' : 'bg-teal-100 text-teal-800',
-                )}
-              >
-                {aiPaused ? <UserCog className="h-2.5 w-2.5" /> : <Bot className="h-2.5 w-2.5" />}
-                {aiPaused ? 'Taken over' : 'AI assistant active'}
-              </span>
-            </div>
-            {phoneE164 && (
-              <div className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
-                <Phone className="h-3 w-3" />
-                <span className="font-mono">{phoneE164}</span>
-              </div>
-            )}
+      <header className="flex items-center justify-between gap-3 border-b border-border bg-card/40 px-4 py-3">
+        <div className="min-w-0">
+          <div className="truncate text-sm font-medium text-foreground">{label}</div>
+          <div className="mt-0.5 truncate text-[11px] text-muted-foreground">
+            {phoneE164 ?? '—'}
+            {aiPaused && <span className="ml-2 text-violet-700">taken over</span>}
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-2">
           {headerActions}
-          <Button
-            type="button"
-            size="sm"
-            variant={aiPaused ? 'default' : 'outline'}
-            onClick={onToggleTakeover}
-            disabled={togglingTakeover}
-          >
+          <Button type="button" size="sm" variant="ghost" onClick={onToggleTakeover} disabled={togglingTakeover}>
             {togglingTakeover ? 'Saving…' : aiPaused ? 'Hand back to bot' : 'Take over'}
           </Button>
         </div>
       </header>
 
       {/* Thread */}
-      <div className="max-h-[380px] flex-1 overflow-y-auto bg-muted/10 p-4">
+      <div className="max-h-[420px] flex-1 overflow-y-auto bg-background px-4 py-3">
         {messagesLoading && (
-          <p className="text-center text-xs text-muted-foreground">Loading messages…</p>
+          <p className="text-sm text-muted-foreground">Loading messages…</p>
         )}
         {!messagesLoading && messages.length === 0 && (
-          <p className="whitespace-pre-wrap text-center text-xs text-muted-foreground">
+          <p className="whitespace-pre-wrap text-sm text-muted-foreground">
             {emptyPlaceholder || 'No messages yet.'}
           </p>
         )}
-        <div className="flex flex-col gap-2">
-          {messages.map((m) => (
-            <WhatsAppMessageBubble key={m.id} message={m} inboundLabel={inboundLabel} />
-          ))}
+        <div className="space-y-2">
+          {threadItems.map((item) =>
+            item.kind === 'separator' ? (
+              <div key={`sep-${item.key}`} className="flex items-center gap-3 py-1">
+                <div className="h-px flex-1 bg-border" />
+                <span className="shrink-0 select-none text-[10px] text-muted-foreground">{item.label}</span>
+                <div className="h-px flex-1 bg-border" />
+              </div>
+            ) : (
+              <WhatsAppMessageBubble key={item.row.id} message={item.row} inboundLabel={inboundLabel} />
+            ),
+          )}
           <div ref={bottomRef} />
         </div>
       </div>
 
       {/* Composer */}
       {withinWindow ? (
-        <div className="border-t border-border bg-card p-3">
+        <div className="border-t border-border bg-card/40 p-3">
           <div className="flex items-end gap-2">
             <Textarea
               ref={textareaRef}
@@ -149,32 +165,25 @@ export function ConversationPanel({
               value={replyText}
               onChange={(e) => onReplyChange(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder={
-                phoneE164 ? 'Type a reply. Enter to send, Shift+Enter for a new line.' : 'No phone number on file.'
-              }
+              placeholder={phoneE164 ? 'Type a message…' : 'No phone number on file.'}
               disabled={sending || !phoneE164}
-              className="max-h-[160px] resize-none text-sm"
+              className="min-h-[42px] max-h-[160px] resize-none bg-background text-sm"
             />
-            <Button type="button" onClick={onSend} disabled={sending || !replyText.trim() || !phoneE164}>
+            <Button type="button" onClick={onSend} disabled={sending || !replyText.trim() || !phoneE164} size="sm" className="gap-1.5">
               <Send className="h-3.5 w-3.5" />
               {sending ? 'Sending…' : 'Send'}
             </Button>
           </div>
-          <p className="mt-1 text-[10px] text-muted-foreground">
-            Within the 24-hour window — free-form replies allowed.
-          </p>
         </div>
       ) : (
-        <div className="border-t border-border bg-card px-4 py-3">
-          <div className="flex items-start gap-3 rounded-md border border-amber-200 bg-amber-50 p-3">
+        <div className="border-t border-border bg-amber-50 px-4 py-3.5">
+          <div className="flex items-start gap-3">
             <Lock className="mt-0.5 h-4 w-4 shrink-0 text-amber-700" />
-            <div className="flex-1 text-xs">
-              <p className="font-medium text-amber-900">Outside the 24-hour reply window</p>
-              <p className="mt-0.5 text-amber-800">
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium text-foreground">Outside the 24-hour reply window</p>
+              <p className="mt-0.5 text-[12px] text-muted-foreground">
                 WhatsApp only allows free-form replies within 24 hours of their last message.
-                {onSendTemplateRestart
-                  ? ' Send an approved template to restart the conversation.'
-                  : " They'll need to message again before you can reply here."}
+                {onSendTemplateRestart && ' Send an approved template to restart the conversation.'}
               </p>
               {onSendTemplateRestart && (
                 <div className="mt-2">

@@ -1,5 +1,5 @@
 import { cn } from '@/lib/utils';
-import { whatsAppAvatarClasses, whatsAppInitials } from '@/lib/whatsappAvatar';
+import { whatsAppInitials } from '@/lib/whatsappAvatar';
 
 type Size = 'sm' | 'md' | 'lg';
 
@@ -9,27 +9,33 @@ const SIZE: Record<Size, string> = {
   lg: 'h-11 w-11 text-sm',
 };
 
+// Same gradient circle for every contact (matches LedraPulse's Conversations
+// list) — the initials are the differentiator, not a hashed hue per contact.
 export function WhatsAppAvatar({
   label,
-  colorKey,
   size = 'md',
   className,
+  dotClassName,
 }: {
   label: string | null | undefined;
-  colorKey?: string | null;
   size?: Size;
   className?: string;
+  /** Small status dot in the top-right corner (e.g. "taken over"). Omit for none. */
+  dotClassName?: string;
 }) {
   return (
-    <span
-      className={cn(
-        'inline-flex shrink-0 items-center justify-center rounded-full font-semibold',
-        SIZE[size],
-        whatsAppAvatarClasses(colorKey ?? label ?? null),
-        className,
+    <span className={cn('relative inline-flex shrink-0', SIZE[size], className)}>
+      <span
+        className={cn(
+          'flex h-full w-full items-center justify-center rounded-full font-bold text-primary-foreground',
+          'bg-gradient-to-br from-primary/70 to-secondary/70',
+        )}
+      >
+        {whatsAppInitials(label)}
+      </span>
+      {dotClassName && (
+        <span className={cn('absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full ring-2 ring-card', dotClassName)} />
       )}
-    >
-      {whatsAppInitials(label)}
     </span>
   );
 }

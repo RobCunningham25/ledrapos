@@ -892,29 +892,23 @@ export default function WhatsAppAssistant() {
                           key={`${c.contact_type}-${c.contact_id}`}
                           type="button"
                           onClick={() => setSelectedContact({ type: c.contact_type, id: c.contact_id })}
-                          className={`flex w-full items-center gap-3 text-left px-3 py-2.5 transition-colors ${
-                            isActive ? 'bg-accent' : 'hover:bg-accent/40'
+                          className={`flex w-full items-start gap-3 text-left px-3 py-2.5 transition-colors ${
+                            isActive ? 'bg-primary/10' : 'hover:bg-accent/40'
                           }`}
                         >
-                          <WhatsAppAvatar label={c.label} colorKey={c.contact_id} />
+                          <WhatsAppAvatar
+                            label={c.label}
+                            dotClassName={c.ai_paused ? 'bg-violet-500' : undefined}
+                          />
                           <div className="min-w-0 flex-1">
-                            <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-baseline justify-between gap-2">
                               <span className="truncate text-sm font-medium text-foreground">{c.label}</span>
-                              <span className="shrink-0 text-[11px] text-muted-foreground">
+                              <span className="shrink-0 text-[10px] text-muted-foreground">
                                 {whatsAppRelativeTime(c.last_message_at)}
                               </span>
                             </div>
-                            <div className="mt-0.5 flex items-center gap-1.5">
-                              <span
-                                className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium ${
-                                  c.ai_paused ? 'bg-violet-100 text-violet-800' : 'bg-teal-100 text-teal-800'
-                                }`}
-                              >
-                                {c.ai_paused ? 'Taken over' : 'Bot active'}
-                              </span>
-                              {c.contact_type === 'prospect' && (
-                                <span className="text-[10px] text-muted-foreground">Not a member</span>
-                              )}
+                            <div className="truncate text-xs text-muted-foreground">
+                              {c.contact_type === 'prospect' ? 'Not a member' : 'Member'}
                             </div>
                           </div>
                         </button>
@@ -927,7 +921,6 @@ export default function WhatsAppAssistant() {
                   <ConversationPanel
                     label={selectedConv.label}
                     phoneE164={selectedConv.e164}
-                    avatarKey={selectedContact.id}
                     inboundLabel={selectedContact.type === 'prospect' ? 'Prospect' : 'Member'}
                     aiPaused={selectedConv.ai_paused}
                     onToggleTakeover={toggleTakeover}
