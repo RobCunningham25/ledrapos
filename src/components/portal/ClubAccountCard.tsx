@@ -20,6 +20,7 @@ export default function ClubAccountCard({ memberId, venueId }: { memberId: strin
         .eq('venue_id', venueId)
         .eq('member_id', memberId)
         .order('as_of_date', { ascending: false })
+        .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle();
       if (error) throw error;
