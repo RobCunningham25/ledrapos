@@ -12,8 +12,17 @@ dist
 dist-ssr
 *.local
 
+# Cloudflare Pages builds with npm — never commit a bun lockfile (it triggers a frozen bun install)
+bun.lock
+bun.lockb
+
 # Supabase CLI cache
 supabase/.temp/
+
+# Env files (all VITE_ vars ship in the bundle; keep the file itself out of git)
+.env
+.env.*
+!.env.example
 
 # Local Supabase access token (never commit)
 .env.supabase

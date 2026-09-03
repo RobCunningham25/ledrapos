@@ -54,7 +54,13 @@ import PortalPaymentResult from "./pages/portal/PortalPaymentResult.tsx";
 import PublicBookingPage from "./pages/PublicBookingPage.tsx";
 import Unsubscribed from "./pages/Unsubscribed.tsx";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    // Queries that don't set their own staleTime were refetching on every window
+    // focus/remount. 30s cuts the churn; per-query staleTime still overrides this.
+    queries: { staleTime: 30_000 },
+  },
+});
 const customDomainConfig = getCustomDomainConfig();
 
 function RootRedirect() {

@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      # Non-gating for now: the codebase predates strict mode and still carries `any`.
+      # Reported so regressions are visible; does not fail the run yet.
+      - name: Type-check
+        run: npx tsc -p tsconfig.app.json --noEmit
+        continue-on-error: true
+
+      - name: Build
+        run: npm run build
+        env:
+          # Dummy values — this is a compile smoke test, not a deployable build.
+          VITE_SUPABASE_URL: https://example.supabase.co
+          VITE_SUPABASE_PUBLISHABLE_KEY: dummy
+          VITE_SUPABASE_PROJECT_ID: dummy
+          VITE_OPENWEATHER_API_KEY: dummy

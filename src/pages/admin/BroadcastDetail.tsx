@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { format } from 'date-fns';
+import DOMPurify from 'dompurify';
 import { ArrowLeft, Paperclip, Loader2 } from 'lucide-react';
 import AdminLayout from '@/components/admin/AdminLayout';
 import { Button } from '@/components/ui/button';
@@ -186,7 +187,7 @@ export default function BroadcastDetail() {
           <div className="p-5">
             <div
               className="prose prose-sm max-w-none"
-              dangerouslySetInnerHTML={{ __html: broadcast.body_html }}
+              dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(broadcast.body_html ?? '') }}
             />
           </div>
         </div>
