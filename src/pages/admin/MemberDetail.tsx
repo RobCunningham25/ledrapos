@@ -286,6 +286,28 @@ export default function MemberDetail() {
     setNoteItems((itemsRes.data as { id: string; body: string; created_at: string }[]) ?? []);
   }, [id, venueId]);
 
+  const [newNote, setNewNote] = useState('');
+  const [addingNote, setAddingNote] = useState(false);
+
+  const handleAddNote = async () => {
+    const body = newNote.trim();
+    if (!body || !id) return;
+    setAddingNote(true);
+    const { error } = await supabase
+      .from('member_admin_note_items')
+      .insert({ venue_id: venueId, member_id: id, body });
+    setAddingNote(false);
+    if (error) { toast.error('Failed to add note'); return; }
+    setNewNote('');
+    fetchAdminNotes();
+  };
+
+  const handleDeleteNote = async (noteId: string) => {
+    const { error } = await supabase.from('member_admin_note_items').delete().eq('id', noteId);
+    if (error) { toast.error('Failed to delete note'); return; }
+    setNoteItems(prev => prev.filter(n => n.id !== noteId));
+  };
+
   const fetchCredits = useCallback(async () => {
     if (!id) return;
     setCreditsLoading(true);
@@ -738,7 +760,7 @@ export default function MemberDetail() {
       }}>
         <div className="flex items-center justify-between mb-3">
           <h3 style={{ fontSize: 15, fontWeight: 600, color: '#1A202C', margin: 0 }}>Admin notes</h3>
-          <span style={{ fontSize: 12, color: '#718096' }}>Not visible to members · edit via Edit</span>
+          <span style={{ fontSize: 12, color: '#718096' }}>Not visible to members</span>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-4">
           <div>
@@ -752,23 +774,50 @@ export default function MemberDetail() {
             ) : (
               <p style={{ fontSize: 15, fontWeight: 400, color: '#718096' }}>—</p>
             )}
+            <p style={{ fontSize: 12, color: '#94A3B8', marginTop: 8 }}>Add or remove gate remotes via the Edit button.</p>
           </div>
           <div>
             <p style={{ fontSize: 13, color: '#718096', fontWeight: 500 }}>Notes</p>
             {noteItems.length > 0 ? (
               <div className="space-y-2 mt-1">
                 {noteItems.map(n => (
-                  <div key={n.id} style={{ border: '1px solid #E2E8F0', borderRadius: 6, padding: '8px 12px' }}>
-                    <p style={{ fontSize: 14, color: '#1A202C', whiteSpace: 'pre-wrap' }}>{n.body}</p>
-                    <p style={{ fontSize: 11, color: '#94A3B8', marginTop: 2 }}>
-                      {format(new Date(n.created_at), 'dd MMM yyyy')}
-                    </p>
+                  <div key={n.id} className="flex items-start justify-between gap-2" style={{ border: '1px solid #E2E8F0', borderRadius: 6, padding: '8px 12px' }}>
+                    <div>
+                      <p style={{ fontSize: 14, color: '#1A202C', whiteSpace: 'pre-wrap' }}>{n.body}</p>
+                      <p style={{ fontSize: 11, color: '#94A3B8', marginTop: 2 }}>
+                        {format(new Date(n.created_at), 'dd MMM yyyy')}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => handleDeleteNote(n.id)}
+                      title="Delete note"
+                      style={{ fontSize: 13, color: '#C0392B', background: 'none', border: 'none', cursor: 'pointer', flexShrink: 0 }}
+                    >
+                      Remove
+                    </button>
                   </div>
                 ))}
               </div>
             ) : (
-              <p style={{ fontSize: 15, fontWeight: 400, color: '#718096' }}>—</p>
+              <p style={{ fontSize: 15, fontWeight: 400, color: '#718096' }}>No notes yet</p>
             )}
+            <div className="mt-2 flex items-start gap-2">
+              <textarea
+                value={newNote}
+                onChange={e => setNewNote(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); handleAddNote(); } }}
+                placeholder="Add a note…"
+                rows={2}
+                style={{ flex: 1, border: '1px solid #E2E8F0', borderRadius: 6, padding: '8px 10px', fontSize: 14, resize: 'vertical' }}
+              />
+              <Button
+                onClick={handleAddNote}
+                disabled={addingNote || !newNote.trim()}
+                style={{ height: 36, background: '#2E5FA3', color: '#FFFFFF', fontWeight: 500, borderRadius: 6, paddingLeft: 14, paddingRight: 14 }}
+              >
+                {addingNote ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Add'}
+              </Button>
+            </div>
           </div>
         </div>
       </div>
