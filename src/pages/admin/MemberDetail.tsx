@@ -126,7 +126,7 @@ export default function MemberDetail() {
   // Sage club-account balance (latest statement snapshot) + admin-only notes
   const [clubBalance, setClubBalance] = useState<{ total_due_cents: number; as_of_date: string } | null>(null);
   const [gateRemotes, setGateRemotes] = useState<string[]>([]);
-  const [adminNotes, setAdminNotes] = useState('');
+  const [noteItems, setNoteItems] = useState<{ id: string; body: string; created_at: string }[]>([]);
 
   // Tabs state
   const [tabs, setTabs] = useState<TabRow[]>([]);
@@ -278,14 +278,12 @@ export default function MemberDetail() {
 
   const fetchAdminNotes = useCallback(async () => {
     if (!id) return;
-    const { data } = await supabase
-      .from('member_admin_notes')
-      .select('gate_remotes, notes')
-      .eq('member_id', id)
-      .eq('venue_id', venueId)
-      .maybeSingle();
-    setGateRemotes((data?.gate_remotes as string[] | undefined) ?? []);
-    setAdminNotes(data?.notes ?? '');
+    const [remotesRes, itemsRes] = await Promise.all([
+      supabase.from('member_admin_notes').select('gate_remotes').eq('member_id', id).eq('venue_id', venueId).maybeSingle(),
+      supabase.from('member_admin_note_items').select('id, body, created_at').eq('member_id', id).eq('venue_id', venueId).order('created_at', { ascending: false }),
+    ]);
+    setGateRemotes((remotesRes.data?.gate_remotes as string[] | undefined) ?? []);
+    setNoteItems((itemsRes.data as { id: string; body: string; created_at: string }[]) ?? []);
   }, [id, venueId]);
 
   const fetchCredits = useCallback(async () => {
@@ -757,7 +755,20 @@ export default function MemberDetail() {
           </div>
           <div>
             <p style={{ fontSize: 13, color: '#718096', fontWeight: 500 }}>Notes</p>
-            <p style={{ fontSize: 15, fontWeight: 400, color: '#1A202C', whiteSpace: 'pre-wrap' }}>{adminNotes || '—'}</p>
+            {noteItems.length > 0 ? (
+              <div className="space-y-2 mt-1">
+                {noteItems.map(n => (
+                  <div key={n.id} style={{ border: '1px solid #E2E8F0', borderRadius: 6, padding: '8px 12px' }}>
+                    <p style={{ fontSize: 14, color: '#1A202C', whiteSpace: 'pre-wrap' }}>{n.body}</p>
+                    <p style={{ fontSize: 11, color: '#94A3B8', marginTop: 2 }}>
+                      {format(new Date(n.created_at), 'dd MMM yyyy')}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p style={{ fontSize: 15, fontWeight: 400, color: '#718096' }}>—</p>
+            )}
           </div>
         </div>
       </div>

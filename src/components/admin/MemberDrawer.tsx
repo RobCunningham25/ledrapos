@@ -117,11 +117,14 @@ export default function MemberDrawer({ isOpen, onClose, venueId, member, initial
   const [newBoatName, setNewBoatName] = useState('');
   const [newBoatReg, setNewBoatReg] = useState('');
 
-  // Admin-only notes (member_admin_notes). Held locally and upserted on Save —
-  // it's a single row per member, not a child collection like sites/sheds.
+  // Admin-only notes. Gate remotes live on member_admin_notes (one row per
+  // member, upserted on Save). Free-text notes are individual removable entries
+  // in member_admin_note_items — in edit mode add/remove hit the DB immediately
+  // (like sites/sheds); in add mode they're collected locally (id: null).
   const [gateRemotes, setGateRemotes] = useState<string[]>([]);
   const [newGateRemote, setNewGateRemote] = useState('');
-  const [adminNotes, setAdminNotes] = useState('');
+  const [noteItems, setNoteItems] = useState<{ id: string | null; body: string; created_at?: string }[]>([]);
+  const [newNote, setNewNote] = useState('');
 
   useEffect(() => {
     if (isOpen) {
@@ -201,13 +204,21 @@ export default function MemberDrawer({ isOpen, onClose, venueId, member, initial
           });
         supabase
           .from('member_admin_notes')
-          .select('gate_remotes, notes')
+          .select('gate_remotes')
           .eq('member_id', member.id)
           .eq('venue_id', venueId)
           .maybeSingle()
           .then(({ data }) => {
             setGateRemotes((data?.gate_remotes as string[] | undefined) ?? []);
-            setAdminNotes(data?.notes ?? '');
+          });
+        supabase
+          .from('member_admin_note_items')
+          .select('id, body, created_at')
+          .eq('member_id', member.id)
+          .eq('venue_id', venueId)
+          .order('created_at', { ascending: false })
+          .then(({ data }) => {
+            setNoteItems(((data as { id: string; body: string; created_at: string }[]) || []).map(r => ({ id: r.id, body: r.body, created_at: r.created_at })));
           });
       } else {
         setForm({ ...emptyForm, ...initialValues });
@@ -216,7 +227,7 @@ export default function MemberDrawer({ isOpen, onClose, venueId, member, initial
         setKids((initialChildren ?? []).map(c => ({ id: null, name: c.name, dob: c.dob })));
         setBoats((initialBoats ?? []).map(b => ({ id: null, name: b.name, reg: b.reg ?? '' })));
         setGateRemotes([]);
-        setAdminNotes('');
+        setNoteItems([]);
       }
       setNewSite('');
       setNewShed('');
@@ -225,6 +236,7 @@ export default function MemberDrawer({ isOpen, onClose, venueId, member, initial
       setNewBoatName('');
       setNewBoatReg('');
       setNewGateRemote('');
+      setNewNote('');
       setErrors({});
     }
   }, [isOpen, member, venueId, initialValues, initialBoats, initialChildren]);
@@ -350,6 +362,33 @@ export default function MemberDrawer({ isOpen, onClose, venueId, member, initial
   const removeGateRemote = (index: number) =>
     setGateRemotes(prev => prev.filter((_, i) => i !== index));
 
+  // Admin note entries: DB-immediate in edit mode, local until save in add mode.
+  const addNote = async () => {
+    const body = newNote.trim();
+    if (!body) return;
+    if (isEdit && member) {
+      const { data, error } = await supabase
+        .from('member_admin_note_items')
+        .insert({ venue_id: venueId, member_id: member.id, body })
+        .select('id, created_at')
+        .single();
+      if (error) { toast.error('Failed to add note'); return; }
+      setNoteItems(prev => [{ id: data.id, body, created_at: data.created_at }, ...prev]);
+    } else {
+      setNoteItems(prev => [{ id: null, body }, ...prev]);
+    }
+    setNewNote('');
+  };
+
+  const removeNote = async (index: number) => {
+    const row = noteItems[index];
+    if (row.id) {
+      const { error } = await supabase.from('member_admin_note_items').delete().eq('id', row.id);
+      if (error) { toast.error('Failed to remove note'); return; }
+    }
+    setNoteItems(prev => prev.filter((_, i) => i !== index));
+  };
+
   function validate(): boolean {
     const e: Partial<Record<keyof FormState, string>> = {};
     if (!form.first_name.trim()) e.first_name = 'First name is required';
@@ -422,14 +461,16 @@ export default function MemberDrawer({ isOpen, onClose, venueId, member, initial
         const pendingSheds = sheds.filter(s => !s.id).map(s => ({ venue_id: venueId, member_id: created.id, shed_number: s.value }));
         const pendingKids = kids.filter(k => !k.id).map(k => ({ venue_id: venueId, member_id: created.id, full_name: k.name, date_of_birth: k.dob }));
         const pendingBoats = boats.filter(b => !b.id).map(b => ({ venue_id: venueId, member_id: created.id, boat_name: b.name, registration_number: b.reg.trim() || null }));
-        const [siteRes, shedRes, kidRes, boatRes] = await Promise.all([
+        const pendingNotes = noteItems.filter(n => !n.id).map(n => ({ venue_id: venueId, member_id: created.id, body: n.body }));
+        const [siteRes, shedRes, kidRes, boatRes, noteRes] = await Promise.all([
           pendingSites.length ? supabase.from('member_sites').insert(pendingSites) : Promise.resolve({ error: null }),
           pendingSheds.length ? supabase.from('member_boat_sheds').insert(pendingSheds) : Promise.resolve({ error: null }),
           pendingKids.length ? supabase.from('member_children').insert(pendingKids) : Promise.resolve({ error: null }),
           pendingBoats.length ? supabase.from('member_boats').insert(pendingBoats) : Promise.resolve({ error: null }),
+          pendingNotes.length ? supabase.from('member_admin_note_items').insert(pendingNotes) : Promise.resolve({ error: null }),
         ]);
-        if (siteRes.error || shedRes.error || kidRes.error || boatRes.error) {
-          toast.error('Member saved, but some sites/sheds/children/boats failed to save — edit the member to retry');
+        if (siteRes.error || shedRes.error || kidRes.error || boatRes.error || noteRes.error) {
+          toast.error('Member saved, but some sites/sheds/children/boats/notes failed to save — edit the member to retry');
         }
       }
     }
@@ -444,17 +485,17 @@ export default function MemberDrawer({ isOpen, onClose, venueId, member, initial
       return;
     }
 
-    // Admin-only notes: upsert the single row (also clears cleared fields).
+    // Admin-only notes: upsert the gate-remotes row.
     const notesMemberId = isEdit && member ? member.id : createdId;
     if (notesMemberId) {
       const { error: notesError } = await supabase
         .from('member_admin_notes')
         .upsert(
-          { member_id: notesMemberId, venue_id: venueId, gate_remotes: gateRemotes, notes: adminNotes.trim() || null },
+          { member_id: notesMemberId, venue_id: venueId, gate_remotes: gateRemotes },
           { onConflict: 'member_id' },
         );
       if (notesError) {
-        toast.error('Member saved, but the admin notes failed to save — edit the member to retry');
+        toast.error('Member saved, but the gate remotes failed to save — edit the member to retry');
       }
     }
 
@@ -763,19 +804,40 @@ export default function MemberDrawer({ isOpen, onClose, venueId, member, initial
             </div>
 
             <Label style={{ fontSize: 14, fontWeight: 600, color: '#1A202C', display: 'block', marginTop: 16 }}>Admin Notes</Label>
-            <Textarea
-              value={adminNotes}
-              onChange={e => setAdminNotes(e.target.value)}
-              placeholder="Internal notes about this member — gate access, keys, standing arrangements, anything the committee should know."
-              rows={4}
-              className="mt-1"
-              style={{ borderRadius: 6, fontSize: 14 }}
-            />
-            {isEdit && (
-              <p style={{ fontSize: 12, color: '#718096', marginTop: 6 }}>
-                Gate remotes and notes save when you click Save Changes.
-              </p>
-            )}
+            <div className="space-y-2 mt-2 mb-2">
+              {noteItems.length === 0 && <p style={{ fontSize: 12, color: '#718096' }}>No notes yet</p>}
+              {noteItems.map((n, i) => (
+                <div key={n.id ?? `new-${i}`} className="flex items-start justify-between gap-2" style={{ border: '1px solid #E2E8F0', borderRadius: 6, padding: '8px 12px' }}>
+                  <div>
+                    <p style={{ fontSize: 13, color: '#1A202C', whiteSpace: 'pre-wrap' }}>{n.body}</p>
+                    {n.created_at && (
+                      <p style={{ fontSize: 11, color: '#718096', marginTop: 2 }}>
+                        {new Date(n.created_at).toLocaleDateString('en-ZA', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      </p>
+                    )}
+                  </div>
+                  <button type="button" onClick={() => removeNote(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#718096', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+                    <X size={14} />
+                  </button>
+                </div>
+              ))}
+            </div>
+            <div className="flex items-start gap-2">
+              <Textarea
+                value={newNote}
+                onChange={e => setNewNote(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); addNote(); } }}
+                placeholder="Add a note — gate access, keys, standing arrangements…"
+                rows={2}
+                style={{ borderRadius: 6, fontSize: 14, flex: 1 }}
+              />
+              <Button type="button" onClick={addNote} style={{ height: 36, background: '#2E5FA3', color: '#FFFFFF', fontWeight: 500, borderRadius: 6, paddingLeft: 14, paddingRight: 14 }}>Add</Button>
+            </div>
+            <p style={{ fontSize: 12, color: '#718096', marginTop: 6 }}>
+              {isEdit
+                ? 'Notes are added and removed straight away. Gate remotes save when you click Save Changes.'
+                : 'Notes and gate remotes are saved with the new member.'}
+            </p>
           </div>
 
           {isEdit && (
