@@ -1085,6 +1085,179 @@ function ElectricityReport({ venueId }: RangeProps) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Report: Outstanding Fees (club-account arrears from Sage)
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface AgingBuckets { current: number; d30: number; d60: number; d90: number; d120: number }
+
+function readAging(raw: unknown): AgingBuckets {
+  const a = (raw ?? {}) as Record<string, unknown>;
+  const n = (v: unknown) => (typeof v === 'number' ? v : 0);
+  return { current: n(a.current), d30: n(a.d30), d60: n(a.d60), d90: n(a.d90), d120: n(a.d120) };
+}
+
+interface FeeRow {
+  memberId: string;
+  name: string;
+  num: string | null;
+  totalCents: number;
+  aging: AgingBuckets;
+  asOf: string;
+}
+
+function downloadFeesCsv(filename: string, rows: FeeRow[]) {
+  const headers = ['Member', 'Membership #', 'Current', '30 days', '60 days', '90 days', '120+ days', 'Total owing', 'Statement date'];
+  const esc = (v: string | number) => {
+    const s = String(v ?? '');
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  const money = (c: number) => (c / 100).toFixed(2);
+  const lines = [
+    headers.join(','),
+    ...rows.map((r) => [
+      r.name, r.num ?? '', money(r.aging.current), money(r.aging.d30), money(r.aging.d60),
+      money(r.aging.d90), money(r.aging.d120), money(r.totalCents), r.asOf,
+    ].map(esc).join(',')),
+  ];
+  const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+}
+
+function OutstandingFeesReport({ venueId }: RangeProps) {
+  const state = useReportData(async () => {
+    const { data: balances, error } = await supabase
+      .from('member_club_balances')
+      .select('member_id, total_due_cents, aging, as_of_date, created_at')
+      .eq('venue_id', venueId)
+      .order('as_of_date', { ascending: false })
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+
+    // Keep only the newest statement row per member.
+    const latest = new Map<string, { total: number; aging: unknown; asOf: string }>();
+    for (const b of balances ?? []) {
+      if (!latest.has(b.member_id)) {
+        latest.set(b.member_id, { total: b.total_due_cents ?? 0, aging: b.aging, asOf: b.as_of_date });
+      }
+    }
+
+    const memberIds = [...latest.keys()];
+    const nameById = new Map<string, { name: string; num: string | null }>();
+    if (memberIds.length) {
+      const { data: mem } = await supabase
+        .from('members')
+        .select('id, first_name, last_name, membership_number')
+        .in('id', memberIds);
+      (mem ?? []).forEach((m) => nameById.set(m.id, {
+        name: `${m.first_name ?? ''} ${m.last_name ?? ''}`.trim() || 'Member',
+        num: m.membership_number ?? null,
+      }));
+    }
+
+    const rows: FeeRow[] = [...latest.entries()].map(([memberId, v]) => ({
+      memberId,
+      name: nameById.get(memberId)?.name ?? 'Member',
+      num: nameById.get(memberId)?.num ?? null,
+      totalCents: v.total,
+      aging: readAging(v.aging),
+      asOf: v.asOf,
+    }));
+
+    const arrears = rows.filter((r) => r.totalCents > 0).sort((a, b) => b.totalCents - a.totalCents);
+    const inCredit = rows.filter((r) => r.totalCents < 0).sort((a, b) => a.totalCents - b.totalCents);
+    const totalOwing = arrears.reduce((s, r) => s + r.totalCents, 0);
+    const totalCredit = inCredit.reduce((s, r) => s + r.totalCents, 0);
+    const bucketTotals = arrears.reduce((acc, r) => ({
+      current: acc.current + r.aging.current,
+      d30: acc.d30 + r.aging.d30,
+      d60: acc.d60 + r.aging.d60,
+      d90: acc.d90 + r.aging.d90,
+      d120: acc.d120 + r.aging.d120,
+    }), { current: 0, d30: 0, d60: 0, d90: 0, d120: 0 });
+    const statementDate = rows.reduce<string | null>((max, r) => (!max || r.asOf > max ? r.asOf : max), null);
+
+    return { arrears, inCredit, totalOwing, totalCredit, bucketTotals, statementDate, memberCount: rows.length };
+  }, [venueId]);
+
+  if (state.status === 'loading') return <Loading />;
+  if (state.status === 'error') return <ErrorNote />;
+  const { arrears, inCredit, totalOwing, totalCredit, bucketTotals, statementDate, memberCount } = state.data;
+
+  if (memberCount === 0) {
+    return <p className="text-sm text-muted-foreground">No club-account statement has been imported yet.</p>;
+  }
+
+  const stmtLabel = statementDate ? format(new Date(statementDate + 'T00:00:00'), 'd MMMM yyyy') : '—';
+
+  return (
+    <div className="space-y-6">
+      <KpiGrid
+        items={[
+          { label: 'Total Outstanding', value: formatCents(totalOwing), hint: `${arrears.length} member${arrears.length === 1 ? '' : 's'} in arrears` },
+          { label: 'In Credit / Overpaid', value: formatCents(Math.abs(totalCredit)), hint: `${inCredit.length} member${inCredit.length === 1 ? '' : 's'}` },
+          { label: 'Members on Statement', value: String(memberCount) },
+          { label: 'Statement Date', value: stmtLabel },
+        ]}
+      />
+      <p className="text-[13px] italic" style={{ color: MUTED }}>
+        Club-account position (subs, levies, mooring fees) from the latest Sage import — the newest statement per member.
+        Not the bar tab or POS credit. Negative aging buckets are unallocated payments Sage hasn't matched to an invoice yet.
+      </p>
+
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <h3 className="text-lg font-semibold" style={{ color: INK }}>Members in arrears</h3>
+            <p className="text-[13px] italic mt-0.5" style={{ color: MUTED }}>Owing the club money as at {stmtLabel}, largest first.</p>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={arrears.length === 0}
+            onClick={() => downloadFeesCsv(`outstanding_fees_${statementDate ?? 'latest'}.csv`, arrears)}
+          >
+            Export CSV
+          </Button>
+        </div>
+        <DataTable
+          columns={[
+            { key: 'm', label: 'Member', render: (r: FeeRow) => <span className="font-medium">{r.name}{r.num && <span style={{ color: '#94A3B8' }}>{`  (${r.num})`}</span>}</span> },
+            { key: 'c', label: 'Current', align: 'right', render: (r: FeeRow) => formatCents(r.aging.current) },
+            { key: 'd30', label: '30 days', align: 'right', render: (r: FeeRow) => formatCents(r.aging.d30) },
+            { key: 'd60', label: '60 days', align: 'right', render: (r: FeeRow) => formatCents(r.aging.d60) },
+            { key: 'd90', label: '90 days', align: 'right', render: (r: FeeRow) => formatCents(r.aging.d90) },
+            { key: 'd120', label: '120+ days', align: 'right', render: (r: FeeRow) => formatCents(r.aging.d120) },
+            { key: 't', label: 'Total owing', align: 'right', render: (r: FeeRow) => <span className="font-semibold" style={{ color: '#C0392B' }}>{formatCents(r.totalCents)}</span> },
+          ]}
+          rows={arrears}
+          empty="No members are in arrears on the latest statement."
+        />
+        {arrears.length > 0 && (
+          <p className="text-[13px] mt-2" style={{ color: INK }}>
+            Bucket totals — Current {formatCents(bucketTotals.current)} · 30 {formatCents(bucketTotals.d30)} · 60 {formatCents(bucketTotals.d60)} · 90 {formatCents(bucketTotals.d90)} · 120+ {formatCents(bucketTotals.d120)}
+          </p>
+        )}
+      </div>
+
+      <div>
+        <SectionHeader title="In credit / overpaid" note="Members whose club account is in credit on the latest statement." />
+        <DataTable
+          columns={[
+            { key: 'm', label: 'Member', render: (r: FeeRow) => <span className="font-medium">{r.name}{r.num && <span style={{ color: '#94A3B8' }}>{`  (${r.num})`}</span>}</span> },
+            { key: 'b', label: 'In credit', align: 'right', render: (r: FeeRow) => <span className="font-semibold" style={{ color: '#1E8449' }}>{formatCents(Math.abs(r.totalCents))}</span> },
+          ]}
+          rows={inCredit}
+          empty="No members are in credit."
+        />
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Shell
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -1093,6 +1266,7 @@ const REPORTS = [
   { key: 'products', label: 'Products & Margin', Comp: ProductsReport },
   { key: 'yoco', label: 'Yoco Online', Comp: YocoReport },
   { key: 'members', label: 'Members', Comp: MembersReport },
+  { key: 'fees', label: 'Outstanding Fees', Comp: OutstandingFeesReport },
   { key: 'accommodation', label: 'Accommodation', Comp: AccommodationReport },
   { key: 'trading', label: 'Trading Patterns', Comp: TradingReport },
   { key: 'inventory', label: 'Inventory', Comp: InventoryReport },

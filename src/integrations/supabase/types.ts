@@ -1210,6 +1210,48 @@ export type Database = {
           },
         ]
       }
+      member_admin_notes: {
+        Row: {
+          created_at: string
+          gate_remotes: string[]
+          member_id: string
+          notes: string | null
+          updated_at: string
+          venue_id: string
+        }
+        Insert: {
+          created_at?: string
+          gate_remotes?: string[]
+          member_id: string
+          notes?: string | null
+          updated_at?: string
+          venue_id: string
+        }
+        Update: {
+          created_at?: string
+          gate_remotes?: string[]
+          member_id?: string
+          notes?: string | null
+          updated_at?: string
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "member_admin_notes_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: true
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "member_admin_notes_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       member_boat_sheds: {
         Row: {
           created_at: string | null

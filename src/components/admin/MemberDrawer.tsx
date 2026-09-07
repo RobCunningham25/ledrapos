@@ -117,6 +117,12 @@ export default function MemberDrawer({ isOpen, onClose, venueId, member, initial
   const [newBoatName, setNewBoatName] = useState('');
   const [newBoatReg, setNewBoatReg] = useState('');
 
+  // Admin-only notes (member_admin_notes). Held locally and upserted on Save —
+  // it's a single row per member, not a child collection like sites/sheds.
+  const [gateRemotes, setGateRemotes] = useState<string[]>([]);
+  const [newGateRemote, setNewGateRemote] = useState('');
+  const [adminNotes, setAdminNotes] = useState('');
+
   useEffect(() => {
     if (isOpen) {
       if (member) {
@@ -193,12 +199,24 @@ export default function MemberDrawer({ isOpen, onClose, venueId, member, initial
           .then(({ data }) => {
             setBoats(((data as { id: string; boat_name: string; registration_number: string | null }[]) || []).map(r => ({ id: r.id, name: r.boat_name, reg: r.registration_number || '' })));
           });
+        supabase
+          .from('member_admin_notes')
+          .select('gate_remotes, notes')
+          .eq('member_id', member.id)
+          .eq('venue_id', venueId)
+          .maybeSingle()
+          .then(({ data }) => {
+            setGateRemotes((data?.gate_remotes as string[] | undefined) ?? []);
+            setAdminNotes(data?.notes ?? '');
+          });
       } else {
         setForm({ ...emptyForm, ...initialValues });
         setSites([]);
         setSheds([]);
         setKids((initialChildren ?? []).map(c => ({ id: null, name: c.name, dob: c.dob })));
         setBoats((initialBoats ?? []).map(b => ({ id: null, name: b.name, reg: b.reg ?? '' })));
+        setGateRemotes([]);
+        setAdminNotes('');
       }
       setNewSite('');
       setNewShed('');
@@ -206,6 +224,7 @@ export default function MemberDrawer({ isOpen, onClose, venueId, member, initial
       setNewChildDob('');
       setNewBoatName('');
       setNewBoatReg('');
+      setNewGateRemote('');
       setErrors({});
     }
   }, [isOpen, member, venueId, initialValues, initialBoats, initialChildren]);
@@ -321,6 +340,16 @@ export default function MemberDrawer({ isOpen, onClose, venueId, member, initial
     setBoats(prev => prev.filter((_, i) => i !== index));
   };
 
+  // Gate remotes are edited in memory and persisted with the rest of the form.
+  const addGateRemote = () => {
+    const value = newGateRemote.trim();
+    if (!value) return;
+    setGateRemotes(prev => (prev.includes(value) ? prev : [...prev, value]));
+    setNewGateRemote('');
+  };
+  const removeGateRemote = (index: number) =>
+    setGateRemotes(prev => prev.filter((_, i) => i !== index));
+
   function validate(): boolean {
     const e: Partial<Record<keyof FormState, string>> = {};
     if (!form.first_name.trim()) e.first_name = 'First name is required';
@@ -405,9 +434,8 @@ export default function MemberDrawer({ isOpen, onClose, venueId, member, initial
       }
     }
 
-    setSaving(false);
-
     if (error) {
+      setSaving(false);
       if (error.message?.includes('duplicate key') || error.message?.includes('unique') || error.code === '23505') {
         setErrors(prev => ({ ...prev, membership_number: 'This membership number is already in use' }));
       } else {
@@ -415,6 +443,22 @@ export default function MemberDrawer({ isOpen, onClose, venueId, member, initial
       }
       return;
     }
+
+    // Admin-only notes: upsert the single row (also clears cleared fields).
+    const notesMemberId = isEdit && member ? member.id : createdId;
+    if (notesMemberId) {
+      const { error: notesError } = await supabase
+        .from('member_admin_notes')
+        .upsert(
+          { member_id: notesMemberId, venue_id: venueId, gate_remotes: gateRemotes, notes: adminNotes.trim() || null },
+          { onConflict: 'member_id' },
+        );
+      if (notesError) {
+        toast.error('Member saved, but the admin notes failed to save — edit the member to retry');
+      }
+    }
+
+    setSaving(false);
 
     toast.success(isEdit ? 'Member updated' : 'Member added');
     onSuccess(createdId);
@@ -685,6 +729,52 @@ export default function MemberDrawer({ isOpen, onClose, venueId, member, initial
                   </p>
                 )}
               </div>
+            )}
+          </div>
+
+          {/* ===== Admin-only notes (not visible to members) ===== */}
+          <div style={{ borderTop: '1px solid #E2E8F0', paddingTop: 16, marginTop: 8 }}>
+            <Label style={{ fontSize: 14, fontWeight: 600, color: '#1A202C' }}>Admin only</Label>
+            <p style={{ fontSize: 12, color: '#718096', marginTop: 2 }}>
+              Only visible to club admins — members never see this on the portal.
+            </p>
+
+            <Label style={{ fontSize: 14, fontWeight: 600, color: '#1A202C', display: 'block', marginTop: 14 }}>Gate Remote Positions</Label>
+            <div className="flex flex-wrap gap-2 mt-2 mb-2">
+              {gateRemotes.length === 0 && <p style={{ fontSize: 12, color: '#718096' }}>No remotes assigned</p>}
+              {gateRemotes.map((g, i) => (
+                <span key={`${g}-${i}`} className="inline-flex items-center gap-1" style={{ fontSize: 13, color: '#1A202C', background: '#F4F6F9', border: '1px solid #E2E8F0', borderRadius: 16, padding: '4px 12px' }}>
+                  {g}
+                  <button type="button" onClick={() => removeGateRemote(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#718096', display: 'flex', alignItems: 'center' }}>
+                    <X size={12} />
+                  </button>
+                </span>
+              ))}
+            </div>
+            <div className="flex items-center gap-2">
+              <Input
+                placeholder="e.g. 47"
+                value={newGateRemote}
+                onChange={e => setNewGateRemote(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addGateRemote(); } }}
+                style={{ height: 40, borderRadius: 6, fontSize: 14, width: 160 }}
+              />
+              <Button type="button" onClick={addGateRemote} style={{ height: 36, background: '#2E5FA3', color: '#FFFFFF', fontWeight: 500, borderRadius: 6, paddingLeft: 14, paddingRight: 14 }}>Add</Button>
+            </div>
+
+            <Label style={{ fontSize: 14, fontWeight: 600, color: '#1A202C', display: 'block', marginTop: 16 }}>Admin Notes</Label>
+            <Textarea
+              value={adminNotes}
+              onChange={e => setAdminNotes(e.target.value)}
+              placeholder="Internal notes about this member — gate access, keys, standing arrangements, anything the committee should know."
+              rows={4}
+              className="mt-1"
+              style={{ borderRadius: 6, fontSize: 14 }}
+            />
+            {isEdit && (
+              <p style={{ fontSize: 12, color: '#718096', marginTop: 6 }}>
+                Gate remotes and notes save when you click Save Changes.
+              </p>
             )}
           </div>
 

@@ -123,6 +123,11 @@ export default function MemberDetail() {
   // Balance due state
   const [balanceDue, setBalanceDue] = useState(0);
 
+  // Sage club-account balance (latest statement snapshot) + admin-only notes
+  const [clubBalance, setClubBalance] = useState<{ total_due_cents: number; as_of_date: string } | null>(null);
+  const [gateRemotes, setGateRemotes] = useState<string[]>([]);
+  const [adminNotes, setAdminNotes] = useState('');
+
   // Tabs state
   const [tabs, setTabs] = useState<TabRow[]>([]);
   const [tabsLoading, setTabsLoading] = useState(true);
@@ -255,6 +260,32 @@ export default function MemberDetail() {
       total += Math.max(0, tabTotal - paidTotal);
     }
     setBalanceDue(total);
+  }, [id, venueId]);
+
+  const fetchClubBalance = useCallback(async () => {
+    if (!id) return;
+    const { data } = await supabase
+      .from('member_club_balances')
+      .select('total_due_cents, as_of_date')
+      .eq('member_id', id)
+      .eq('venue_id', venueId)
+      .order('as_of_date', { ascending: false })
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    setClubBalance(data ?? null);
+  }, [id, venueId]);
+
+  const fetchAdminNotes = useCallback(async () => {
+    if (!id) return;
+    const { data } = await supabase
+      .from('member_admin_notes')
+      .select('gate_remotes, notes')
+      .eq('member_id', id)
+      .eq('venue_id', venueId)
+      .maybeSingle();
+    setGateRemotes((data?.gate_remotes as string[] | undefined) ?? []);
+    setAdminNotes(data?.notes ?? '');
   }, [id, venueId]);
 
   const fetchCredits = useCallback(async () => {
@@ -427,7 +458,7 @@ export default function MemberDetail() {
     }));
   };
 
-  useEffect(() => { fetchMember(); fetchCreditBalance(); fetchBalanceDue(); fetchSitesSheds(); }, [fetchMember, fetchCreditBalance, fetchBalanceDue, fetchSitesSheds]);
+  useEffect(() => { fetchMember(); fetchCreditBalance(); fetchBalanceDue(); fetchClubBalance(); fetchAdminNotes(); fetchSitesSheds(); }, [fetchMember, fetchCreditBalance, fetchBalanceDue, fetchClubBalance, fetchAdminNotes, fetchSitesSheds]);
   useEffect(() => { fetchAdminAccess(member?.email ?? null); }, [member?.email, fetchAdminAccess]);
   useEffect(() => { fetchCredits(); }, [fetchCredits]);
   useEffect(() => { fetchTabs(); fetchTabSummary(); }, [fetchTabs, fetchTabSummary]);
@@ -675,6 +706,58 @@ export default function MemberDetail() {
             }}>
               {formatCents(balanceDue)}
             </p>
+          </div>
+          <div>
+            <p style={{ fontSize: 13, color: '#718096', fontWeight: 500 }}>Club account (Sage)</p>
+            {clubBalance ? (
+              <>
+                <p style={{
+                  fontSize: 15,
+                  fontWeight: clubBalance.total_due_cents > 0 ? 600 : 400,
+                  color: clubBalance.total_due_cents > 0 ? '#C0392B' : clubBalance.total_due_cents < 0 ? '#1E8449' : '#718096',
+                }}>
+                  {clubBalance.total_due_cents > 0
+                    ? `${formatCents(clubBalance.total_due_cents)} owing`
+                    : clubBalance.total_due_cents < 0
+                      ? `${formatCents(Math.abs(clubBalance.total_due_cents))} in credit`
+                      : 'Nothing owing'}
+                </p>
+                <p style={{ fontSize: 12, color: '#94A3B8' }}>
+                  Statement as at {format(new Date(clubBalance.as_of_date + 'T00:00:00'), 'dd MMM yyyy')}
+                </p>
+              </>
+            ) : (
+              <p style={{ fontSize: 15, fontWeight: 400, color: '#718096' }}>No statement</p>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Admin-only notes — never shown to members */}
+      <div style={{
+        background: '#FFFFFF', borderRadius: 8, border: '1px solid #E2E8F0',
+        padding: 20, marginBottom: 24,
+      }}>
+        <div className="flex items-center justify-between mb-3">
+          <h3 style={{ fontSize: 15, fontWeight: 600, color: '#1A202C', margin: 0 }}>Admin notes</h3>
+          <span style={{ fontSize: 12, color: '#718096' }}>Not visible to members · edit via Edit</span>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-4">
+          <div>
+            <p style={{ fontSize: 13, color: '#718096', fontWeight: 500 }}>Gate remote positions</p>
+            {gateRemotes.length > 0 ? (
+              <div className="flex flex-wrap gap-2 mt-1">
+                {gateRemotes.map((g, i) => (
+                  <span key={`${g}-${i}`} style={{ fontSize: 13, color: '#1A202C', background: '#F4F6F9', border: '1px solid #E2E8F0', borderRadius: 16, padding: '4px 12px' }}>{g}</span>
+                ))}
+              </div>
+            ) : (
+              <p style={{ fontSize: 15, fontWeight: 400, color: '#718096' }}>—</p>
+            )}
+          </div>
+          <div>
+            <p style={{ fontSize: 13, color: '#718096', fontWeight: 500 }}>Notes</p>
+            <p style={{ fontSize: 15, fontWeight: 400, color: '#1A202C', whiteSpace: 'pre-wrap' }}>{adminNotes || '—'}</p>
           </div>
         </div>
       </div>
@@ -1054,7 +1137,7 @@ export default function MemberDetail() {
         <MemberDetailsTab
           memberId={member.id}
           venueId={venueId}
-          onMemberUpdated={() => { fetchMember(); fetchCreditBalance(); fetchBalanceDue(); fetchSitesSheds(); }}
+          onMemberUpdated={() => { fetchMember(); fetchCreditBalance(); fetchBalanceDue(); fetchClubBalance(); fetchAdminNotes(); fetchSitesSheds(); }}
         />
       )}
 
@@ -1064,7 +1147,7 @@ export default function MemberDetail() {
         onClose={() => setDrawerOpen(false)}
         venueId={venueId}
         member={member}
-        onSuccess={() => { fetchMember(); fetchCreditBalance(); fetchBalanceDue(); fetchSitesSheds(); }}
+        onSuccess={() => { fetchMember(); fetchCreditBalance(); fetchBalanceDue(); fetchClubBalance(); fetchAdminNotes(); fetchSitesSheds(); }}
       />
     </AdminLayout>
   );
