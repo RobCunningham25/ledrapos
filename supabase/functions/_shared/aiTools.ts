@@ -269,9 +269,63 @@ export const TOOL_DEFINITIONS = [
       required: ["summary", "urgency"],
     },
   },
+  {
+    name: "get_water_signout_status",
+    description:
+      "Check whether the calling member currently has an open water sign-out (float plan), and list their registered boats. ALWAYS call this first before start_water_signout or close_water_signout — it tells you which boat(s) to offer and whether they're already signed out (in which case you should be closing it, not starting a new one).",
+    input_schema: { type: "object", properties: {}, required: [] },
+  },
+  {
+    name: "start_water_signout",
+    description:
+      "Log a water sign-out (float plan) for the calling member before they go out on the water. Only call this AFTER calling get_water_signout_status first, and only after the member has explicitly confirmed the details (boat, crew count, expected return time) — collect any missing details across turns by asking, don't guess. Fails if the member already has an open sign-out (close it first with close_water_signout).",
+    input_schema: {
+      type: "object",
+      properties: {
+        boat_name: {
+          type: "string",
+          description: "Name of the boat going out. Match against the member's registered boats from get_water_signout_status where possible; otherwise use whatever the member typed.",
+        },
+        member_boat_id: {
+          type: "string",
+          description: "The id of the matching boat from get_water_signout_status's boats list, if one clearly matches boat_name. Omit if none matches or the member has no registered boats.",
+        },
+        crew_count: {
+          type: "integer",
+          description: "Total number of people aboard, including the member.",
+        },
+        expected_return_at: {
+          type: "string",
+          description: "Expected return date and time, SAST, ISO 8601 (e.g. 2026-09-10T16:00:00+02:00). Compute this from the member's message relative to the current date/time given at the top of the system prompt — e.g. 'back by 4' on a message sent at 14:00 today means today at 16:00; if that time has already passed today, assume tomorrow.",
+        },
+        passenger_note: {
+          type: "string",
+          description: "Optional free text — names of other people aboard, or any other detail the member mentioned.",
+        },
+      },
+      required: ["boat_name", "crew_count", "expected_return_at"],
+    },
+  },
+  {
+    name: "close_water_signout",
+    description:
+      "Close out the calling member's open water sign-out (they've confirmed they're back). Call get_water_signout_status first to confirm there is one open. Confirm with the member before calling this if there's any ambiguity about which trip they mean (there should only ever be one open at a time).",
+    input_schema: { type: "object", properties: {}, required: [] },
+  },
 ] as const;
 
 export type ToolName = typeof TOOL_DEFINITIONS[number]["name"];
+
+// Water sign-out tools are only offered to a venue when
+// venues.water_signout_ai_enabled is true (checked by whatsapp-ai-reply,
+// which fetches the flag and filters these out otherwise) — the assistant is
+// a single live production function shared by every real member's WhatsApp
+// thread, so this feature stays off until explicitly turned on per venue.
+export const WATER_SIGNOUT_TOOL_NAMES: ToolName[] = [
+  "get_water_signout_status",
+  "start_water_signout",
+  "close_water_signout",
+];
 
 // Trimmed catalog for prospects (people who aren't club members — see
 // whatsapp-ai-reply's prospect path). No member-scoped data/action tools:
@@ -1520,6 +1574,151 @@ async function tool_escalate_to_admin(
   };
 }
 
+// ===== Water sign-out (float plan) =====
+
+async function tool_get_water_signout_status(ctx: ToolContext): Promise<ToolResult> {
+  const [{ data: openSignout }, { data: boats }] = await Promise.all([
+    ctx.supabase
+      .from("water_signouts")
+      .select("id, boat_name, passenger_count, departure_at, expected_return_at")
+      .eq("member_id", ctx.memberId)
+      .eq("status", "out")
+      .maybeSingle(),
+    ctx.supabase
+      .from("member_boats")
+      .select("id, boat_name, registration_number")
+      .eq("member_id", ctx.memberId)
+      .order("created_at"),
+  ]);
+
+  return {
+    output: {
+      status: "ok",
+      open_signout: openSignout
+        ? {
+          id: openSignout.id,
+          boat_name: openSignout.boat_name,
+          passenger_count: openSignout.passenger_count,
+          departure_at: openSignout.departure_at,
+          expected_return_at: openSignout.expected_return_at,
+        }
+        : null,
+      registered_boats: (boats ?? []).map((b) => ({
+        id: b.id,
+        boat_name: b.boat_name,
+        registration_number: b.registration_number,
+      })),
+    },
+    logSummary: `get_water_signout_status: ${openSignout ? "has open trip" : "none open"}, ${boats?.length ?? 0} boats`,
+  };
+}
+
+async function tool_start_water_signout(
+  ctx: ToolContext,
+  input: { boat_name: string; member_boat_id?: string; crew_count: number; expected_return_at: string; passenger_note?: string },
+): Promise<ToolResult> {
+  const boatName = (input.boat_name ?? "").trim();
+  if (!boatName) {
+    return { output: { status: "error", note: "boat_name is required" }, logSummary: "start_water_signout: missing boat_name" };
+  }
+  const crewCount = Math.max(0, Math.min(50, Math.round(input.crew_count ?? 0)));
+  const expectedReturnAt = new Date(input.expected_return_at);
+  if (isNaN(expectedReturnAt.getTime())) {
+    return { output: { status: "error", note: "expected_return_at is not a valid date/time" }, logSummary: "start_water_signout: bad expected_return_at" };
+  }
+
+  if (ctx.dryRun) {
+    return {
+      output: { status: "dry_run", boat_name: boatName, crew_count: crewCount, expected_return_at: expectedReturnAt.toISOString() },
+      logSummary: `start_water_signout: dry_run (${boatName})`,
+    };
+  }
+
+  const { data: member } = await ctx.supabase
+    .from("members")
+    .select("phone, emergency_contact_name, emergency_contact_phone")
+    .eq("id", ctx.memberId)
+    .maybeSingle();
+
+  const { data, error } = await ctx.supabase
+    .from("water_signouts")
+    .insert({
+      venue_id: ctx.venueId,
+      member_id: ctx.memberId,
+      member_boat_id: input.member_boat_id || null,
+      boat_name: boatName,
+      passenger_count: crewCount,
+      passenger_note: input.passenger_note?.trim() || null,
+      contact_phone: member?.phone ?? null,
+      emergency_contact_name: member?.emergency_contact_name ?? null,
+      emergency_contact_phone: member?.emergency_contact_phone ?? null,
+      expected_return_at: expectedReturnAt.toISOString(),
+      source: "whatsapp",
+    })
+    .select("id")
+    .single();
+
+  if (error) {
+    // Most likely the one-open-trip-per-member unique index.
+    const alreadyOut = error.code === "23505";
+    return {
+      output: {
+        status: "error",
+        note: alreadyOut
+          ? "This member already has an open sign-out. Call get_water_signout_status and close it first if this is a new trip."
+          : (error.message ?? "Failed to log sign-out"),
+      },
+      logSummary: `start_water_signout: error ${error.message?.slice(0, 80)}`,
+    };
+  }
+
+  return {
+    output: {
+      status: "ok",
+      signout_id: data.id,
+      boat_name: boatName,
+      crew_count: crewCount,
+      expected_return_at: expectedReturnAt.toISOString(),
+      note: "Signed out. Confirm the boat, crew count and expected return time back to the member, and remind them to sign back in (or text back) when they're home.",
+    },
+    logSummary: `start_water_signout: ok (${boatName}, back ${expectedReturnAt.toISOString()})`,
+  };
+}
+
+async function tool_close_water_signout(ctx: ToolContext): Promise<ToolResult> {
+  if (ctx.dryRun) {
+    return { output: { status: "dry_run" }, logSummary: "close_water_signout: dry_run" };
+  }
+
+  const { data: open } = await ctx.supabase
+    .from("water_signouts")
+    .select("id")
+    .eq("member_id", ctx.memberId)
+    .eq("status", "out")
+    .maybeSingle();
+
+  if (!open) {
+    return {
+      output: { status: "not_found", note: "No open water sign-out for this member." },
+      logSummary: "close_water_signout: nothing open",
+    };
+  }
+
+  const { error } = await ctx.supabase
+    .from("water_signouts")
+    .update({ actual_return_at: new Date().toISOString(), status: "in" })
+    .eq("id", open.id);
+
+  if (error) {
+    return { output: { status: "error", note: error.message }, logSummary: `close_water_signout: error ${error.message?.slice(0, 80)}` };
+  }
+
+  return {
+    output: { status: "ok", note: "Signed back in safely. Welcome them back." },
+    logSummary: "close_water_signout: ok",
+  };
+}
+
 // ===== Dispatch =====
 
 export async function runTool(
@@ -1568,6 +1767,15 @@ export async function runTool(
       return await tool_create_caravan_booking(ctx, input as unknown as CreateCaravanBookingInput);
     case "escalate_to_admin":
       return await tool_escalate_to_admin(ctx, input as { summary: string; urgency: string });
+    case "get_water_signout_status":
+      return await tool_get_water_signout_status(ctx);
+    case "start_water_signout":
+      return await tool_start_water_signout(
+        ctx,
+        input as unknown as { boat_name: string; member_boat_id?: string; crew_count: number; expected_return_at: string; passenger_note?: string },
+      );
+    case "close_water_signout":
+      return await tool_close_water_signout(ctx);
     default:
       return {
         output: { error: `Unknown tool: ${name}` },
