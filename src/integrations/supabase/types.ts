@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.17"
+    PostgrestVersion: "14.5"
   }
   public: {
     Tables: {
@@ -2430,6 +2430,7 @@ export type Database = {
           text_primary: string
           text_secondary: string
           warning_color: string
+          water_signout_ai_enabled: boolean
           welcome_message: string | null
           whatsapp_ai_daily_cap: number
           whatsapp_ai_enabled: boolean
@@ -2471,6 +2472,7 @@ export type Database = {
           text_primary?: string
           text_secondary?: string
           warning_color?: string
+          water_signout_ai_enabled?: boolean
           welcome_message?: string | null
           whatsapp_ai_daily_cap?: number
           whatsapp_ai_enabled?: boolean
@@ -2512,6 +2514,7 @@ export type Database = {
           text_primary?: string
           text_secondary?: string
           warning_color?: string
+          water_signout_ai_enabled?: boolean
           welcome_message?: string | null
           whatsapp_ai_daily_cap?: number
           whatsapp_ai_enabled?: boolean
@@ -2521,6 +2524,129 @@ export type Database = {
           whatsapp_staff_alert_number?: string | null
         }
         Relationships: []
+      }
+      water_safety_contacts: {
+        Row: {
+          created_at: string
+          email: string | null
+          id: string
+          is_active: boolean
+          name: string
+          sort_order: number
+          venue_id: string
+          whatsapp_number: string | null
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          sort_order?: number
+          venue_id: string
+          whatsapp_number?: string | null
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          sort_order?: number
+          venue_id?: string
+          whatsapp_number?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "water_safety_contacts_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      water_signouts: {
+        Row: {
+          actual_return_at: string | null
+          boat_name: string
+          contact_phone: string | null
+          created_at: string
+          departure_at: string
+          emergency_contact_name: string | null
+          emergency_contact_phone: string | null
+          expected_return_at: string
+          id: string
+          member_boat_id: string | null
+          member_id: string
+          overdue_alert_sent_at: string | null
+          passenger_count: number
+          passenger_note: string | null
+          source: string
+          status: string
+          venue_id: string
+        }
+        Insert: {
+          actual_return_at?: string | null
+          boat_name: string
+          contact_phone?: string | null
+          created_at?: string
+          departure_at?: string
+          emergency_contact_name?: string | null
+          emergency_contact_phone?: string | null
+          expected_return_at: string
+          id?: string
+          member_boat_id?: string | null
+          member_id: string
+          overdue_alert_sent_at?: string | null
+          passenger_count?: number
+          passenger_note?: string | null
+          source?: string
+          status?: string
+          venue_id: string
+        }
+        Update: {
+          actual_return_at?: string | null
+          boat_name?: string
+          contact_phone?: string | null
+          created_at?: string
+          departure_at?: string
+          emergency_contact_name?: string | null
+          emergency_contact_phone?: string | null
+          expected_return_at?: string
+          id?: string
+          member_boat_id?: string | null
+          member_id?: string
+          overdue_alert_sent_at?: string | null
+          passenger_count?: number
+          passenger_note?: string | null
+          source?: string
+          status?: string
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "water_signouts_member_boat_id_fkey"
+            columns: ["member_boat_id"]
+            isOneToOne: false
+            referencedRelation: "member_boats"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "water_signouts_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "water_signouts_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       whatsapp_followups: {
         Row: {
@@ -2734,6 +2860,10 @@ export type Database = {
     }
     Functions: {
       can_write_event_rsvp: { Args: { p_member_id: string }; Returns: boolean }
+      can_write_water_signout: {
+        Args: { p_member_id: string }
+        Returns: boolean
+      }
       claim_broadcast_batch: {
         Args: { p_broadcast_id: string; p_limit?: number }
         Returns: {
@@ -2849,12 +2979,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -2878,11 +3008,11 @@ export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -2903,11 +3033,11 @@ export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -2928,11 +3058,11 @@ export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -2945,11 +3075,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+    : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }

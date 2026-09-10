@@ -22,6 +22,7 @@ import { corsHeaders } from "../_shared/cors.ts";
 import {
   PROSPECT_TOOL_DEFINITIONS,
   TOOL_DEFINITIONS,
+  WATER_SIGNOUT_TOOL_NAMES,
   runTool,
   type ToolContext,
 } from "../_shared/aiTools.ts";
@@ -421,7 +422,7 @@ Deno.serve(async (req) => {
   const ctx = await buildContext(supabase, body.venue_id, { memberId, prospectId });
   const { data: venueRow } = await supabase
     .from("venues")
-    .select("whatsapp_ai_model")
+    .select("whatsapp_ai_model, water_signout_ai_enabled")
     .eq("id", body.venue_id)
     .maybeSingle();
   const model = venueRow?.whatsapp_ai_model ?? "claude-haiku-4-5-20251001";
@@ -434,6 +435,7 @@ Deno.serve(async (req) => {
       nowSaIso: new Date().toLocaleString("en-ZA", { timeZone: "Africa/Johannesburg" }),
       recentMessages: ctx.recentMessages,
       isFirstAiReplyEver: ctx.isFirstAiReplyEver,
+      waterSignoutEnabled: venueRow?.water_signout_ai_enabled ?? false,
     })
     : buildProspectSystemPrompt({
       venueName: ctx.venueName,
@@ -444,7 +446,15 @@ Deno.serve(async (req) => {
       isFirstAiReplyEver: ctx.isFirstAiReplyEver,
     });
 
-  const toolDefinitions = memberId ? TOOL_DEFINITIONS : PROSPECT_TOOL_DEFINITIONS;
+  // Water sign-out tools stay out of the catalog entirely for every venue
+  // except while explicitly testing (water_signout_ai_enabled) — see
+  // 20260910120000_water_signouts.sql. This function is a single live
+  // production endpoint shared by every real member's WhatsApp thread, so
+  // there's no "preview" deploy to hide the feature behind.
+  const memberToolDefinitions = venueRow?.water_signout_ai_enabled
+    ? TOOL_DEFINITIONS
+    : TOOL_DEFINITIONS.filter((t) => !(WATER_SIGNOUT_TOOL_NAMES as readonly string[]).includes(t.name));
+  const toolDefinitions = memberId ? memberToolDefinitions : PROSPECT_TOOL_DEFINITIONS;
 
   const toolCtx: ToolContext = {
     supabase,

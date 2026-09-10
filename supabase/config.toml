@@ -71,3 +71,6 @@ verify_jwt = false
 
 [functions.settle-tabs-with-credit]
 verify_jwt = false
+
+[functions.check-overdue-signouts]
+verify_jwt = false

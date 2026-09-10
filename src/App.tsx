@@ -36,6 +36,7 @@ import Issues from "./pages/admin/Issues.tsx";
 import AdminCalendar from "./pages/admin/AdminCalendar.tsx";
 import Jobs from "./pages/admin/Jobs.tsx";
 import Leave from "./pages/admin/Leave.tsx";
+import WaterSignouts from "./pages/admin/WaterSignouts.tsx";
 import RequireRole from "./components/admin/RequireRole.tsx";
 import MembershipApplicationPage from "./pages/MembershipApplicationPage.tsx";
 import PortalLogin from "./pages/portal/PortalLogin.tsx";
@@ -47,6 +48,7 @@ import PortalBarTab from "./pages/portal/PortalBarTab.tsx";
 import PortalDashboard from "./pages/portal/PortalDashboard.tsx";
 import PortalCalendar from "./pages/portal/PortalCalendar.tsx";
 import PortalMyDetails from "./pages/portal/PortalMyDetails.tsx";
+import PortalWaterSignout from "./pages/portal/PortalWaterSignout.tsx";
 import PortalBookings from "./pages/portal/PortalBookings.tsx";
 import PortalConstitution from "./pages/portal/PortalConstitution.tsx";
 import PortalReportIssue from "./pages/portal/PortalReportIssue.tsx";
@@ -110,6 +112,8 @@ const App = () => (
                     <Route path="bar-tab" element={<PortalBarTab />} />
                     <Route path="calendar" element={<PortalCalendar />} />
                     <Route path="my-details" element={<PortalMyDetails />} />
+                    {/* Unlisted on purpose — not in usePortalTabs()/PortalLayout nav. Reachable only by direct URL. */}
+                    <Route path="water-signout" element={<PortalWaterSignout />} />
                     <Route path="bookings" element={<PortalBookings />} />
                     <Route path="constitution" element={<PortalConstitution />} />
                     <Route path="report-issue" element={<PortalReportIssue />} />
@@ -130,6 +134,7 @@ const App = () => (
                   <Route path="calendar" element={<AdminCalendar />} />
                   <Route path="jobs" element={<Jobs />} />
                   <Route path="leave" element={<Leave />} />
+                  <Route path="water-signouts" element={<WaterSignouts />} />
                   {/* Committee-only (admin / superadmin) */}
                   <Route path="products" element={<RequireRole allow={['admin', 'superadmin']}><Products /></RequireRole>} />
                   <Route path="members" element={<RequireRole allow={['admin', 'superadmin']}><Members /></RequireRole>} />
@@ -177,6 +182,7 @@ const App = () => (
                     <Route path="calendar" element={<AdminCalendar />} />
                     <Route path="jobs" element={<Jobs />} />
                     <Route path="leave" element={<Leave />} />
+                  <Route path="water-signouts" element={<WaterSignouts />} />
                     {/* Committee-only (admin / superadmin) */}
                     <Route path="products" element={<RequireRole allow={['admin', 'superadmin']}><Products /></RequireRole>} />
                     <Route path="members" element={<RequireRole allow={['admin', 'superadmin']}><Members /></RequireRole>} />
@@ -210,6 +216,8 @@ const App = () => (
                       <Route path="bar-tab" element={<PortalBarTab />} />
                       <Route path="calendar" element={<PortalCalendar />} />
                       <Route path="my-details" element={<PortalMyDetails />} />
+                    {/* Unlisted on purpose — not in usePortalTabs()/PortalLayout nav. Reachable only by direct URL. */}
+                    <Route path="water-signout" element={<PortalWaterSignout />} />
                       <Route path="bookings" element={<PortalBookings />} />
                       <Route path="constitution" element={<PortalConstitution />} />
                       <Route path="report-issue" element={<PortalReportIssue />} />

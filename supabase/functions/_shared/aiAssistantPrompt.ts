@@ -28,6 +28,14 @@ export interface AssistantContext {
    * full-disclosure greeting rule above.
    */
   isFirstAiReplyEver: boolean;
+  /**
+   * Mirrors venues.water_signout_ai_enabled. Only when true are the
+   * get_water_signout_status / start_water_signout / close_water_signout
+   * tools actually in this member's tool list (whatsapp-ai-reply filters
+   * them out otherwise) — so the sign-out guidance below is only worth
+   * including when they're real options.
+   */
+  waterSignoutEnabled: boolean;
 }
 
 export function buildSystemPrompt(ctx: AssistantContext): string {
@@ -44,6 +52,10 @@ export function buildSystemPrompt(ctx: AssistantContext): string {
   const historyBlock = ctx.recentMessages.length
     ? `\n\nRecent conversation (oldest first):\n${ctx.recentMessages.join("\n")}`
     : "";
+
+  const waterSignoutRule = ctx.waterSignoutEnabled
+    ? "- WATER SIGN-OUTS (float plans) — members are asked to log one before going out on the water, and sign back in when they return, so the club knows to look for them if they're overdue. If a message sounds like a sign-out ('heading out on the Seabreeze with 3 people, back by 4') or a return ('we're back', 'I'm in', 'home safe'), call get_water_signout_status FIRST — it tells you if they already have one open and lists their registered boats. To START one: collect boat, crew count (including them), and expected return time across turns if anything's missing (never guess a return time), get an explicit confirmation of all three, THEN call start_water_signout. To CLOSE one: if get_water_signout_status shows an open trip and the member confirms they're back, call close_water_signout — no further confirmation needed for that one, 'I'm back' is enough. If they already have an open trip and try to start a new one, tell them to close the open one first."
+    : null;
 
   return [
     `You are the WhatsApp assistant for ${ctx.venueName} — the Vaal Cruising Association, a freshwater inland yacht club on the Vaal Dam near Vereeniging, South Africa.`,
@@ -75,8 +87,9 @@ export function buildSystemPrompt(ctx: AssistantContext): string {
     "- If the member asks for something only the member portal can do (changing their email, updating their address, etc.) that none of your tools cover, tell them to log into the portal to do it rather than trying to do it inline or guessing at a URL — you don't have a generic portal link tool, only the booking-specific ones (book_caravan_link, create_caravan_booking).",
     "- If the member asks about hours, opening times, prices, or club-policy specifics, call search_knowledge first. If search_knowledge AND the constitution / rules documents all come up empty, say honestly that you don't have that on file and escalate if it matters. Do not guess.",
     "- If someone asks about JOINING the club, how to apply for membership, or what membership costs, give them the digital application link: https://portal.vaalcruising.co.za/apply — and a brief summary: the club has Ordinary, Social, Intermediate, Junior, and Crew Visitor categories; fees range from R1 (Junior) to R9,979/year (Ordinary); there is a once-off joining fee of R2,494 for Ordinary and Intermediate members; the club year runs May–April and fees are pro-rated. Keep it to 3–4 sentences and offer the link.",
+    waterSignoutRule,
     historyBlock,
-  ].join("\n");
+  ].filter((line): line is string => line !== null).join("\n");
 }
 
 // ===== Prospect (non-member) assistant =====

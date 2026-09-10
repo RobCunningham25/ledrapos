@@ -1,6 +1,6 @@
 import { ReactNode, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Package, Users, CalendarDays, BedDouble, BarChart3, Settings, Menu, X, LogOut, Mail, MessageCircle, AlertCircle, UserPlus, MessageSquareWarning, ClipboardList, CalendarClock, CalendarRange, Zap, type LucideIcon } from 'lucide-react';
+import { LayoutDashboard, Package, Users, CalendarDays, BedDouble, BarChart3, Settings, Menu, X, LogOut, Mail, MessageCircle, AlertCircle, UserPlus, MessageSquareWarning, ClipboardList, CalendarClock, CalendarRange, Zap, Anchor, type LucideIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useAdminAuth } from '@/contexts/AdminAuthContext';
@@ -35,6 +35,7 @@ const navKeys: NavItem[] = [
   { label: 'Jobs', sub: 'jobs', icon: ClipboardList, managerSees: true },
   { label: 'Leave', sub: 'leave', icon: CalendarClock, managerSees: true },
   { label: 'Bookings', sub: 'bookings', icon: BedDouble, managerSees: true },
+  { label: 'Water Sign-Outs', sub: 'water-signouts', icon: Anchor, managerSees: true },
   { label: 'Electricity Meters', sub: 'electricity-meters', icon: Zap },
   { label: 'Reports', sub: 'reports', icon: BarChart3 },
   { label: 'Broadcasts', sub: 'broadcasts', icon: Mail },
