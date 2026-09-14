@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { signOutSafely } from '@/lib/signOutSafely';
+import { resolvePortalMemberId } from '@/lib/resolvePortalMemberId';
 import { useVenue } from '@/contexts/VenueContext';
 import { usePortalTheme } from '@/contexts/PortalThemeContext';
 import { useVenueNav } from '@/hooks/useVenueNav';
@@ -60,13 +61,9 @@ export default function PortalLogin() {
     }
 
     if (data.user) {
-      const { data: member } = await supabase
-        .from('members')
-        .select('id')
-        .eq('auth_user_id', data.user.id)
-        .maybeSingle();
+      const memberId = await resolvePortalMemberId(data.user.id);
 
-      if (!member) {
+      if (!memberId) {
         await signOutSafely();
         setError('This account is not linked to a membership. Please contact the club.');
         setLoading(false);

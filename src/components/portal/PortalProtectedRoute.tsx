@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { signOutSafely } from '@/lib/signOutSafely';
+import { resolvePortalMemberId } from '@/lib/resolvePortalMemberId';
 import { useVenueNav } from '@/hooks/useVenueNav';
 
 export default function PortalProtectedRoute() {
@@ -17,14 +18,9 @@ export default function PortalProtectedRoute() {
           return;
         }
 
-        const { data: member } = await supabase
-          .from('members')
-          .select('id')
-          .eq('auth_user_id', session.user.id)
-          .eq('is_active', true)
-          .maybeSingle();
+        const memberId = await resolvePortalMemberId(session.user.id);
 
-        if (member) {
+        if (memberId) {
           setStatus('authenticated');
         } else {
           await signOutSafely();

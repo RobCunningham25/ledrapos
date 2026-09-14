@@ -101,6 +101,10 @@ Deno.serve(async (req) => {
       return json(404, { error: 'Venue not found.' })
     }
 
+    const NOT_FOUND = {
+      error: 'No membership found with this email address. Contact the club if you think this is a mistake.',
+    }
+
     const { data: member } = await supabase
       .from('members')
       .select('id, email, first_name, auth_user_id')
@@ -109,16 +113,38 @@ Deno.serve(async (req) => {
       .ilike('email', escapeLike(email.trim()))
       .maybeSingle()
 
-    if (!member) {
-      return json(404, {
-        error: 'No membership found with this email address. Contact the club if you think this is a mistake.',
-      })
+    // Resolve the email + first name to send the recovery link to: the
+    // primary member's own email first, else an active secondary
+    // (member_auth_logins) login's own email — never the primary member's
+    // email on her behalf. Error text stays identical across every branch
+    // below so the response never reveals which case matched.
+    let targetEmail: string | null = null
+    let firstName: string | null = null
+
+    if (member) {
+      if (!member.auth_user_id) {
+        return json(404, NOT_FOUND)
+      }
+      targetEmail = member.email
+      firstName = member.first_name
+    } else {
+      const { data: secondary } = await supabase
+        .from('member_auth_logins')
+        .select('email, members!inner(is_active)')
+        .eq('venue_id', venue_id)
+        .eq('is_active', true)
+        .eq('members.is_active', true)
+        .ilike('email', escapeLike(email.trim()))
+        .maybeSingle()
+
+      if (secondary) {
+        targetEmail = secondary.email
+        firstName = null
+      }
     }
 
-    if (!member.auth_user_id) {
-      return json(404, {
-        error: "This membership doesn't have a portal account yet. Ask the club to send you an invite.",
-      })
+    if (!targetEmail) {
+      return json(404, NOT_FOUND)
     }
 
     const redirectTo = venue.portal_domain
@@ -127,7 +153,7 @@ Deno.serve(async (req) => {
 
     const { data: linkData, error: linkError } = await supabase.auth.admin.generateLink({
       type: 'recovery',
-      email: member.email,
+      email: targetEmail,
       options: { redirectTo },
     })
 
@@ -143,12 +169,12 @@ Deno.serve(async (req) => {
     const html = renderResetEmail({
       actionLink,
       venue,
-      firstName: member.first_name,
+      firstName,
     })
 
     const resendBody: Record<string, unknown> = {
       from: `${venue.name} <${fromEmail}>`,
-      to: [member.email],
+      to: [targetEmail],
       subject: `Reset your ${venue.name} portal password`,
       html,
     }

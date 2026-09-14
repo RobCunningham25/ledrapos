@@ -10,7 +10,8 @@ import { formatCents } from '@/utils/currency';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowLeft, Pencil, ChevronDown, ChevronUp, Shield, Loader2, MessageCircle } from 'lucide-react';
+import { ArrowLeft, Pencil, ChevronDown, ChevronUp, Shield, Loader2, MessageCircle, UserPlus } from 'lucide-react';
+import { Input } from '@/components/ui/input';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { formatRelativeTime } from '@/utils/time';
@@ -85,6 +86,13 @@ interface AdminAccessRow {
   is_active: boolean;
 }
 
+interface SecondaryLoginRow {
+  id: string;
+  email: string;
+  label: string | null;
+  created_at: string;
+}
+
 import { MEMBERSHIP_TYPE_COLORS, getMembershipLabel } from '@/constants/membershipTypes';
 
 function getMonthStart() {
@@ -112,6 +120,12 @@ export default function MemberDetail() {
   const [adminRow, setAdminRow] = useState<AdminAccessRow | null>(null);
   const [roleChoice, setRoleChoice] = useState<'admin' | 'superadmin'>('admin');
   const [adminBusy, setAdminBusy] = useState(false);
+
+  // Secondary portal login state
+  const [secondaryLogins, setSecondaryLogins] = useState<SecondaryLoginRow[]>([]);
+  const [secondaryEmail, setSecondaryEmail] = useState('');
+  const [secondaryLabel, setSecondaryLabel] = useState('');
+  const [secondaryBusy, setSecondaryBusy] = useState<string | null>(null);
 
   // Credit state
   const [credits, setCredits] = useState<CreditRow[]>([]);
@@ -219,6 +233,81 @@ export default function MemberDetail() {
       toast.error(err instanceof Error ? err.message : 'Failed to update admin access');
     }
     setAdminBusy(false);
+  };
+
+  const fetchSecondaryLogins = useCallback(async () => {
+    if (!id || !venueId) return;
+    const { data } = await supabase
+      .from('member_auth_logins')
+      .select('id, email, label, created_at')
+      .eq('member_id', id)
+      .eq('venue_id', venueId)
+      .eq('is_active', true)
+      .order('created_at');
+    setSecondaryLogins((data as SecondaryLoginRow[] | null) ?? []);
+  }, [id, venueId]);
+
+  const invokeSecondaryLogin = async (body: Record<string, unknown>) => {
+    const res = await supabase.functions.invoke('invite-secondary-login', { body });
+    if (res.error) {
+      let detail: string | null = null;
+      const ctx = (res.error as { context?: Response }).context;
+      if (ctx && typeof ctx.json === 'function') {
+        try {
+          const errBody = await ctx.json();
+          if (errBody?.error) detail = errBody.error;
+        } catch { /* body wasn't JSON */ }
+      }
+      throw new Error(detail || res.error.message || 'Request failed');
+    }
+    if (res.data?.error) throw new Error(res.data.error);
+    return res.data;
+  };
+
+  const handleInviteSecondary = async () => {
+    if (!member?.id || !venueId || !secondaryEmail.trim()) return;
+    setSecondaryBusy('invite');
+    try {
+      await invokeSecondaryLogin({
+        member_id: member.id, venue_id: venueId,
+        email: secondaryEmail.trim(), label: secondaryLabel.trim() || undefined,
+      });
+      toast.success(`Invite sent to ${secondaryEmail.trim()}`);
+      setSecondaryEmail('');
+      setSecondaryLabel('');
+      await fetchSecondaryLogins();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to send invite');
+    }
+    setSecondaryBusy(null);
+  };
+
+  const handleResendSecondary = async (login: SecondaryLoginRow) => {
+    if (!member?.id || !venueId) return;
+    setSecondaryBusy(login.id);
+    try {
+      await invokeSecondaryLogin({
+        member_id: member.id, venue_id: venueId, email: login.email, label: login.label ?? undefined, resend: true,
+      });
+      toast.success(`Invite resent to ${login.email}`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to resend invite');
+    }
+    setSecondaryBusy(null);
+  };
+
+  const handleRevokeSecondary = async (login: SecondaryLoginRow) => {
+    if (!venueId) return;
+    if (!confirm(`Revoke ${login.email}'s access to this membership?`)) return;
+    setSecondaryBusy(login.id);
+    try {
+      await invokeSecondaryLogin({ action: 'revoke', login_id: login.id, venue_id: venueId });
+      toast.success(`Revoked ${login.email}`);
+      await fetchSecondaryLogins();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to revoke access');
+    }
+    setSecondaryBusy(null);
   };
 
   const fetchCreditBalance = useCallback(async () => {
@@ -480,6 +569,7 @@ export default function MemberDetail() {
 
   useEffect(() => { fetchMember(); fetchCreditBalance(); fetchBalanceDue(); fetchClubBalance(); fetchAdminNotes(); fetchSitesSheds(); }, [fetchMember, fetchCreditBalance, fetchBalanceDue, fetchClubBalance, fetchAdminNotes, fetchSitesSheds]);
   useEffect(() => { fetchAdminAccess(member?.email ?? null); }, [member?.email, fetchAdminAccess]);
+  useEffect(() => { fetchSecondaryLogins(); }, [fetchSecondaryLogins]);
   useEffect(() => { fetchCredits(); }, [fetchCredits]);
   useEffect(() => { fetchTabs(); fetchTabSummary(); }, [fetchTabs, fetchTabSummary]);
 
@@ -881,6 +971,82 @@ export default function MemberDetail() {
           )}
         </div>
       )}
+
+      {/* Secondary portal login — e.g. a spouse with her own email + password */}
+      <div style={{
+        background: '#FFFFFF', borderRadius: 8, border: '1px solid #E2E8F0',
+        padding: 20, marginBottom: 24,
+      }}>
+        <div className="flex items-center gap-2 mb-3">
+          <UserPlus size={18} style={{ color: '#2E5FA3' }} />
+          <h3 style={{ fontSize: 15, fontWeight: 600, color: '#1A202C', margin: 0 }}>Secondary portal login</h3>
+        </div>
+        <p style={{ fontSize: 13, color: '#718096', marginBottom: 16 }}>
+          Let a second person (e.g. a spouse) log into the portal with their own email and
+          password. They'll see this member's tab, bookings and events — same account.
+        </p>
+
+        {secondaryLogins.length > 0 && (
+          <div className="space-y-2 mb-4">
+            {secondaryLogins.map(login => (
+              <div key={login.id} className="flex flex-wrap items-center gap-3" style={{
+                border: '1px solid #E2E8F0', borderRadius: 6, padding: '8px 12px',
+              }}>
+                <div style={{ flex: 1, minWidth: 180 }}>
+                  <p style={{ fontSize: 13, fontWeight: 500, color: '#1A202C', margin: 0 }}>{login.email}</p>
+                  <p style={{ fontSize: 12, color: '#718096', margin: 0 }}>{login.label || 'Secondary login'}</p>
+                </div>
+                <Button
+                  variant="outline"
+                  onClick={() => handleResendSecondary(login)}
+                  disabled={secondaryBusy === login.id}
+                  style={{ height: 32, fontSize: 13 }}
+                >
+                  {secondaryBusy === login.id ? <Loader2 size={14} className="animate-spin" /> : 'Resend'}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => handleRevokeSecondary(login)}
+                  disabled={secondaryBusy === login.id}
+                  style={{ height: 32, fontSize: 13, borderColor: '#C0392B', color: '#C0392B' }}
+                >
+                  Revoke
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="flex flex-wrap items-end gap-3">
+          <div>
+            <label style={{ fontSize: 12, color: '#718096', display: 'block', marginBottom: 4 }}>Email</label>
+            <Input
+              type="email"
+              value={secondaryEmail}
+              onChange={e => setSecondaryEmail(e.target.value)}
+              placeholder="spouse@example.com"
+              style={{ width: 240, height: 36, fontSize: 13 }}
+            />
+          </div>
+          <div>
+            <label style={{ fontSize: 12, color: '#718096', display: 'block', marginBottom: 4 }}>Label (optional)</label>
+            <Input
+              value={secondaryLabel}
+              onChange={e => setSecondaryLabel(e.target.value)}
+              placeholder="Spouse"
+              style={{ width: 160, height: 36, fontSize: 13 }}
+            />
+          </div>
+          <Button
+            onClick={handleInviteSecondary}
+            disabled={secondaryBusy === 'invite' || !secondaryEmail.trim()}
+            style={{ height: 36, background: '#2E5FA3', color: '#FFFFFF', fontWeight: 600 }}
+          >
+            {secondaryBusy === 'invite' ? <Loader2 size={14} className="animate-spin mr-2" /> : null}
+            Send invite
+          </Button>
+        </div>
+      </div>
 
       {/* Tab navigation — Tab History, Credit History, Details */}
       <div className="flex border-b mb-6" style={{ borderColor: '#E2E8F0' }}>

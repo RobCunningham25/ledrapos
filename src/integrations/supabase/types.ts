@@ -1,4 +1,4 @@
-export type Json =
+﻿export type Json =
   | string
   | number
   | boolean
@@ -1284,6 +1284,54 @@ export type Database = {
           },
           {
             foreignKeyName: "member_admin_notes_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      member_auth_logins: {
+        Row: {
+          auth_user_id: string
+          created_at: string
+          email: string
+          id: string
+          is_active: boolean
+          label: string | null
+          member_id: string
+          venue_id: string
+        }
+        Insert: {
+          auth_user_id: string
+          created_at?: string
+          email: string
+          id?: string
+          is_active?: boolean
+          label?: string | null
+          member_id: string
+          venue_id: string
+        }
+        Update: {
+          auth_user_id?: string
+          created_at?: string
+          email?: string
+          id?: string
+          is_active?: boolean
+          label?: string | null
+          member_id?: string
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "member_auth_logins_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "member_auth_logins_venue_id_fkey"
             columns: ["venue_id"]
             isOneToOne: false
             referencedRelation: "venues"
@@ -2941,6 +2989,7 @@ export type Database = {
         Args: { p_qty?: number; p_tab_item_id: string; p_venue_id: string }
         Returns: Json
       }
+      resolve_member_id: { Args: { p_auth_user_id?: string }; Returns: string }
       search_venue_knowledge: {
         Args: { p_limit?: number; p_query: string; p_venue_id: string }
         Returns: {

@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState, ReactNode, useCallback 
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { signOutSafely } from '@/lib/signOutSafely';
+import { resolvePortalMemberId } from '@/lib/resolvePortalMemberId';
 import { useVenueNav } from '@/hooks/useVenueNav';
 import type { Session } from '@supabase/supabase-js';
 
@@ -43,10 +44,19 @@ export function PortalAuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchMember = useCallback(async (userId: string) => {
+    // Resolves through the primary members.auth_user_id column first, then
+    // falls back to an active member_auth_logins row (a secondary/spouse
+    // login) — see resolvePortalMemberId. The returned row's own
+    // auth_user_id is always the *primary* member's, even when reached via
+    // a secondary login; nothing in the portal compares it back to the
+    // session id, so this is safe.
+    const memberId = await resolvePortalMemberId(userId);
+    if (!memberId) return null;
+
     const { data } = await supabase
       .from('members')
       .select('id, first_name, last_name, membership_number, membership_type, email, phone, partner_name, venue_id, is_active, auth_user_id')
-      .eq('auth_user_id', userId)
+      .eq('id', memberId)
       .eq('is_active', true)
       .maybeSingle();
     return data as MemberRecord | null;
