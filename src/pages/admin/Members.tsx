@@ -56,8 +56,41 @@ interface MemberPrefill {
 interface PrefillBoat { name: string; reg?: string }
 interface PrefillChild { name: string; dob: string }
 
-function downloadMembersCsv(filename: string, rows: Member[]) {
-  const headers = ['First Name', 'Last Name', 'Membership #', 'Type', 'Status', 'Email', 'Phone', 'Partner', 'Portal Invited', 'Last Login', 'Last Updated'];
+function groupByMember<T extends { member_id: string }>(data: T[] | null, pick: (r: T) => string | null): Map<string, string[]> {
+  const map = new Map<string, string[]>();
+  (data || []).forEach(r => {
+    const v = pick(r);
+    if (!v) return;
+    const arr = map.get(r.member_id) || [];
+    arr.push(v);
+    map.set(r.member_id, arr);
+  });
+  return map;
+}
+
+async function downloadMembersCsv(venueId: string, filename: string, rows: Member[]) {
+  const memberIds = rows.map(m => m.id);
+  if (memberIds.length === 0) return;
+
+  const [sitesRes, shedsRes, metersRes, notesRes] = await Promise.all([
+    supabase.from('member_sites').select('member_id, site_number').eq('venue_id', venueId).in('member_id', memberIds),
+    supabase.from('member_boat_sheds').select('member_id, shed_number').eq('venue_id', venueId).in('member_id', memberIds),
+    supabase.from('electricity_meters').select('member_id, meter_number').eq('venue_id', venueId).in('member_id', memberIds),
+    supabase.from('member_admin_notes').select('member_id, gate_remotes').eq('venue_id', venueId).in('member_id', memberIds),
+  ]);
+
+  const sitesByMember = groupByMember(sitesRes.data as { member_id: string; site_number: string }[] | null, r => r.site_number);
+  const shedsByMember = groupByMember(shedsRes.data as { member_id: string; shed_number: string }[] | null, r => r.shed_number);
+  const metersByMember = groupByMember(metersRes.data as { member_id: string; meter_number: string }[] | null, r => r.meter_number);
+  const gateRemotesByMember = new Map<string, string[]>();
+  ((notesRes.data as { member_id: string; gate_remotes: string[] | null }[]) || []).forEach(r => {
+    if (r.gate_remotes && r.gate_remotes.length) gateRemotesByMember.set(r.member_id, r.gate_remotes);
+  });
+
+  const headers = [
+    'Member #', 'Member Surname', 'Member Name', 'Partner Name Surname', 'Cell/WhatsApp Number',
+    'Member Status', 'Email', 'Site Numbers', 'Boat Shed Numbers', 'Electricity Meter #', 'Gate Remote Positions',
+  ];
   const esc = (v: string | number) => {
     const s = String(v ?? '');
     return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
@@ -65,14 +98,21 @@ function downloadMembersCsv(filename: string, rows: Member[]) {
   const partnerName = (m: Member) => m.partner_first_name
     ? `${m.partner_first_name}${m.partner_last_name ? ` ${m.partner_last_name}` : ''}`
     : (m.partner_name || '');
+
   const lines = [
     headers.join(','),
     ...rows.map((m) => [
-      m.first_name, m.last_name, m.membership_number, getMembershipLabel(m.membership_type),
-      m.is_active ? 'Active' : 'Inactive', m.email || '', m.phone || '', partnerName(m),
-      m.auth_user_id ? 'Yes' : 'No',
-      m.last_sign_in_at ? new Date(m.last_sign_in_at).toLocaleString('en-ZA') : '',
-      m.updated_at ? new Date(m.updated_at).toLocaleString('en-ZA') : '',
+      m.membership_number,
+      m.last_name,
+      m.first_name,
+      partnerName(m),
+      m.whatsapp_number || m.phone || '',
+      m.is_active ? 'Active' : 'Inactive',
+      m.email || '',
+      (sitesByMember.get(m.id) || []).join('; '),
+      (shedsByMember.get(m.id) || []).join('; '),
+      (metersByMember.get(m.id) || []).join('; '),
+      (gateRemotesByMember.get(m.id) || []).join('; '),
     ].map(esc).join(',')),
   ];
   const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
@@ -94,6 +134,7 @@ export default function Members() {
   const [invitingId, setInvitingId] = useState<string | null>(null);
   const [waInvitingId, setWaInvitingId] = useState<string | null>(null);
   const [bulkWaSending, setBulkWaSending] = useState(false);
+  const [csvExporting, setCsvExporting] = useState(false);
   const [bulkWaConfirmOpen, setBulkWaConfirmOpen] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editMember, setEditMember] = useState<Member | null>(null);
@@ -281,14 +322,22 @@ export default function Members() {
     <AdminLayout title="Members" action={
       <div className="flex items-center gap-2">
         <Button
-          onClick={() => downloadMembersCsv(`members_${new Date().toISOString().slice(0, 10)}.csv`, filteredMembers)}
-          disabled={filteredMembers.length === 0}
+          onClick={async () => {
+            setCsvExporting(true);
+            try {
+              await downloadMembersCsv(venueId, `members_${new Date().toISOString().slice(0, 10)}.csv`, filteredMembers);
+            } catch (err) {
+              toast.error(err instanceof Error ? err.message : 'Failed to export CSV');
+            }
+            setCsvExporting(false);
+          }}
+          disabled={csvExporting || filteredMembers.length === 0}
           variant="outline"
           style={{ height: 40, fontWeight: 500, borderRadius: 6 }}
           title="Export the currently filtered member list as a CSV (opens in Excel)"
         >
-          <Download className="h-4 w-4 mr-2" />
-          Export CSV
+          {csvExporting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Download className="h-4 w-4 mr-2" />}
+          {csvExporting ? 'Exporting...' : 'Export CSV'}
         </Button>
         <Button
           onClick={() => setBulkWaConfirmOpen(true)}
