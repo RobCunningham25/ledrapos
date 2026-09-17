@@ -68,7 +68,7 @@ function groupByMember<T extends { member_id: string }>(data: T[] | null, pick: 
   return map;
 }
 
-async function downloadMembersCsv(venueId: string, filename: string, rows: Member[]) {
+async function downloadMembersXlsx(venueId: string, filename: string, rows: Member[]) {
   const memberIds = rows.map(m => m.id);
   if (memberIds.length === 0) return;
 
@@ -91,16 +91,12 @@ async function downloadMembersCsv(venueId: string, filename: string, rows: Membe
     'Member #', 'Member Surname', 'Member Name', 'Partner Name Surname', 'Cell/WhatsApp Number',
     'Member Status', 'Email', 'Site Numbers', 'Boat Shed Numbers', 'Electricity Meter #', 'Gate Remote Positions',
   ];
-  const esc = (v: string | number) => {
-    const s = String(v ?? '');
-    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-  };
   const partnerName = (m: Member) => m.partner_first_name
     ? `${m.partner_first_name}${m.partner_last_name ? ` ${m.partner_last_name}` : ''}`
     : (m.partner_name || '');
 
-  const lines = [
-    headers.join(','),
+  const aoa = [
+    headers,
     ...rows.map((m) => [
       m.membership_number,
       m.last_name,
@@ -109,17 +105,23 @@ async function downloadMembersCsv(venueId: string, filename: string, rows: Membe
       m.whatsapp_number || m.phone || '',
       m.is_active ? 'Active' : 'Inactive',
       m.email || '',
-      (sitesByMember.get(m.id) || []).join('; '),
-      (shedsByMember.get(m.id) || []).join('; '),
-      (metersByMember.get(m.id) || []).join('; '),
-      (gateRemotesByMember.get(m.id) || []).join('; '),
-    ].map(esc).join(',')),
+      (sitesByMember.get(m.id) || []).join(', '),
+      (shedsByMember.get(m.id) || []).join(', '),
+      (metersByMember.get(m.id) || []).join(', '),
+      (gateRemotesByMember.get(m.id) || []).join(', '),
+    ]),
   ];
-  const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = filename; a.click();
-  URL.revokeObjectURL(url);
+
+  const XLSX = await import('xlsx');
+  const sheet = XLSX.utils.aoa_to_sheet(aoa);
+  sheet['!cols'] = headers.map((h, i) => ({
+    wch: Math.max(h.length, ...aoa.slice(1).map(r => String(r[i] ?? '').length)) + 2,
+  }));
+  sheet['!autofilter'] = { ref: sheet['!ref']! };
+
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, sheet, 'Members');
+  XLSX.writeFile(workbook, filename);
 }
 
 export default function Members() {
@@ -134,7 +136,7 @@ export default function Members() {
   const [invitingId, setInvitingId] = useState<string | null>(null);
   const [waInvitingId, setWaInvitingId] = useState<string | null>(null);
   const [bulkWaSending, setBulkWaSending] = useState(false);
-  const [csvExporting, setCsvExporting] = useState(false);
+  const [xlsxExporting, setXlsxExporting] = useState(false);
   const [bulkWaConfirmOpen, setBulkWaConfirmOpen] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editMember, setEditMember] = useState<Member | null>(null);
@@ -323,21 +325,21 @@ export default function Members() {
       <div className="flex items-center gap-2">
         <Button
           onClick={async () => {
-            setCsvExporting(true);
+            setXlsxExporting(true);
             try {
-              await downloadMembersCsv(venueId, `members_${new Date().toISOString().slice(0, 10)}.csv`, filteredMembers);
+              await downloadMembersXlsx(venueId, `members_${new Date().toISOString().slice(0, 10)}.xlsx`, filteredMembers);
             } catch (err) {
-              toast.error(err instanceof Error ? err.message : 'Failed to export CSV');
+              toast.error(err instanceof Error ? err.message : 'Failed to export spreadsheet');
             }
-            setCsvExporting(false);
+            setXlsxExporting(false);
           }}
-          disabled={csvExporting || filteredMembers.length === 0}
+          disabled={xlsxExporting || filteredMembers.length === 0}
           variant="outline"
           style={{ height: 40, fontWeight: 500, borderRadius: 6 }}
-          title="Export the currently filtered member list as a CSV (opens in Excel)"
+          title="Export the currently filtered member list as an Excel spreadsheet"
         >
-          {csvExporting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Download className="h-4 w-4 mr-2" />}
-          {csvExporting ? 'Exporting...' : 'Export CSV'}
+          {xlsxExporting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Download className="h-4 w-4 mr-2" />}
+          {xlsxExporting ? 'Exporting...' : 'Export XLS'}
         </Button>
         <Button
           onClick={() => setBulkWaConfirmOpen(true)}
