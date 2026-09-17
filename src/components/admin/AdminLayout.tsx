@@ -28,6 +28,8 @@ const navKeys: NavItem[] = [
   { label: 'Dashboard', sub: '', icon: LayoutDashboard, managerSees: true },
   { label: 'Products', sub: 'products', icon: Package },
   { label: 'Members', sub: 'members', icon: Users },
+  // Read-only, non-sensitive subset (name/cell/sites/boats — no email, no financial data)
+  { label: 'Members', sub: 'member-directory', icon: Users, managerOnly: true },
   { label: 'Applications', sub: 'applications', icon: UserPlus },
   { label: 'Issues', sub: 'issues', icon: MessageSquareWarning, managerSees: true },
   { label: 'Calendar', sub: 'calendar', icon: CalendarRange, managerOnly: true },

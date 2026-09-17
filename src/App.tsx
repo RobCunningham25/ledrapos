@@ -20,6 +20,7 @@ import Products from "./pages/admin/Products.tsx";
 import ElectricityMeters from "./pages/admin/ElectricityMeters.tsx";
 import AdminDashboard from "./pages/admin/Dashboard.tsx";
 import Members from "./pages/admin/Members.tsx";
+import ManagerMemberDirectory from "./pages/admin/ManagerMemberDirectory.tsx";
 import MemberDetail from "./pages/admin/MemberDetail.tsx";
 import Reports from "./pages/admin/Reports.tsx";
 import Settings from "./pages/admin/Settings.tsx";
@@ -135,6 +136,7 @@ const App = () => (
                   <Route path="jobs" element={<Jobs />} />
                   <Route path="leave" element={<Leave />} />
                   <Route path="water-signouts" element={<WaterSignouts />} />
+                  <Route path="member-directory" element={<ManagerMemberDirectory />} />
                   {/* Committee-only (admin / superadmin) */}
                   <Route path="products" element={<RequireRole allow={['admin', 'superadmin']}><Products /></RequireRole>} />
                   <Route path="members" element={<RequireRole allow={['admin', 'superadmin']}><Members /></RequireRole>} />
@@ -183,6 +185,7 @@ const App = () => (
                     <Route path="jobs" element={<Jobs />} />
                     <Route path="leave" element={<Leave />} />
                   <Route path="water-signouts" element={<WaterSignouts />} />
+                    <Route path="member-directory" element={<ManagerMemberDirectory />} />
                     {/* Committee-only (admin / superadmin) */}
                     <Route path="products" element={<RequireRole allow={['admin', 'superadmin']}><Products /></RequireRole>} />
                     <Route path="members" element={<RequireRole allow={['admin', 'superadmin']}><Members /></RequireRole>} />
