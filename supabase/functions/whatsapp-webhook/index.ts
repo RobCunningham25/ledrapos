@@ -27,11 +27,20 @@ import {
   validateTwilioSignature,
 } from "../_shared/twilio.ts";
 import { notifyNewFollowup } from "../_shared/whatsappFollowupNotify.ts";
+import { VENUE_EMAIL_COLUMNS, type EmailVenue } from "../_shared/emailTemplate.ts";
+import {
+  alertSafetyContacts,
+  fmtSAST,
+  SNOOZE_MINUTES,
+  type SafetyContact,
+  type SignoutAlertRow,
+} from "../_shared/waterSignoutAlerts.ts";
 
 interface MemberRow {
   id: string;
   venue_id: string;
   first_name: string | null;
+  last_name: string | null;
   whatsapp_number: string | null;
   phone: string | null;
   partner_phone: string | null;
@@ -70,7 +79,7 @@ async function findMember(
   supabase: SupabaseClient,
   fromE164: string,
 ): Promise<MemberMatch | null> {
-  const SELECT = "id, venue_id, first_name, whatsapp_number, phone, partner_phone, whatsapp_opt_in, ai_paused";
+  const SELECT = "id, venue_id, first_name, last_name, whatsapp_number, phone, partner_phone, whatsapp_opt_in, ai_paused";
 
   // 1. Match on whatsapp_number first.
   const { data: byWa } = await supabase
@@ -570,6 +579,90 @@ Deno.serve(async (req) => {
       `Here's your payment link:\n${checkoutUrl}\n\nThanks!`,
       "link_request",
       tabId,
+    );
+    return twiml(200);
+  }
+
+  // ===== Water sign-out reminder button replies (members only) =====
+  // The sign-out reminder template (vca_water_signout_reminder_v1) carries
+  // two quick-reply buttons — no "I'm back" button, since actually signing
+  // back in happens on the portal or via the AI assistant; these two only
+  // cover "still out":
+  //   signout_still_out → snooze: push expected_return_at back
+  //                        SNOOZE_MINUTES, no escalation yet.
+  //   signout_send_help → skip the grace period, alert the safety contacts
+  //                        right now.
+  if (member && (buttonPayload === "signout_still_out" || buttonPayload === "signout_send_help")) {
+    const { data: openSignout } = await supabase
+      .from("water_signouts")
+      .select("id, venue_id, member_id, boat_name, passenger_count, contact_phone, departure_at, expected_return_at, snooze_count")
+      .eq("member_id", member.id)
+      .eq("status", "out")
+      .maybeSingle();
+
+    if (!openSignout) {
+      await sendSessionReply(
+        venueId,
+        { memberId: member.id },
+        fromE164,
+        "Looks like you're already signed in on our side — nothing to do here. 👍",
+        "water_signout_button_stale",
+      );
+      return twiml(200);
+    }
+
+    if (buttonPayload === "signout_still_out") {
+      const newExpected = new Date(Date.now() + SNOOZE_MINUTES * 60_000).toISOString();
+      const { error } = await supabase
+        .from("water_signouts")
+        .update({
+          expected_return_at: newExpected,
+          reminder_sent_at: null,
+          snoozed_at: new Date().toISOString(),
+          snooze_count: (openSignout.snooze_count ?? 0) + 1,
+        })
+        .eq("id", openSignout.id);
+
+      await sendSessionReply(
+        venueId,
+        { memberId: member.id },
+        fromE164,
+        error
+          ? "Thanks for the update — had trouble saving it though, please also sign in on the portal once you're back."
+          : `Good to know you're OK — we'll check in with you again at ${fmtSAST(newExpected)} if you're still not signed in. Stay safe out there.`,
+        "water_signout_still_out",
+        openSignout.id,
+      );
+      return twiml(200);
+    }
+
+    // signout_send_help — escalate immediately, bypassing the grace period.
+    const memberName = `${member.first_name ?? ""} ${member.last_name ?? ""}`.trim() || "A member";
+    const [{ data: venue }, { data: contacts }] = await Promise.all([
+      supabase.from("venues").select(VENUE_EMAIL_COLUMNS).eq("id", venueId).maybeSingle<EmailVenue>(),
+      supabase.from("water_safety_contacts").select("id, name, whatsapp_number, email")
+        .eq("venue_id", venueId).eq("is_active", true).order("sort_order"),
+    ]);
+
+    await alertSafetyContacts(
+      Deno.env.get("SUPABASE_URL")!,
+      openSignout as unknown as SignoutAlertRow,
+      memberName,
+      venue ?? { name: "Club" },
+      (contacts as SafetyContact[]) ?? [],
+    );
+    await supabase
+      .from("water_signouts")
+      .update({ help_requested_at: new Date().toISOString(), overdue_alert_sent_at: new Date().toISOString() })
+      .eq("id", openSignout.id);
+
+    await sendSessionReply(
+      venueId,
+      { memberId: member.id },
+      fromE164,
+      "Got it — we've alerted the club's safety contacts right now. If you're in immediate danger, call 112.",
+      "water_signout_send_help",
+      openSignout.id,
     );
     return twiml(200);
   }

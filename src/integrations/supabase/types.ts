@@ -1,4 +1,4 @@
-﻿export type Json =
+export type Json =
   | string
   | number
   | boolean
@@ -2624,12 +2624,16 @@ export type Database = {
           emergency_contact_name: string | null
           emergency_contact_phone: string | null
           expected_return_at: string
+          help_requested_at: string | null
           id: string
           member_boat_id: string | null
           member_id: string
           overdue_alert_sent_at: string | null
           passenger_count: number
           passenger_note: string | null
+          reminder_sent_at: string | null
+          snooze_count: number
+          snoozed_at: string | null
           source: string
           status: string
           venue_id: string
@@ -2643,12 +2647,16 @@ export type Database = {
           emergency_contact_name?: string | null
           emergency_contact_phone?: string | null
           expected_return_at: string
+          help_requested_at?: string | null
           id?: string
           member_boat_id?: string | null
           member_id: string
           overdue_alert_sent_at?: string | null
           passenger_count?: number
           passenger_note?: string | null
+          reminder_sent_at?: string | null
+          snooze_count?: number
+          snoozed_at?: string | null
           source?: string
           status?: string
           venue_id: string
@@ -2662,12 +2670,16 @@ export type Database = {
           emergency_contact_name?: string | null
           emergency_contact_phone?: string | null
           expected_return_at?: string
+          help_requested_at?: string | null
           id?: string
           member_boat_id?: string | null
           member_id?: string
           overdue_alert_sent_at?: string | null
           passenger_count?: number
           passenger_note?: string | null
+          reminder_sent_at?: string | null
+          snooze_count?: number
+          snoozed_at?: string | null
           source?: string
           status?: string
           venue_id?: string

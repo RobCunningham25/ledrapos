@@ -19,6 +19,9 @@ interface Signout {
   actual_return_at: string | null;
   status: 'out' | 'in';
   overdue_alert_sent_at: string | null;
+  reminder_sent_at: string | null;
+  help_requested_at: string | null;
+  snooze_count: number;
   source: 'portal' | 'whatsapp';
   members: { first_name: string; last_name: string; membership_number: string } | null;
 }
@@ -32,7 +35,7 @@ export default function WaterSignouts() {
     if (!venueId) return;
     const { data, error } = await supabase
       .from('water_signouts')
-      .select('id, boat_name, passenger_count, passenger_note, contact_phone, emergency_contact_name, emergency_contact_phone, departure_at, expected_return_at, actual_return_at, status, overdue_alert_sent_at, source, members(first_name, last_name, membership_number)')
+      .select('id, boat_name, passenger_count, passenger_note, contact_phone, emergency_contact_name, emergency_contact_phone, departure_at, expected_return_at, actual_return_at, status, overdue_alert_sent_at, reminder_sent_at, help_requested_at, snooze_count, source, members(first_name, last_name, membership_number)')
       .eq('venue_id', venueId)
       .order('departure_at', { ascending: false })
       .limit(50);
@@ -82,13 +85,22 @@ export default function WaterSignouts() {
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
                         <span style={{ fontSize: 14, fontWeight: 700, color: '#1A202C' }}>{memberName(r)}</span>
                         <span style={{ fontSize: 11, color: '#64748B' }}>{r.members?.membership_number}</span>
-                        {overdue && (
+                        {r.help_requested_at ? (
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 700, color: '#FFFFFF', background: '#991B1B', padding: '2px 8px', borderRadius: 4 }}>
+                            <AlertTriangle size={11} /> HELP REQUESTED
+                          </span>
+                        ) : overdue && (
                           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 700, color: '#991B1B', background: '#FEE2E2', border: '1px solid #FECACA', padding: '2px 8px', borderRadius: 4 }}>
                             <AlertTriangle size={11} /> OVERDUE
                           </span>
                         )}
                         {r.source === 'whatsapp' && (
                           <span style={{ fontSize: 11, color: '#065F46', background: '#D1FAE5', padding: '2px 8px', borderRadius: 4 }}>via WhatsApp</span>
+                        )}
+                        {r.snooze_count > 0 && (
+                          <span style={{ fontSize: 11, color: '#92400E', background: '#FEF3C7', padding: '2px 8px', borderRadius: 4 }}>
+                            snoozed {r.snooze_count}&times;
+                          </span>
                         )}
                       </div>
                       <div style={{ fontSize: 13, color: '#475569' }}>
@@ -102,6 +114,7 @@ export default function WaterSignouts() {
                       <div style={{ fontSize: 12, color: '#94A3B8', marginTop: 2 }}>
                         {r.contact_phone && <>{r.contact_phone} · </>}
                         Departed {format(new Date(r.departure_at), 'd MMM, HH:mm')}
+                        {r.reminder_sent_at && !r.help_requested_at && <> &middot; reminder sent</>}
                       </div>
                     </div>
                     <div style={{ textAlign: 'right', flexShrink: 0 }}>
