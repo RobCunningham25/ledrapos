@@ -11,7 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Check, Loader2, Plus, Eye, Pencil, Star, Search, RefreshCw, Shield, MessageCircle, Send } from 'lucide-react';
+import { Check, Loader2, Plus, Eye, Pencil, Star, Search, RefreshCw, Shield, MessageCircle, Send, Download } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatRelativeTime } from '@/utils/time';
 
@@ -55,6 +55,32 @@ interface MemberPrefill {
 
 interface PrefillBoat { name: string; reg?: string }
 interface PrefillChild { name: string; dob: string }
+
+function downloadMembersCsv(filename: string, rows: Member[]) {
+  const headers = ['First Name', 'Last Name', 'Membership #', 'Type', 'Status', 'Email', 'Phone', 'Partner', 'Portal Invited', 'Last Login', 'Last Updated'];
+  const esc = (v: string | number) => {
+    const s = String(v ?? '');
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  const partnerName = (m: Member) => m.partner_first_name
+    ? `${m.partner_first_name}${m.partner_last_name ? ` ${m.partner_last_name}` : ''}`
+    : (m.partner_name || '');
+  const lines = [
+    headers.join(','),
+    ...rows.map((m) => [
+      m.first_name, m.last_name, m.membership_number, getMembershipLabel(m.membership_type),
+      m.is_active ? 'Active' : 'Inactive', m.email || '', m.phone || '', partnerName(m),
+      m.auth_user_id ? 'Yes' : 'No',
+      m.last_sign_in_at ? new Date(m.last_sign_in_at).toLocaleString('en-ZA') : '',
+      m.updated_at ? new Date(m.updated_at).toLocaleString('en-ZA') : '',
+    ].map(esc).join(',')),
+  ];
+  const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+}
 
 export default function Members() {
   const navigate = useNavigate();
@@ -254,6 +280,16 @@ export default function Members() {
   return (
     <AdminLayout title="Members" action={
       <div className="flex items-center gap-2">
+        <Button
+          onClick={() => downloadMembersCsv(`members_${new Date().toISOString().slice(0, 10)}.csv`, filteredMembers)}
+          disabled={filteredMembers.length === 0}
+          variant="outline"
+          style={{ height: 40, fontWeight: 500, borderRadius: 6 }}
+          title="Export the currently filtered member list as a CSV (opens in Excel)"
+        >
+          <Download className="h-4 w-4 mr-2" />
+          Export CSV
+        </Button>
         <Button
           onClick={() => setBulkWaConfirmOpen(true)}
           disabled={bulkWaSending || eligibleForBulkNotice.length === 0}
