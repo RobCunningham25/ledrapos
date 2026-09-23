@@ -212,6 +212,7 @@ export default function PublicBookingPage() {
   }
 
   const links = booking.booking_site_link || [];
+  const link = links[0];
   const siteName = links.map((l: any) => l.booking_sites?.name).filter(Boolean).join(', ') || '—';
   const siteType = links[0]?.booking_sites?.site_type;
   const isDayVisitor = siteType === 'day_visitor';
