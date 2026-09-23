@@ -162,7 +162,7 @@ export default function BookingDatesStep(props: Props) {
         </div>
       )}
 
-      {(siteType === 'camping' || siteType === 'day_visitor') && (
+      {(siteType === 'camping' || siteType === 'day_visitor' || siteType === 'caravan') && (
         <div style={{ marginBottom: 20, maxWidth: 200 }}>
           <label style={labelStyle}>{siteType === 'day_visitor' ? 'Number of visitors' : 'Number of guests'}</label>
           <input type="number" value={numGuests} min={1} max={20} onChange={e => onGuestsChange(Math.max(1, Math.min(20, parseInt(e.target.value) || 1)))} style={inputStyle} />
