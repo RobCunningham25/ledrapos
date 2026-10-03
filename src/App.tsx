@@ -114,7 +114,6 @@ const App = () => (
                     <Route path="bar-tab" element={<PortalBarTab />} />
                     <Route path="calendar" element={<PortalCalendar />} />
                     <Route path="my-details" element={<PortalMyDetails />} />
-                    {/* Unlisted on purpose — not in usePortalTabs()/PortalLayout nav. Reachable only by direct URL. */}
                     <Route path="water-signout" element={<PortalWaterSignout />} />
                     <Route path="bookings" element={<PortalBookings />} />
                     <Route path="constitution" element={<PortalConstitution />} />
@@ -222,7 +221,6 @@ const App = () => (
                       <Route path="bar-tab" element={<PortalBarTab />} />
                       <Route path="calendar" element={<PortalCalendar />} />
                       <Route path="my-details" element={<PortalMyDetails />} />
-                    {/* Unlisted on purpose — not in usePortalTabs()/PortalLayout nav. Reachable only by direct URL. */}
                     <Route path="water-signout" element={<PortalWaterSignout />} />
                       <Route path="bookings" element={<PortalBookings />} />
                       <Route path="constitution" element={<PortalConstitution />} />

@@ -3,7 +3,7 @@ import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { usePortalAuth } from '@/contexts/PortalAuthContext';
 import { usePortalTheme } from '@/contexts/PortalThemeContext';
 import { supabase } from '@/integrations/supabase/client';
-import { Home, Calendar, BedDouble, BookOpen, MessageSquarePlus, LogOut } from 'lucide-react';
+import { Home, Calendar, BedDouble, BookOpen, MessageSquarePlus, Anchor, LogOut } from 'lucide-react';
 import { useVenueNav } from '@/hooks/useVenueNav';
 import PwaInstallPrompt from '@/components/portal/PwaInstallPrompt';
 
@@ -13,6 +13,7 @@ function usePortalTabs() {
     { label: 'Home', icon: Home, path: portalPath(), key: null },
     { label: 'Calendar', icon: Calendar, path: portalPath('calendar'), key: 'portal_tab_calendar' },
     { label: 'Bookings', icon: BedDouble, path: portalPath('bookings'), key: 'portal_tab_bookings' },
+    { label: 'Sign Out', icon: Anchor, path: portalPath('water-signout'), key: 'portal_tab_water_signout' },
     { label: 'Constitution', icon: BookOpen, path: portalPath('constitution'), key: 'portal_tab_constitution' },
     { label: 'Report', icon: MessageSquarePlus, path: portalPath('report-issue'), key: 'portal_tab_report_issue' },
   ];
@@ -28,6 +29,7 @@ export default function PortalLayout() {
   const [enabledKeys, setEnabledKeys] = useState<Record<string, boolean>>({
     portal_tab_calendar: true,
     portal_tab_bookings: true,
+    portal_tab_water_signout: true,
     portal_tab_constitution: true,
     portal_tab_report_issue: true,
   });
@@ -38,12 +40,13 @@ export default function PortalLayout() {
       .from('venue_settings')
       .select('key, value')
       .eq('venue_id', member.venue_id)
-      .in('key', ['portal_tab_calendar', 'portal_tab_bookings', 'portal_tab_constitution', 'portal_tab_report_issue'])
+      .in('key', ['portal_tab_calendar', 'portal_tab_bookings', 'portal_tab_water_signout', 'portal_tab_constitution', 'portal_tab_report_issue'])
       .then(({ data }) => {
         if (data) {
           const result: Record<string, boolean> = {
             portal_tab_calendar: true,
             portal_tab_bookings: true,
+            portal_tab_water_signout: true,
             portal_tab_constitution: true,
             portal_tab_report_issue: true,
           };

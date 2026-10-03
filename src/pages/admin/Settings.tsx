@@ -15,6 +15,7 @@ const PORTAL_TOGGLES = [
   { key: 'portal_tab_calendar', label: 'Calendar', helper: 'Show Calendar tab in member portal' },
   { key: 'portal_tab_my_details', label: 'My Details', helper: 'Show My Details tab in member portal' },
   { key: 'portal_tab_bookings', label: 'Bookings', helper: 'Show Bookings tab in member portal' },
+  { key: 'portal_tab_water_signout', label: 'Water Sign-Out', helper: 'Show the water sign-out/sign-in (float plan) tab in member portal' },
 ];
 
 export default function Settings() {
@@ -33,6 +34,7 @@ export default function Settings() {
     portal_tab_calendar: true,
     portal_tab_my_details: true,
     portal_tab_bookings: true,
+    portal_tab_water_signout: true,
   });
 
   useEffect(() => {
@@ -42,7 +44,7 @@ export default function Settings() {
         .select('key, value')
         .eq('venue_id', venueId)
         .in('key', ['report_recipient_email', 'portal_tab_calendar', 'portal_tab_my_details', 'portal_tab_bookings',
-                    'rate_caravan_site_annual_cents', 'rate_electricity_annual_cents']);
+                    'portal_tab_water_signout', 'rate_caravan_site_annual_cents', 'rate_electricity_annual_cents']);
       if (data) {
         const emailRow = data.find(r => r.key === 'report_recipient_email');
         if (emailRow?.value) setEmail(emailRow.value);
