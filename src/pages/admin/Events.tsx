@@ -34,6 +34,7 @@ export interface ClubEvent {
   monthly_mode: MonthlyMode;
   requires_rsvp: boolean | null;
   rsvp_close_days_before: number | null;
+  allows_registration: boolean | null;
   created_by: string | null;
   created_at: string | null;
 }
@@ -131,6 +132,26 @@ export default function Events() {
         cur.parties += 1;
         cur.heads += (r.adults ?? 0) + (r.children ?? 0);
         m.set(key, cur);
+      }
+      return m;
+    },
+    enabled: !!venueId,
+  });
+
+  const { data: entryCounts = new Map<string, number>() } = useQuery({
+    queryKey: ['event-entry-counts', venueId, rangeStart, rangeEnd],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('event_participants')
+        .select('event_id, occurrence_date')
+        .eq('venue_id', venueId)
+        .gte('occurrence_date', rangeStart)
+        .lte('occurrence_date', rangeEnd);
+      if (error) throw error;
+      const m = new Map<string, number>();
+      for (const r of data ?? []) {
+        const key = `${r.event_id}:${r.occurrence_date}`;
+        m.set(key, (m.get(key) ?? 0) + 1);
       }
       return m;
     },
@@ -287,8 +308,9 @@ export default function Events() {
                 )}
               </div>
               <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-                {occ.requires_rsvp && (() => {
+                {(occ.requires_rsvp || event.allows_registration) && (() => {
                   const counts = rsvpCounts.get(`${occ.event_id}:${occ.occurrence_date}`);
+                  const entered = entryCounts.get(`${occ.event_id}:${occ.occurrence_date}`) ?? 0;
                   return (
                     <button
                       onClick={() =>
@@ -297,6 +319,8 @@ export default function Events() {
                           occurrence_date: occ.occurrence_date,
                           title: occ.title,
                           rsvp_close_days_before: occ.rsvp_close_days_before,
+                          requires_rsvp: !!occ.requires_rsvp,
+                          allows_registration: !!event.allows_registration,
                         })
                       }
                       style={{
@@ -306,7 +330,10 @@ export default function Events() {
                       }}
                     >
                       <Users size={14} />
-                      {counts ? `${counts.heads} going` : 'RSVPs'}
+                      {[
+                        occ.requires_rsvp ? (counts ? `${counts.heads} going` : 'RSVPs') : null,
+                        event.allows_registration ? `${entered} entered` : null,
+                      ].filter(Boolean).join(' · ')}
                     </button>
                   );
                 })()}

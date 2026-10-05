@@ -1,6 +1,6 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { X, Download, Users } from 'lucide-react';
+import { X, Download, Users, ChefHat } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { useVenue } from '@/contexts/VenueContext';
@@ -11,6 +11,8 @@ export interface RsvpTarget {
   occurrence_date: string;
   title: string;
   rsvp_close_days_before: number | null;
+  requires_rsvp: boolean;
+  allows_registration: boolean;
 }
 
 interface EventRsvpDrawerProps {
@@ -33,6 +35,45 @@ interface RsvpRow {
     email: string | null;
     phone: string | null;
   } | null;
+}
+
+interface EntryRow {
+  id: string;
+  entry_name: string | null;
+  note: string | null;
+  created_at: string;
+  member: RsvpRow['member'];
+}
+
+function entrantName(r: EntryRow) {
+  return r.member ? `${r.member.first_name} ${r.member.last_name}`.trim() : 'Unknown member';
+}
+
+function csvEscape(v: string | number) {
+  const s = String(v ?? '');
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+function saveCsv(filename: string, lines: string[]) {
+  const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+}
+
+function downloadEntriesCsv(filename: string, rows: EntryRow[]) {
+  saveCsv(filename, [
+    ['Member', 'Membership no', 'Email', 'Phone', 'Entry name', 'Note'].join(','),
+    ...rows.map((r) => [
+      entrantName(r),
+      r.member?.membership_number ?? '',
+      r.member?.email ?? '',
+      r.member?.phone ?? '',
+      r.entry_name ?? '',
+      r.note ?? '',
+    ].map(csvEscape).join(',')),
+  ]);
 }
 
 function formatEventDate(dateStr: string) {
@@ -74,6 +115,22 @@ function downloadCsv(filename: string, rows: RsvpRow[]) {
 
 export default function EventRsvpDrawer({ open, onClose, target }: EventRsvpDrawerProps) {
   const { venueId } = useVenue();
+  const [tab, setTab] = useState<'rsvps' | 'entrants'>('rsvps');
+
+  const { data: entries = [], isLoading: entriesLoading } = useQuery({
+    queryKey: ['event-entries', venueId, target?.event_id, target?.occurrence_date],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('event_participants')
+        .select('id, entry_name, note, created_at, member:members(first_name, last_name, membership_number, email, phone)')
+        .eq('venue_id', venueId)
+        .eq('event_id', target!.event_id)
+        .eq('occurrence_date', target!.occurrence_date);
+      if (error) throw error;
+      return ((data ?? []) as unknown as EntryRow[]).sort((a, b) => entrantName(a).localeCompare(entrantName(b)));
+    },
+    enabled: open && !!venueId && !!target?.allows_registration,
+  });
 
   const { data: rsvps = [], isLoading } = useQuery({
     queryKey: ['event-rsvps', venueId, target?.event_id, target?.occurrence_date],
@@ -106,6 +163,10 @@ export default function EventRsvpDrawer({ open, onClose, target }: EventRsvpDraw
 
   if (!open || !target) return null;
 
+  // Entrants-only events (no RSVP) open straight on the entrants tab.
+  const showEntrants = target.allows_registration && (tab === 'entrants' || !target.requires_rsvp);
+  const showTabs = target.allows_registration && target.requires_rsvp;
+
   const deadline = rsvpDeadline(target.occurrence_date, target.rsvp_close_days_before);
   const deadlinePassed = deadline < new Date().toISOString().slice(0, 10);
 
@@ -126,7 +187,7 @@ export default function EventRsvpDrawer({ open, onClose, target }: EventRsvpDraw
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', padding: '16px 20px', borderBottom: '1px solid #E2E8F0', gap: 12 }}>
           <div style={{ minWidth: 0 }}>
-            <h2 style={{ fontSize: 18, fontWeight: 600, color: '#1A202C', margin: 0 }}>RSVPs</h2>
+            <h2 style={{ fontSize: 18, fontWeight: 600, color: '#1A202C', margin: 0 }}>{showEntrants ? 'Entrants' : 'RSVPs'}</h2>
             <p style={{ fontSize: 13, color: '#718096', margin: '2px 0 0' }}>
               {target.title} — {formatEventDate(target.occurrence_date)}
             </p>
@@ -136,7 +197,53 @@ export default function EventRsvpDrawer({ open, onClose, target }: EventRsvpDraw
           </Button>
         </div>
 
+        {showTabs && (
+          <div style={{ display: 'flex', borderBottom: '1px solid #E2E8F0' }}>
+            {([['rsvps', `Eating / RSVPs (${rsvps.length})`], ['entrants', `Entrants (${entries.length})`]] as const).map(([key, label]) => (
+              <button
+                key={key}
+                onClick={() => setTab(key)}
+                style={{
+                  flex: 1, padding: '10px 12px', fontSize: 14, cursor: 'pointer', background: 'none', border: 'none',
+                  fontWeight: tab === key ? 600 : 500, color: tab === key ? '#2E5FA3' : '#718096',
+                  borderBottom: tab === key ? '2px solid #2E5FA3' : '2px solid transparent', marginBottom: -1,
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
+
         {/* Body */}
+        {showEntrants ? (
+          <div style={{ flex: 1, overflowY: 'auto', padding: 20 }}>
+            {entriesLoading ? (
+              <p style={{ color: '#718096' }}>Loading entrants…</p>
+            ) : entries.length === 0 ? (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 200, color: '#718096' }}>
+                <ChefHat size={28} style={{ marginBottom: 8, opacity: 0.5 }} />
+                <p style={{ fontSize: 14, margin: 0 }}>No entrants yet</p>
+              </div>
+            ) : (
+              entries.map((r) => (
+                <div key={r.id} style={{ border: '1px solid #E2E8F0', borderRadius: 8, padding: 12, marginBottom: 8 }}>
+                  <p style={{ fontSize: 14, fontWeight: 600, color: '#1A202C', margin: 0 }}>
+                    {r.entry_name || entrantName(r)}
+                  </p>
+                  <p style={{ fontSize: 12, color: '#718096', margin: '2px 0 0' }}>
+                    {r.entry_name ? `${entrantName(r)} · ` : ''}
+                    {r.member?.membership_number}
+                    {r.member?.phone ? ` · ${r.member.phone}` : ''}
+                  </p>
+                  {r.note && (
+                    <p style={{ fontSize: 13, color: '#4A5568', margin: '6px 0 0', fontStyle: 'italic' }}>“{r.note}”</p>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
+        ) : (
         <div style={{ flex: 1, overflowY: 'auto', padding: 20 }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
             {statTile('Adults', totals.adults)}
@@ -165,12 +272,15 @@ export default function EventRsvpDrawer({ open, onClose, target }: EventRsvpDraw
             </>
           )}
         </div>
+        )}
 
         {/* Footer */}
         <div style={{ padding: 20, borderTop: '1px solid #E2E8F0' }}>
           <Button
-            onClick={() => downloadCsv(`rsvps-${target.occurrence_date}.csv`, [...attending, ...declined])}
-            disabled={rsvps.length === 0}
+            onClick={() => showEntrants
+              ? downloadEntriesCsv(`entrants-${target.occurrence_date}.csv`, entries)
+              : downloadCsv(`rsvps-${target.occurrence_date}.csv`, [...attending, ...declined])}
+            disabled={showEntrants ? entries.length === 0 : rsvps.length === 0}
             style={{ width: '100%', height: 44, background: '#2E5FA3', color: '#FFFFFF', fontWeight: 600, borderRadius: 6 }}
           >
             <Download className="h-4 w-4 mr-2" /> Export CSV
