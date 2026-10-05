@@ -6,6 +6,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Home, Calendar, BedDouble, BookOpen, MessageSquarePlus, Anchor, LogOut } from 'lucide-react';
 import { useVenueNav } from '@/hooks/useVenueNav';
 import PwaInstallPrompt from '@/components/portal/PwaInstallPrompt';
+import EventSpotlightPopup from '@/components/portal/EventSpotlightPopup';
 
 function usePortalTabs() {
   const { portalPath } = useVenueNav();
@@ -69,6 +70,7 @@ export default function PortalLayout() {
   return (
     <div className="flex" style={{ minHeight: '100vh', background: 'var(--portal-page-bg)' }}>
       <PwaInstallPrompt />
+      <EventSpotlightPopup />
       {/* Desktop sidebar — hidden below lg */}
       <aside
         className="hidden lg:flex flex-col shrink-0"

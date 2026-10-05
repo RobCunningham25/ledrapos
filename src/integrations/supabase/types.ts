@@ -1,4 +1,4 @@
-export type Json =
+﻿export type Json =
   | string
   | number
   | boolean
@@ -928,6 +928,64 @@ export type Database = {
           },
           {
             foreignKeyName: "event_exceptions_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_participants: {
+        Row: {
+          created_at: string
+          entry_name: string | null
+          event_id: string
+          id: string
+          member_id: string
+          note: string | null
+          occurrence_date: string
+          updated_at: string
+          venue_id: string
+        }
+        Insert: {
+          created_at?: string
+          entry_name?: string | null
+          event_id: string
+          id?: string
+          member_id: string
+          note?: string | null
+          occurrence_date: string
+          updated_at?: string
+          venue_id: string
+        }
+        Update: {
+          created_at?: string
+          entry_name?: string | null
+          event_id?: string
+          id?: string
+          member_id?: string
+          note?: string | null
+          occurrence_date?: string
+          updated_at?: string
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_participants_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "club_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_participants_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_participants_venue_id_fkey"
             columns: ["venue_id"]
             isOneToOne: false
             referencedRelation: "venues"
@@ -2087,6 +2145,7 @@ export type Database = {
           description: string | null
           due_date: string | null
           id: string
+          issue_id: string | null
           manager_notes: string | null
           priority: string
           status: string
@@ -2101,6 +2160,7 @@ export type Database = {
           description?: string | null
           due_date?: string | null
           id?: string
+          issue_id?: string | null
           manager_notes?: string | null
           priority?: string
           status?: string
@@ -2115,6 +2175,7 @@ export type Database = {
           description?: string | null
           due_date?: string | null
           id?: string
+          issue_id?: string | null
           manager_notes?: string | null
           priority?: string
           status?: string
@@ -2134,6 +2195,13 @@ export type Database = {
             columns: ["assigned_to"]
             isOneToOne: false
             referencedRelation: "admin_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_jobs_issue_id_fkey"
+            columns: ["issue_id"]
+            isOneToOne: false
+            referencedRelation: "issue_reports"
             referencedColumns: ["id"]
           },
           {

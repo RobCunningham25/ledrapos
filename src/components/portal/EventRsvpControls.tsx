@@ -214,7 +214,7 @@ export default function EventRsvpControls({
   );
 }
 
-function describeParty(adults: number, children: number) {
+export function describeParty(adults: number, children: number) {
   const a = `${adults} adult${adults === 1 ? '' : 's'}`;
   return children > 0 ? `${a}, ${children} child${children === 1 ? '' : 'ren'}` : a;
 }
@@ -237,7 +237,7 @@ function ChoiceButton({ active, onClick, icon, label }: { active: boolean; onCli
   );
 }
 
-function Stepper({ label, value, min, onChange }: { label: string; value: number; min: number; onChange: (v: number) => void }) {
+export function Stepper({ label, value, min, onChange }: { label: string; value: number; min: number; onChange: (v: number) => void }) {
   const btn: React.CSSProperties = {
     width: 32, height: 32, borderRadius: 8, cursor: 'pointer',
     border: '1px solid var(--portal-card-border)', background: 'var(--portal-card-bg)',
