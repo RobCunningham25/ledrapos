@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { usePortalAuth } from '@/contexts/PortalAuthContext';
 import { useVenueNav } from '@/hooks/useVenueNav';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { Stepper, describeParty } from '@/components/portal/EventRsvpControls';
 
@@ -47,6 +47,9 @@ export default function EventSpotlightPopup() {
   const { member } = usePortalAuth();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  // ?spotlight=1 forces the pop-up open (for previewing), even after responding or closing.
+  const [searchParams] = useSearchParams();
+  const forced = searchParams.get('spotlight') === '1';
   const { portalPath } = useVenueNav();
 
   const memberId = member?.id;
@@ -67,7 +70,7 @@ export default function EventSpotlightPopup() {
   // Has this member already responded? Then there's nothing to nag about.
   const { data: responded } = useQuery({
     queryKey: ['portal-spotlight', SPOTLIGHT.eventId, venueId, memberId],
-    enabled: active && !closed && !!venueId && !!memberId,
+    enabled: active && !closed && !forced && !!venueId && !!memberId,
     queryFn: async () => {
       const [rsvp, entry] = await Promise.all([
         supabase.from('event_rsvps').select('id')
@@ -126,7 +129,8 @@ export default function EventSpotlightPopup() {
     setClosed(true);
   };
 
-  if (!active || closed || !member || responded !== false) return null;
+  if (!active || !member) return null;
+  if (!forced && (closed || responded !== false)) return null;
 
   const inputStyle: React.CSSProperties = {
     width: '100%', padding: '8px 10px', fontSize: 14, borderRadius: 8,
