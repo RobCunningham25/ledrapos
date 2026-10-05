@@ -153,16 +153,15 @@ export default function EventSpotlightPopup() {
         className="max-w-[420px]"
         style={{ background: 'var(--portal-card-bg)', borderRadius: 'var(--portal-card-radius)' }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--portal-accent)', fontSize: 13, fontWeight: 600 }}>
-          <CalendarDays size={16} /> Saturday 31 October
-        </div>
-        <DialogTitle style={{ fontSize: 22, color: 'var(--portal-text-primary)' }}>{SPOTLIGHT.heading}</DialogTitle>
-
-        {view === 'intro' && (
+        {view === 'intro' ? (
           <>
-            <DialogDescription style={{ color: 'var(--portal-text-secondary)', fontSize: 14, lineHeight: 1.5 }}>
-              {SPOTLIGHT.blurb}
-            </DialogDescription>
+            <DialogTitle className="sr-only">{SPOTLIGHT.heading}</DialogTitle>
+            <DialogDescription className="sr-only">{SPOTLIGHT.blurb}</DialogDescription>
+            <img
+              src="/halloween-potjie.png"
+              alt={`${SPOTLIGHT.heading}, 31 October 2026`}
+              style={{ width: '100%', maxHeight: '55vh', objectFit: 'contain', borderRadius: 8, background: '#0D0C0B' }}
+            />
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 4 }}>
               <button style={primaryBtn} onClick={() => setView('register')}>
                 <ChefHat size={18} /> Register to participate
@@ -174,6 +173,13 @@ export default function EventSpotlightPopup() {
                 See it on the calendar
               </button>
             </div>
+          </>
+        ) : (
+          <>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--portal-accent)', fontSize: 13, fontWeight: 600 }}>
+              <CalendarDays size={16} /> Saturday 31 October
+            </div>
+            <DialogTitle style={{ fontSize: 22, color: 'var(--portal-text-primary)' }}>{SPOTLIGHT.heading}</DialogTitle>
           </>
         )}
 
