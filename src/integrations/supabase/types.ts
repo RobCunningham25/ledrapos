@@ -542,6 +542,7 @@ export type Database = {
       }
       club_events: {
         Row: {
+          allows_registration: boolean
           created_at: string | null
           created_by: string | null
           description: string | null
@@ -559,6 +560,7 @@ export type Database = {
           venue_id: string
         }
         Insert: {
+          allows_registration?: boolean
           created_at?: string | null
           created_by?: string | null
           description?: string | null
@@ -576,6 +578,7 @@ export type Database = {
           venue_id: string
         }
         Update: {
+          allows_registration?: boolean
           created_at?: string | null
           created_by?: string | null
           description?: string | null

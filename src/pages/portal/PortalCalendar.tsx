@@ -6,6 +6,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { expandAllOccurrences, type EventSeries, type EventOccurrence, type MonthlyMode, type Recurrence } from '@/utils/eventOccurrences';
 import { downloadEventIcs } from '@/utils/ics';
 import EventRsvpControls, { type MyRsvp } from '@/components/portal/EventRsvpControls';
+import EventRegistrationControls, { type MyEntry } from '@/components/portal/EventRegistrationControls';
 
 interface ClubEventRow {
   id: string;
@@ -20,6 +21,7 @@ interface ClubEventRow {
   monthly_mode: MonthlyMode;
   requires_rsvp: boolean | null;
   rsvp_close_days_before: number | null;
+  allows_registration: boolean | null;
 }
 
 function formatTime(start: string | null, end: string | null) {
@@ -81,7 +83,7 @@ export default function PortalCalendar() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('club_events')
-        .select('id, title, description, event_date, start_time, end_time, location, recurrence, recurrence_end_date, monthly_mode, requires_rsvp, rsvp_close_days_before')
+        .select('id, title, description, event_date, start_time, end_time, location, recurrence, recurrence_end_date, monthly_mode, requires_rsvp, rsvp_close_days_before, allows_registration')
         .eq('venue_id', venueId)
         .lte('event_date', lastDayStr)
         .or(`recurrence.neq.none,event_date.gte.${firstDayStr}`);
@@ -129,6 +131,33 @@ export default function PortalCalendar() {
     enabled: !!venueId && !!memberId,
     staleTime: 30_000,
   });
+
+  // This member's own competition entries for the visible month.
+  const { data: myEntryRows = [] } = useQuery({
+    queryKey: ['portal-event-entries', 'mine', venueId, memberId, firstDayStr, lastDayStr],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('event_participants')
+        .select('id, event_id, occurrence_date, entry_name, note')
+        .eq('venue_id', venueId)
+        .eq('member_id', memberId)
+        .gte('occurrence_date', firstDayStr)
+        .lte('occurrence_date', lastDayStr);
+      if (error) throw error;
+      return (data ?? []) as MyEntry[];
+    },
+    enabled: !!venueId && !!memberId,
+    staleTime: 30_000,
+  });
+  const myEntries = useMemo(() => {
+    const m = new Map<string, MyEntry>();
+    for (const r of myEntryRows) m.set(`${r.event_id}:${r.occurrence_date}`, r);
+    return m;
+  }, [myEntryRows]);
+  const registrationEventIds = useMemo(
+    () => new Set(series.filter((e) => e.allows_registration).map((e) => e.id)),
+    [series],
+  );
 
   // Head counts come from an aggregate RPC — members never receive other
   // members' names or notes.
@@ -338,6 +367,8 @@ export default function PortalCalendar() {
                   event={ev}
                   myRsvp={myRsvps.get(`${ev.event_id}:${ev.occurrence_date}`) ?? null}
                   attendingHeads={attendingHeads.get(`${ev.event_id}:${ev.occurrence_date}`) ?? 0}
+                  allowsRegistration={registrationEventIds.has(ev.event_id)}
+                  myEntry={myEntries.get(`${ev.event_id}:${ev.occurrence_date}`) ?? null}
                 />
               ))
             )}
@@ -355,6 +386,8 @@ export default function PortalCalendar() {
                   showDate
                   myRsvp={myRsvps.get(`${ev.event_id}:${ev.occurrence_date}`) ?? null}
                   attendingHeads={attendingHeads.get(`${ev.event_id}:${ev.occurrence_date}`) ?? 0}
+                  allowsRegistration={registrationEventIds.has(ev.event_id)}
+                  myEntry={myEntries.get(`${ev.event_id}:${ev.occurrence_date}`) ?? null}
                 />
               ))
             )}
@@ -435,11 +468,15 @@ function EventCard({
   showDate,
   myRsvp,
   attendingHeads,
+  allowsRegistration,
+  myEntry,
 }: {
   event: EventOccurrence;
   showDate?: boolean;
   myRsvp?: MyRsvp | null;
   attendingHeads?: number;
+  allowsRegistration?: boolean;
+  myEntry?: MyEntry | null;
 }) {
   return (
     <div style={{
@@ -503,6 +540,14 @@ function EventCard({
           rsvpCloseDaysBefore={event.rsvp_close_days_before}
           myRsvp={myRsvp ?? null}
           attendingHeads={attendingHeads}
+        />
+      )}
+
+      {allowsRegistration && (
+        <EventRegistrationControls
+          eventId={event.event_id}
+          occurrenceDate={event.occurrence_date}
+          myEntry={myEntry ?? null}
         />
       )}
     </div>
