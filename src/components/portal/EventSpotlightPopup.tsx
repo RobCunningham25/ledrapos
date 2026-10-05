@@ -56,7 +56,7 @@ export default function EventSpotlightPopup() {
   const venueId = member?.venue_id;
   const sessionKey = `portal_spotlight_${SPOTLIGHT.eventId}`;
 
-  const [closed, setClosed] = useState(() => readSession(sessionKey));
+  const [closed, setClosed] = useState(() => !forced && readSession(sessionKey));
   const [view, setView] = useState<View>('intro');
   const [doneMessage, setDoneMessage] = useState('');
   const [adults, setAdults] = useState(1);
@@ -130,7 +130,7 @@ export default function EventSpotlightPopup() {
   };
 
   if (!active || !member) return null;
-  if (!forced && (closed || responded !== false)) return null;
+  if (closed || (!forced && responded !== false)) return null;
 
   const inputStyle: React.CSSProperties = {
     width: '100%', padding: '8px 10px', fontSize: 14, borderRadius: 8,
