@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-import { X, Loader2 } from 'lucide-react';
+import { X, Loader2, MessageCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { formatCents } from '@/utils/currency';
@@ -16,6 +17,8 @@ interface OpenTabRow {
   member_first_name: string | null;
   member_last_name: string | null;
   membership_number: string | null;
+  whatsapp_opt_in: boolean;
+  whatsapp_number: string | null;
   item_count: number;
   total_cents: number;
   paid_cents: number;
@@ -34,6 +37,33 @@ export default function OpenTabsDrawer({ isOpen, onClose, venueId }: OpenTabsDra
   const [loading, setLoading] = useState(false);
   const [tabs, setTabs] = useState<OpenTabRow[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [waSendingTabId, setWaSendingTabId] = useState<string | null>(null);
+
+  const sendWhatsAppReminder = async (tab: OpenTabRow, name: string) => {
+    setWaSendingTabId(tab.id);
+    try {
+      const res = await supabase.functions.invoke('send-tab-reminder-whatsapp', {
+        body: { venue_id: venueId, tab_id: tab.id },
+      });
+      if (res.error) {
+        let detail: string | null = null;
+        const ctx = (res.error as { context?: Response }).context;
+        if (ctx && typeof ctx.json === 'function') {
+          try { const body = await ctx.json(); if (body?.error) detail = body.error; } catch { /* not json */ }
+        }
+        toast.error(detail || res.error.message || 'Failed to send WhatsApp reminder');
+      } else if (res.data?.error) {
+        toast.error(res.data.error);
+      } else if (res.data?.success) {
+        toast.success(`Reminder sent to ${name} on WhatsApp`);
+      } else {
+        toast.error('Send did not complete');
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to send WhatsApp reminder');
+    }
+    setWaSendingTabId(null);
+  };
 
   useEffect(() => {
     if (!isOpen) return;
@@ -53,13 +83,15 @@ export default function OpenTabsDrawer({ isOpen, onClose, venueId }: OpenTabsDra
           first_name: string | null;
           last_name: string | null;
           membership_number: string | null;
+          whatsapp_opt_in: boolean | null;
+          whatsapp_number: string | null;
         } | null;
       };
 
       const { data: tabRows, error: tabsErr } = await supabase
         .from('tabs')
         .select(
-          'id, member_id, is_cash_customer, cash_customer_name, opened_at, members(first_name, last_name, membership_number)'
+          'id, member_id, is_cash_customer, cash_customer_name, opened_at, members(first_name, last_name, membership_number, whatsapp_opt_in, whatsapp_number)'
         )
         .eq('venue_id', venueId)
         .eq('status', 'OPEN')
@@ -121,6 +153,8 @@ export default function OpenTabsDrawer({ isOpen, onClose, venueId }: OpenTabsDra
             member_first_name: t.members?.first_name ?? null,
             member_last_name: t.members?.last_name ?? null,
             membership_number: t.members?.membership_number ?? null,
+            whatsapp_opt_in: !!t.members?.whatsapp_opt_in,
+            whatsapp_number: t.members?.whatsapp_number ?? null,
             item_count: itemMap[t.id]?.count ?? 0,
             total_cents: totalCents,
             paid_cents: paidCents,
@@ -213,17 +247,54 @@ export default function OpenTabsDrawer({ isOpen, onClose, venueId }: OpenTabsDra
                     }}
                   >
                     <div style={{ minWidth: 0, flex: 1 }}>
-                      <div
-                        style={{
-                          fontSize: 14,
-                          fontWeight: 600,
-                          color: '#1A202C',
-                          whiteSpace: 'nowrap',
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                        }}
-                      >
-                        {name}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <div
+                          style={{
+                            fontSize: 14,
+                            fontWeight: 600,
+                            color: '#1A202C',
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                          }}
+                        >
+                          {name}
+                        </div>
+                        {clickable && t.outstanding_cents > 0 && (
+                          <button
+                            disabled={waSendingTabId === t.id || !t.whatsapp_opt_in || !t.whatsapp_number}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              sendWhatsAppReminder(t, name);
+                            }}
+                            title={
+                              !t.whatsapp_opt_in
+                                ? 'Member has opted out of WhatsApp'
+                                : !t.whatsapp_number
+                                  ? 'No WhatsApp number on file'
+                                  : 'Send WhatsApp reminder for this tab'
+                            }
+                            style={{
+                              width: 26,
+                              height: 26,
+                              flexShrink: 0,
+                              borderRadius: 6,
+                              border: `1px solid ${t.whatsapp_opt_in && t.whatsapp_number ? '#25D366' : '#CBD5E0'}`,
+                              background: 'transparent',
+                              color: t.whatsapp_opt_in && t.whatsapp_number ? '#25D366' : '#CBD5E0',
+                              cursor: waSendingTabId === t.id || !t.whatsapp_opt_in || !t.whatsapp_number ? 'not-allowed' : 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                            }}
+                          >
+                            {waSendingTabId === t.id ? (
+                              <Loader2 size={13} className="animate-spin" />
+                            ) : (
+                              <MessageCircle size={13} />
+                            )}
+                          </button>
+                        )}
                       </div>
                       <div style={{ fontSize: 12, color: '#718096', marginTop: 2 }}>
                         {subtitle && <span>{subtitle} · </span>}
