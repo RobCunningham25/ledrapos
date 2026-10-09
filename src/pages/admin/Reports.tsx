@@ -517,21 +517,15 @@ function MembersReport({ venueId, fromISO, toISO }: RangeProps) {
       (tabs ?? []).forEach((t) => tabsById.set(t.id, t));
     }
 
-    // Credit liability (snapshot, whole history): top-ups minus credit redeemed.
-    const { data: credits } = await supabase.from('member_credits').select('member_id, amount_cents').eq('venue_id', venueId);
+    // Credit liability (snapshot, whole history). member_credits is a signed ledger:
+    // CREDIT rows are top-ups, DEBIT rows are redemptions (process_payment writes one
+    // alongside each CREDIT payment). Same formula as the member page and POS.
+    // Don't also subtract payments.method = 'CREDIT' — that would count each redemption twice.
+    const { data: credits } = await supabase.from('member_credits').select('member_id, amount_cents, type').eq('venue_id', venueId);
     const balByMember = new Map<string, number>();
-    (credits ?? []).forEach((c) => balByMember.set(c.member_id, (balByMember.get(c.member_id) ?? 0) + (c.amount_cents ?? 0)));
-    // Subtract credit redeemed via payments (method CREDIT) across all time.
-    const { data: creditPmts } = await supabase.from('payments').select('amount_cents, tab_id').eq('venue_id', venueId).eq('method', 'CREDIT');
-    const creditTabIds = [...new Set((creditPmts ?? []).map((p) => p.tab_id).filter(Boolean))] as string[];
-    const creditTabMember = new Map<string, string>();
-    if (creditTabIds.length) {
-      const { data: ctabs } = await supabase.from('tabs').select('id, member_id').in('id', creditTabIds);
-      (ctabs ?? []).forEach((t) => { if (t.member_id) creditTabMember.set(t.id, t.member_id); });
-    }
-    (creditPmts ?? []).forEach((p) => {
-      const mid = p.tab_id ? creditTabMember.get(p.tab_id) : undefined;
-      if (mid) balByMember.set(mid, (balByMember.get(mid) ?? 0) - (p.amount_cents ?? 0));
+    (credits ?? []).forEach((c) => {
+      const signed = c.type === 'CREDIT' ? (c.amount_cents ?? 0) : -(c.amount_cents ?? 0);
+      balByMember.set(c.member_id, (balByMember.get(c.member_id) ?? 0) + signed);
     });
 
     // Names for everyone referenced.
