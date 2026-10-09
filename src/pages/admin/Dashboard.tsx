@@ -3,6 +3,7 @@ import { format, startOfWeek, endOfWeek } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
 import AdminLayout from '@/components/admin/AdminLayout';
 import BarTabRemindersCard from '@/components/admin/BarTabRemindersCard';
+import AttentionCenter from '@/components/admin/AttentionCenter';
 import LivePaymentsCard from '@/components/admin/LivePaymentsCard';
 import OpenTabsDrawer from '@/components/admin/OpenTabsDrawer';
 import { useVenue } from '@/contexts/VenueContext';
@@ -78,25 +79,22 @@ export default function Dashboard() {
   return (
     <AdminLayout title="Dashboard">
       <div className="space-y-6">
-        <section>
-          <h3 style={sectionHeading}>Today</h3>
-          <LivePaymentsCard />
-        </section>
+        <AttentionCenter />
 
         <section>
-          <h3 style={sectionHeading}>Needs Attention</h3>
-          <div style={gridStyle}>
-            <OpenTabsCard />
-            <PendingEftBookingsCard />
-            <PendingApplicationsCard />
+          <h3 style={sectionHeading}>Today</h3>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16, alignItems: 'start' }}>
+            <LivePaymentsCard />
+            <StaysCard />
           </div>
         </section>
 
         <section>
-          <h3 style={sectionHeading}>Upcoming</h3>
+          <h3 style={sectionHeading}>At a Glance</h3>
           <div style={gridStyle}>
+            <OpenTabsCard />
+            <OnTheWaterCard />
             <NextEventCard />
-            <BookingsThisWeekCard />
           </div>
         </section>
 
@@ -206,60 +204,6 @@ function OpenTabsCard() {
   );
 }
 
-function PendingEftBookingsCard() {
-  const { venueId } = useVenue();
-  const [state, setState] = useState<
-    { status: 'loading' } | { status: 'error' } | { status: 'ok'; count: number; totalCents: number }
-  >({ status: 'loading' });
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setState({ status: 'loading' });
-      const { data, error } = await supabase
-        .from('bookings')
-        .select('total_price_cents')
-        .eq('venue_id', venueId)
-        .eq('status', 'pending')
-        .eq('payment_method', 'eft');
-
-      if (cancelled) return;
-      if (error) {
-        setState({ status: 'error' });
-        return;
-      }
-
-      const count = data?.length ?? 0;
-      const totalCents = (data ?? []).reduce((s, r) => s + (r.total_price_cents ?? 0), 0);
-      setState({ status: 'ok', count, totalCents });
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [venueId]);
-
-  return (
-    <div style={cardStyle}>
-      {state.status === 'loading' && (
-        <>
-          <Skeleton className="h-9 w-16" />
-          <Skeleton className="h-4 w-32 mt-2" />
-          <Skeleton className="h-4 w-28 mt-3" />
-        </>
-      )}
-      {state.status === 'error' && <p style={errorText}>Failed to load pending EFT bookings.</p>}
-      {state.status === 'ok' && state.count === 0 && <p style={mutedText}>No pending EFT bookings</p>}
-      {state.status === 'ok' && state.count > 0 && (
-        <>
-          <div style={bigNumber}>{state.count}</div>
-          <p style={subText}>{formatCents(state.totalCents)} total value</p>
-          <p style={labelText}>Pending EFT Bookings</p>
-        </>
-      )}
-    </div>
-  );
-}
-
 function NextEventCard() {
   const { venueId } = useVenue();
   const [state, setState] = useState<
@@ -338,77 +282,21 @@ function NextEventCard() {
   );
 }
 
-function PendingApplicationsCard() {
-  const { venueId } = useVenue();
-  const navigate = useNavigate();
-  const { adminPath } = useVenueNav();
-  const [state, setState] = useState<
-    { status: 'loading' } | { status: 'error' } | { status: 'ok'; count: number }
-  >({ status: 'loading' });
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setState({ status: 'loading' });
-      const { count, error } = await supabase
-        .from('membership_applications')
-        .select('id', { count: 'exact', head: true })
-        .eq('venue_id', venueId)
-        .eq('status', 'pending');
-
-      if (cancelled) return;
-      if (error) { setState({ status: 'error' }); return; }
-      setState({ status: 'ok', count: count ?? 0 });
-    })();
-    return () => { cancelled = true; };
-  }, [venueId]);
-
-  return (
-    <div style={cardStyle}>
-      {state.status === 'loading' && (
-        <>
-          <Skeleton className="h-9 w-16" />
-          <Skeleton className="h-4 w-32 mt-2" />
-          <Skeleton className="h-4 w-24 mt-3" />
-        </>
-      )}
-      {state.status === 'error' && <p style={errorText}>Failed to load applications.</p>}
-      {state.status === 'ok' && state.count === 0 && <p style={mutedText}>No pending applications</p>}
-      {state.status === 'ok' && state.count > 0 && (
-        <>
-          <div style={bigNumber}>{state.count}</div>
-          <p style={subText}>{state.count === 1 ? 'application' : 'applications'} awaiting review</p>
-          <p style={labelText}>Pending Applications</p>
-          <button
-            type="button"
-            onClick={() => navigate(adminPath('applications'))}
-            style={{
-              marginTop: 12,
-              background: 'transparent',
-              color: '#2E5FA3',
-              fontSize: 14,
-              fontWeight: 600,
-              border: '1px solid #2E5FA3',
-              borderRadius: 6,
-              padding: '8px 14px',
-              cursor: 'pointer',
-              transition: 'background 0.15s, color 0.15s',
-            }}
-            onMouseEnter={(e) => { e.currentTarget.style.background = '#2E5FA3'; e.currentTarget.style.color = '#FFFFFF'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#2E5FA3'; }}
-          >
-            Review Applications
-          </button>
-        </>
-      )}
-    </div>
-  );
+interface StayRow {
+  id: string;
+  guest_name: string;
+  check_in: string;
+  check_out: string;
+  num_guests: number;
+  status: string;
 }
 
-function BookingsThisWeekCard() {
+function StaysCard() {
   const { venueId } = useVenue();
+  const { adminPath } = useVenueNav();
+  const navigate = useNavigate();
   const [state, setState] = useState<
-    { status: 'loading' } | { status: 'error' } | { status: 'ok'; count: number; totalCents: number }
+    { status: 'loading' } | { status: 'error' } | { status: 'ok'; rows: StayRow[] }
   >({ status: 'loading' });
 
   useEffect(() => {
@@ -416,25 +304,124 @@ function BookingsThisWeekCard() {
     (async () => {
       setState({ status: 'loading' });
       const now = new Date();
-      const weekStart = startOfWeek(now, { weekStartsOn: 1 });
-      const weekEnd = endOfWeek(now, { weekStartsOn: 1 });
+      const weekStart = format(startOfWeek(now, { weekStartsOn: 1 }), 'yyyy-MM-dd');
+      const weekEnd = format(endOfWeek(now, { weekStartsOn: 1 }), 'yyyy-MM-dd');
 
+      // A stay belongs to this week if it overlaps it — NOT if it was created this week.
       const { data, error } = await supabase
         .from('bookings')
-        .select('total_price_cents')
+        .select('id, guest_name, check_in, check_out, num_guests, status')
         .eq('venue_id', venueId)
-        .neq('status', 'cancelled')
-        .gte('created_at', weekStart.toISOString())
-        .lte('created_at', weekEnd.toISOString());
+        .lte('check_in', weekEnd)
+        .gte('check_out', weekStart)
+        .order('check_in');
 
       if (cancelled) return;
       if (error) {
         setState({ status: 'error' });
         return;
       }
-      const count = data?.length ?? 0;
-      const totalCents = (data ?? []).reduce((s, r) => s + (r.total_price_cents ?? 0), 0);
-      setState({ status: 'ok', count, totalCents });
+      // Status casing varies (PENDING/EXPIRED vs lowercase) — compare case-insensitively.
+      const rows = (data ?? []).filter((b) => !['CANCELLED', 'EXPIRED'].includes((b.status ?? '').toUpperCase()));
+      setState({ status: 'ok', rows });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [venueId]);
+
+  const today = format(new Date(), 'yyyy-MM-dd');
+  const rows = state.status === 'ok' ? state.rows : [];
+  const arriving = rows.filter((r) => r.check_in === today);
+  const departing = rows.filter((r) => r.check_out === today);
+  const inHouse = rows.filter((r) => r.check_in < today && r.check_out > today);
+  const upcoming = rows.filter((r) => r.check_in > today);
+
+  const fmt = (d: string) => format(new Date(d + 'T00:00:00'), 'EEE d MMM');
+  const line = (r: StayRow, detail: string) => (
+    <div key={`${r.id}-${detail}`} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, fontSize: 14, padding: '6px 0', borderTop: '1px solid #F1F5F9' }}>
+      <span style={{ color: '#1A202C', fontWeight: 500 }}>
+        {r.guest_name}
+        <span style={{ color: '#94A3B8', fontWeight: 400 }}>{`  ·  ${r.num_guests} guest${r.num_guests === 1 ? '' : 's'}`}</span>
+      </span>
+      <span style={{ color: '#64748B', whiteSpace: 'nowrap' }}>{detail}</span>
+    </div>
+  );
+
+  const stats: Array<[string, number]> = [
+    ['Arriving today', arriving.length],
+    ['Staying', inHouse.length],
+    ['Leaving today', departing.length],
+  ];
+
+  return (
+    <div style={cardStyle}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+        <span style={{ fontSize: 14, fontWeight: 600, color: '#64748B', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+          Stays This Week
+        </span>
+        <button
+          type="button"
+          onClick={() => navigate(adminPath('bookings'))}
+          style={{ background: 'none', border: 'none', color: '#2E5FA3', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+        >
+          All bookings
+        </button>
+      </div>
+
+      {state.status === 'loading' && <Skeleton className="h-20 w-full mt-4" />}
+      {state.status === 'error' && <p style={{ ...errorText, marginTop: 12 }}>Failed to load bookings.</p>}
+      {state.status === 'ok' && rows.length === 0 && <p style={{ ...mutedText, marginTop: 12 }}>No stays this week</p>}
+      {state.status === 'ok' && rows.length > 0 && (
+        <>
+          <div style={{ display: 'flex', gap: 24, marginTop: 12, flexWrap: 'wrap' }}>
+            {stats.map(([label, n]) => (
+              <div key={label}>
+                <div style={{ fontSize: 26, fontWeight: 700, color: n > 0 ? '#2E5FA3' : '#CBD5E1', lineHeight: 1.1 }}>{n}</div>
+                <div style={{ fontSize: 12, color: '#64748B' }}>{label}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{ marginTop: 12 }}>
+            {arriving.map((r) => line(r, `Arrives today → ${fmt(r.check_out)}`))}
+            {inHouse.map((r) => line(r, `Until ${fmt(r.check_out)}`))}
+            {departing.map((r) => line(r, 'Leaves today'))}
+            {upcoming.map((r) => line(r, `Arrives ${fmt(r.check_in)}`))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function OnTheWaterCard() {
+  const { venueId } = useVenue();
+  const { adminPath } = useVenueNav();
+  const navigate = useNavigate();
+  const [state, setState] = useState<
+    { status: 'loading' } | { status: 'error' } | { status: 'ok'; out: number; overdue: number }
+  >({ status: 'loading' });
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase
+        .from('water_signouts')
+        .select('expected_return_at')
+        .eq('venue_id', venueId)
+        .eq('status', 'out');
+      if (cancelled) return;
+      if (error) {
+        setState({ status: 'error' });
+        return;
+      }
+      const nowMs = Date.now();
+      const rows = data ?? [];
+      setState({
+        status: 'ok',
+        out: rows.length,
+        overdue: rows.filter((r) => new Date(r.expected_return_at).getTime() < nowMs).length,
+      });
     })();
     return () => {
       cancelled = true;
@@ -443,20 +430,23 @@ function BookingsThisWeekCard() {
 
   return (
     <div style={cardStyle}>
-      {state.status === 'loading' && (
+      {state.status === 'loading' && <Skeleton className="h-16 w-full" />}
+      {state.status === 'error' && <p style={errorText}>Failed to load water sign-outs.</p>}
+      {state.status === 'ok' && state.out === 0 && <p style={mutedText}>No boats signed out</p>}
+      {state.status === 'ok' && state.out > 0 && (
         <>
-          <Skeleton className="h-9 w-16" />
-          <Skeleton className="h-4 w-32 mt-2" />
-          <Skeleton className="h-4 w-32 mt-3" />
-        </>
-      )}
-      {state.status === 'error' && <p style={errorText}>Failed to load bookings this week.</p>}
-      {state.status === 'ok' && state.count === 0 && <p style={mutedText}>No bookings this week</p>}
-      {state.status === 'ok' && state.count > 0 && (
-        <>
-          <div style={bigNumber}>{state.count}</div>
-          <p style={subText}>{formatCents(state.totalCents)} total value</p>
-          <p style={labelText}>Bookings This Week</p>
+          <div style={bigNumber}>{state.out}</div>
+          <p style={{ ...subText, color: state.overdue > 0 ? '#DC2626' : '#475569', fontWeight: state.overdue > 0 ? 600 : 400 }}>
+            {state.overdue > 0 ? `${state.overdue} overdue` : 'all within expected return time'}
+          </p>
+          <p style={labelText}>Boats On the Water</p>
+          <button
+            type="button"
+            onClick={() => navigate(adminPath('water-signouts'))}
+            style={{ marginTop: 12, background: 'transparent', color: '#2E5FA3', fontSize: 14, fontWeight: 600, border: '1px solid #2E5FA3', borderRadius: 6, padding: '8px 14px', cursor: 'pointer' }}
+          >
+            View Sign-Outs
+          </button>
         </>
       )}
     </div>
