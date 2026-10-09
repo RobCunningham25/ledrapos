@@ -1,6 +1,6 @@
 import { ReactNode, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Users, CalendarDays, BedDouble, Settings, Menu, X, LogOut, Mail, MessageCircle, CalendarRange, Anchor, Beer, Wrench, type LucideIcon } from 'lucide-react';
+import { LayoutDashboard, BarChart3, Users, CalendarDays, BedDouble, Settings, Menu, X, LogOut, Mail, MessageCircle, CalendarRange, Anchor, Beer, Wrench, type LucideIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useAdminAuth } from '@/contexts/AdminAuthContext';
@@ -39,6 +39,7 @@ const navKeys: NavItem[] = [
   { label: 'Events', sub: 'events', icon: CalendarDays },
   { label: 'Bookings', sub: 'bookings', icon: BedDouble, managerSees: true },
   { label: 'Water Sign-Outs', sub: 'water-signouts', icon: Anchor, managerSees: true },
+  { label: 'Reports', sub: 'reports', icon: BarChart3 },
   { label: 'Broadcasts', sub: 'broadcasts', icon: Mail },
   { label: 'WhatsApp', sub: 'whatsapp/followups', icon: MessageCircle, section: 'whatsapp' },
   { label: 'Settings', sub: 'settings', icon: Settings },

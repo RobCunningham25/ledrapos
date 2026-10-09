@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { format, startOfWeek, endOfWeek } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
 import AdminLayout from '@/components/admin/AdminLayout';
-import BarTabRemindersCard from '@/components/admin/BarTabRemindersCard';
 import AttentionCenter from '@/components/admin/AttentionCenter';
 import LivePaymentsCard from '@/components/admin/LivePaymentsCard';
 import OpenTabsDrawer from '@/components/admin/OpenTabsDrawer';
@@ -97,8 +96,6 @@ export default function Dashboard() {
             <NextEventCard />
           </div>
         </section>
-
-        <BarTabRemindersCard />
       </div>
     </AdminLayout>
   );

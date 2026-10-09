@@ -1261,16 +1261,17 @@ function OutstandingFeesReport({ venueId }: RangeProps) {
 // Shell
 // ─────────────────────────────────────────────────────────────────────────────
 
+// 'bar' reports live under the Bar sidebar section; 'club' reports are the club-wide Reports page.
 const REPORTS = [
-  { key: 'overview', label: 'Overview', Comp: OverviewReport },
-  { key: 'products', label: 'Products & Margin', Comp: ProductsReport },
-  { key: 'yoco', label: 'Yoco Online', Comp: YocoReport },
-  { key: 'members', label: 'Members', Comp: MembersReport },
-  { key: 'fees', label: 'Outstanding Fees', Comp: OutstandingFeesReport },
-  { key: 'accommodation', label: 'Accommodation', Comp: AccommodationReport },
-  { key: 'trading', label: 'Trading Patterns', Comp: TradingReport },
-  { key: 'inventory', label: 'Inventory', Comp: InventoryReport },
-  { key: 'electricity', label: 'Electricity', Comp: ElectricityReport },
+  { key: 'overview', label: 'Overview', scope: 'club', Comp: OverviewReport },
+  { key: 'products', label: 'Products & Margin', scope: 'bar', Comp: ProductsReport },
+  { key: 'yoco', label: 'Yoco Online', scope: 'club', Comp: YocoReport },
+  { key: 'members', label: 'Members', scope: 'club', Comp: MembersReport },
+  { key: 'fees', label: 'Outstanding Fees', scope: 'club', Comp: OutstandingFeesReport },
+  { key: 'accommodation', label: 'Accommodation', scope: 'club', Comp: AccommodationReport },
+  { key: 'trading', label: 'Trading Patterns', scope: 'bar', Comp: TradingReport },
+  { key: 'inventory', label: 'Inventory', scope: 'bar', Comp: InventoryReport },
+  { key: 'electricity', label: 'Electricity', scope: 'club', Comp: ElectricityReport },
 ] as const;
 
 function toRange(from: Date, to: Date) {
@@ -1280,23 +1281,24 @@ function toRange(from: Date, to: Date) {
   };
 }
 
-export default function Reports() {
+export default function Reports({ scope = 'club' }: { scope?: 'bar' | 'club' }) {
   const { venueId } = useVenue();
+  const reports = useMemo(() => REPORTS.filter((r) => r.scope === scope), [scope]);
   const now = useMemo(() => new Date(), []);
   const [fromDate, setFromDate] = useState<Date>(startOfMonth(now));
   const [toDate, setToDate] = useState<Date>(endOfMonth(now));
   const [applied, setApplied] = useState(() => toRange(startOfMonth(now), endOfMonth(now)));
-  const [active, setActive] = useState<(typeof REPORTS)[number]['key']>('overview');
+  const [active, setActive] = useState<(typeof REPORTS)[number]['key']>(reports[0].key);
 
   const setThisMonth = () => { setFromDate(startOfMonth(now)); setToDate(endOfMonth(now)); };
   const setLastMonth = () => { const l = subMonths(now, 1); setFromDate(startOfMonth(l)); setToDate(endOfMonth(l)); };
   const setThisWeek = () => { setFromDate(startOfWeek(now, { weekStartsOn: 1 })); setToDate(endOfWeek(now, { weekStartsOn: 1 })); };
   const setToday = () => { setFromDate(now); setToDate(now); };
 
-  const ActiveComp = REPORTS.find((r) => r.key === active)!.Comp;
+  const ActiveComp = (reports.find((r) => r.key === active) ?? reports[0]).Comp;
 
   return (
-    <AdminLayout title="Reports">
+    <AdminLayout title={scope === 'bar' ? 'Bar Reports' : 'Reports'}>
       <div className="space-y-6 max-w-5xl">
         {/* Date range selector */}
         <div className="bg-card rounded-lg border border-border p-5 space-y-4">
@@ -1340,7 +1342,7 @@ export default function Reports() {
 
         {/* Report selector */}
         <div className="flex flex-wrap gap-2">
-          {REPORTS.map((r) => (
+          {reports.map((r) => (
             <button
               key={r.key}
               onClick={() => setActive(r.key)}

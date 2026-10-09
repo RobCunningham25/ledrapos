@@ -24,6 +24,7 @@ import ManagerMemberDirectory from "./pages/admin/ManagerMemberDirectory.tsx";
 import StandMap from "./pages/admin/StandMap.tsx";
 import MemberDetail from "./pages/admin/MemberDetail.tsx";
 import Reports from "./pages/admin/Reports.tsx";
+import BarTabs from "./pages/admin/BarTabs.tsx";
 import Settings from "./pages/admin/Settings.tsx";
 import Events from "./pages/admin/Events.tsx";
 import BookingsRoute from "./pages/admin/BookingsRoute.tsx";
@@ -143,6 +144,8 @@ const App = () => (
                   <Route path="members" element={<RequireRole allow={['admin', 'superadmin']}><Members /></RequireRole>} />
                   <Route path="members/:id" element={<RequireRole allow={['admin', 'superadmin']}><MemberDetail /></RequireRole>} />
                   <Route path="reports" element={<RequireRole allow={['admin', 'superadmin']}><Reports /></RequireRole>} />
+                  <Route path="bar-reports" element={<RequireRole allow={['admin', 'superadmin']}><Reports scope="bar" /></RequireRole>} />
+                  <Route path="bar-tabs" element={<RequireRole allow={['admin', 'superadmin']}><BarTabs /></RequireRole>} />
                   <Route path="events" element={<RequireRole allow={['admin', 'superadmin']}><Events /></RequireRole>} />
                   <Route path="bookings" element={<BookingsRoute />} />
                   <Route path="broadcasts" element={<RequireRole allow={['admin', 'superadmin']}><Broadcasts /></RequireRole>} />
@@ -193,6 +196,8 @@ const App = () => (
                     <Route path="members" element={<RequireRole allow={['admin', 'superadmin']}><Members /></RequireRole>} />
                     <Route path="members/:id" element={<RequireRole allow={['admin', 'superadmin']}><MemberDetail /></RequireRole>} />
                     <Route path="reports" element={<RequireRole allow={['admin', 'superadmin']}><Reports /></RequireRole>} />
+                    <Route path="bar-reports" element={<RequireRole allow={['admin', 'superadmin']}><Reports scope="bar" /></RequireRole>} />
+                    <Route path="bar-tabs" element={<RequireRole allow={['admin', 'superadmin']}><BarTabs /></RequireRole>} />
                     <Route path="events" element={<RequireRole allow={['admin', 'superadmin']}><Events /></RequireRole>} />
                     <Route path="bookings" element={<BookingsRoute />} />
                     <Route path="broadcasts" element={<RequireRole allow={['admin', 'superadmin']}><Broadcasts /></RequireRole>} />

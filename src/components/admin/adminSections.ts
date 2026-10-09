@@ -24,7 +24,8 @@ export const ADMIN_SECTIONS: AdminSection[] = [
     label: 'Bar',
     tabs: [
       { label: 'Products', sub: 'products', adminOnly: true },
-      { label: 'Reports', sub: 'reports', adminOnly: true },
+      { label: 'Bar Tabs', sub: 'bar-tabs', adminOnly: true },
+      { label: 'Bar Reports', sub: 'bar-reports', adminOnly: true },
     ],
   },
   {
