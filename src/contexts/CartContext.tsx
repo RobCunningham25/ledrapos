@@ -46,6 +46,7 @@ interface CartContextType {
   activeMember: ActiveMember | null;
   activeTab: ActiveTab | null;
   activeTabItems: TabItemRow[];
+  activeTabPaidCents: number;
   localCart: CartItem[];
   isCashCustomer: boolean;
   cashCustomerName: string | null;
@@ -81,6 +82,16 @@ function mapTabItems(data: any[]): TabItemRow[] {
   }));
 }
 
+// Sum of payments already recorded against a tab (e.g. partial credit settlement)
+async function fetchTabPaidCents(tabId: string, venueId: string): Promise<number> {
+  const { data } = await supabase
+    .from('payments')
+    .select('amount_cents')
+    .eq('tab_id', tabId)
+    .eq('venue_id', venueId);
+  return (data || []).reduce((sum: number, p: { amount_cents: number }) => sum + p.amount_cents, 0);
+}
+
 const TAB_ITEMS_SELECT = 'id, product_id, qty, unit_price_cents, line_total_cents, liquor_products(name, brand, size)';
 
 export function CartProvider({ children }: { children: ReactNode }) {
@@ -88,6 +99,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const [activeMember, setActiveMember] = useState<ActiveMember | null>(null);
   const [activeTab, setActiveTab] = useState<ActiveTab | null>(null);
   const [activeTabItems, setActiveTabItems] = useState<TabItemRow[]>([]);
+  const [activeTabPaidCents, setActiveTabPaidCents] = useState(0);
   const [localCart, setLocalCart] = useState<CartItem[]>([]);
   const [isCashCustomer, setIsCashCustomer] = useState(false);
   const [cashCustomerName, setCashCustomerName] = useState<string | null>(null);
@@ -102,7 +114,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
       .select(TAB_ITEMS_SELECT)
       .eq('tab_id', activeTab.id);
     if (data) setActiveTabItems(mapTabItems(data));
-  }, [activeTab]);
+    setActiveTabPaidCents(await fetchTabPaidCents(activeTab.id, venueId));
+  }, [activeTab, venueId]);
 
   const selectMember = useCallback(async (member: ActiveMember) => {
     setActiveMember(member);
@@ -127,9 +140,11 @@ export function CartProvider({ children }: { children: ReactNode }) {
         .select(TAB_ITEMS_SELECT)
         .eq('tab_id', data.id);
       if (items) setActiveTabItems(mapTabItems(items));
+      setActiveTabPaidCents(await fetchTabPaidCents(data.id, venueId));
     } else {
       setActiveTab(null);
       setActiveTabItems([]);
+      setActiveTabPaidCents(0);
     }
   }, [venueId]);
 
@@ -147,7 +162,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
       .eq('tab_id', tab.id);
     if (items) setActiveTabItems(mapTabItems(items));
     else setActiveTabItems([]);
-  }, []);
+    setActiveTabPaidCents(await fetchTabPaidCents(tab.id, venueId));
+  }, [venueId]);
 
   const startCashCustomerTab = useCallback((name: string) => {
     setIsCashCustomer(true);
@@ -155,6 +171,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setActiveMember(null);
     setActiveTab(null);
     setActiveTabItems([]);
+    setActiveTabPaidCents(0);
     setLocalCart([]);
     setCommitError(null);
   }, []);
@@ -226,6 +243,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setActiveMember(null);
     setActiveTab(null);
     setActiveTabItems([]);
+    setActiveTabPaidCents(0);
     setLocalCart([]);
     setIsCashCustomer(false);
     setCashCustomerName(null);
@@ -252,6 +270,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     if (result?.tab_deleted) {
       setActiveTab(null);
       setActiveTabItems([]);
+      setActiveTabPaidCents(0);
     } else {
       await loadTabItems();
     }
@@ -264,6 +283,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setActiveMember(null);
     setActiveTab(null);
     setActiveTabItems([]);
+    setActiveTabPaidCents(0);
     setLocalCart([]);
     setIsCashCustomer(false);
     setCashCustomerName(null);
@@ -279,6 +299,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       activeMember,
       activeTab,
       activeTabItems,
+      activeTabPaidCents,
       localCart,
       isCashCustomer,
       cashCustomerName,

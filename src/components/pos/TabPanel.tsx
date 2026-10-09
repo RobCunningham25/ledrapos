@@ -13,7 +13,7 @@ import CreditLoadModal from './CreditLoadModal';
 
 export default function TabPanel() {
   const {
-    activeMember, activeTab, activeTabItems, localCart, isCashCustomer, cashCustomerName,
+    activeMember, activeTab, activeTabItems, activeTabPaidCents, localCart, isCashCustomer, cashCustomerName,
     isCommitting, commitError, updateCartQty, removeFromCart, commitCart,
     removeTabItem, clearActiveTab, loadTabItems, triggerOpenTabsRefetch,
   } = useCart();
@@ -30,10 +30,13 @@ export default function TabPanel() {
   const tabTotal = useMemo(() =>
     activeTabItems.reduce((sum, i) => sum + i.line_total_cents, 0), [activeTabItems]);
 
+  // What's actually still owed on the committed items (floor at 0)
+  const tabOutstanding = Math.max(0, tabTotal - activeTabPaidCents);
+
   const cartTotal = useMemo(() =>
     localCart.reduce((sum, i) => sum + i.unitPriceCents * i.qty, 0), [localCart]);
 
-  const grandTotal = tabTotal + cartTotal;
+  const grandTotal = tabOutstanding + cartTotal;
 
   const memberName = activeMember
     ? `${activeMember.partnerFirstName ? `${activeMember.firstName} & ${activeMember.partnerFirstName}` : activeMember.firstName} ${activeMember.lastName}`
@@ -204,6 +207,12 @@ export default function TabPanel() {
             <span>{formatCents(tabTotal)}</span>
           </div>
         )}
+        {activeTabPaidCents > 0 && activeTabItems.length > 0 && (
+          <div className="flex justify-between text-sm text-muted-foreground mb-1">
+            <span>Already paid</span>
+            <span>−{formatCents(activeTabPaidCents)}</span>
+          </div>
+        )}
         {localCart.length > 0 && (
           <div className="flex justify-between text-sm text-muted-foreground mb-1">
             <span>To Add</span>
@@ -249,7 +258,7 @@ export default function TabPanel() {
           isOpen={showPayment}
           onClose={() => setShowPayment(false)}
           tabId={activeTab.id}
-          tabTotal={tabTotal}
+          tabTotal={tabOutstanding}
           memberId={memberId}
           memberName={memberName}
           onPaymentComplete={handlePaymentComplete}

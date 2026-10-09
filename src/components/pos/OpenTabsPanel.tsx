@@ -51,6 +51,16 @@ export default function OpenTabsPanel() {
           itemMap[i.tab_id].count += i.qty;
           itemMap[i.tab_id].total += i.line_total_cents;
         });
+
+        // Subtract payments already made (partial credit settlement etc.)
+        const { data: pmts } = await supabase
+          .from('payments')
+          .select('tab_id, amount_cents')
+          .eq('venue_id', venueId)
+          .in('tab_id', tabIds);
+        (pmts || []).forEach((p: any) => {
+          if (itemMap[p.tab_id]) itemMap[p.tab_id].total -= p.amount_cents;
+        });
       }
 
       // Filter out cash customer tabs with no items (ghost tabs)
@@ -66,7 +76,7 @@ export default function OpenTabsPanel() {
         membership_number: t.members?.membership_number,
         partner_first_name: t.members?.partner_first_name,
         item_count: itemMap[t.id]?.count || 0,
-        total_cents: itemMap[t.id]?.total || 0,
+        total_cents: Math.max(0, itemMap[t.id]?.total || 0),
       })).filter((t: OpenTab) => !t.is_cash_customer || t.item_count > 0);
 
       setTabs(mapped);
