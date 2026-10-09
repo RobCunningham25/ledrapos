@@ -192,11 +192,17 @@ export async function alertSafetyContacts(
       })());
     }
 
-    if (contact.whatsapp_number && templateSid) {
+    // Normalise defensively: a contact saved as "082 123 4567" would otherwise
+    // fail at Twilio and the only trace would be a channel error.
+    const contactE164 = normaliseE164(contact.whatsapp_number);
+    if (contact.whatsapp_number && !contactE164) {
+      errors.push(`whatsapp to ${contact.name}: unusable number "${contact.whatsapp_number}"`);
+    }
+    if (contactE164 && templateSid) {
       tasks.push((async () => {
         const result = await sendWhatsAppTemplate(supabaseUrl, {
           venueId: row.venue_id,
-          toE164: contact.whatsapp_number!,
+          toE164: contactE164,
           templateSid,
           variables: {
             "1": memberName,
