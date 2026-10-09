@@ -1626,6 +1626,14 @@ async function tool_start_water_signout(
   if (isNaN(expectedReturnAt.getTime())) {
     return { output: { status: "error", note: "expected_return_at is not a valid date/time" }, logSummary: "start_water_signout: bad expected_return_at" };
   }
+  // Mirrors the water_signouts_guard_return_time trigger. A far-off return
+  // time silently disables the overdue alert, so ask the member again.
+  if (expectedReturnAt.getTime() <= Date.now()) {
+    return { output: { status: "error", note: "expected_return_at is in the past. Ask the member what time they expect to be back and recompute it." }, logSummary: "start_water_signout: return time in past" };
+  }
+  if (expectedReturnAt.getTime() > Date.now() + 24 * 3600_000) {
+    return { output: { status: "error", note: "expected_return_at is more than 24 hours away, which is not allowed. Check the date with the member; for a longer trip they must sign out again each day." }, logSummary: "start_water_signout: return time >24h" };
+  }
 
   if (ctx.dryRun) {
     return {

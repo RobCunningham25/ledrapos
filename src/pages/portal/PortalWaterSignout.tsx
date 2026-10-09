@@ -18,6 +18,8 @@ interface OpenSignout {
   expected_return_at: string;
 }
 
+const MAX_TRIP_HOURS = 24; // mirrors water_signouts_guard_return_time trigger
+
 function toLocalInputValue(d: Date) {
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
@@ -74,6 +76,12 @@ export default function PortalWaterSignout() {
     const boatName = boat ? boat.boat_name : freeBoatName.trim();
     if (!boatName) { toast.error('Please select or enter a boat'); return; }
     if (!expectedReturn) { toast.error('Please set an expected return time'); return; }
+    const returnMs = new Date(expectedReturn).getTime();
+    if (isNaN(returnMs) || returnMs <= Date.now()) { toast.error('Expected return time must be in the future.'); return; }
+    if (returnMs > Date.now() + MAX_TRIP_HOURS * 3600_000) {
+      toast.error(`Expected return must be within ${MAX_TRIP_HOURS} hours. For a longer trip, sign out again each day.`);
+      return;
+    }
 
     setSubmitting(true);
     const { error } = await supabase.from('water_signouts').insert({
@@ -91,7 +99,7 @@ export default function PortalWaterSignout() {
       source: 'portal',
     });
     setSubmitting(false);
-    if (error) { toast.error('Could not sign out — please try again.'); return; }
+    if (error) { toast.error(error.code === '23514' ? error.message : 'Could not sign out — please try again.'); return; }
     toast.success("You're signed out. Have a great time on the water!");
     fetchAll();
   };
@@ -184,7 +192,7 @@ export default function PortalWaterSignout() {
             </div>
             <div>
               <label style={labelStyle}>Expected return time</label>
-              <Input type="datetime-local" value={expectedReturn} onChange={e => setExpectedReturn(e.target.value)} style={inputStyle} />
+              <Input type="datetime-local" value={expectedReturn} min={toLocalInputValue(new Date())} max={toLocalInputValue(new Date(Date.now() + MAX_TRIP_HOURS * 3600_000))} onChange={e => setExpectedReturn(e.target.value)} style={inputStyle} />
             </div>
             <div className="sm:col-span-2">
               <label style={labelStyle}>Names / notes (optional)</label>
