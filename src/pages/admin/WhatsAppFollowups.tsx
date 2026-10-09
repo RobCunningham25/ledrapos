@@ -174,7 +174,7 @@ export default function WhatsAppFollowups() {
 
   return (
     <AdminLayout title="WhatsApp Follow-ups">
-      <div className="-mx-6 -my-6 grid h-[calc(100vh-3.5rem)] grid-cols-[300px_1fr] border-t border-border">
+      <div className="-mx-6 -mb-6 grid h-[calc(100vh-3.5rem-6.5rem)] grid-cols-[300px_1fr] border-t border-border">
         {/* Conversation list */}
         <aside className="flex flex-col overflow-hidden border-r border-border bg-card/30">
           <div className="border-b border-border px-4 py-3">

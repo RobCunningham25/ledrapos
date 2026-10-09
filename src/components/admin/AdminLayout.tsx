@@ -1,11 +1,13 @@
 import { ReactNode, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Package, Users, CalendarDays, BedDouble, BarChart3, Settings, Menu, X, LogOut, Mail, MessageCircle, AlertCircle, UserPlus, MessageSquareWarning, ClipboardList, CalendarClock, CalendarRange, Zap, Anchor, Map, type LucideIcon } from 'lucide-react';
+import { LayoutDashboard, Users, CalendarDays, BedDouble, Settings, Menu, X, LogOut, Mail, MessageCircle, CalendarRange, Anchor, Beer, Wrench, type LucideIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useAdminAuth } from '@/contexts/AdminAuthContext';
 import { useVenue } from '@/contexts/VenueContext';
 import { useVenueNav } from '@/hooks/useVenueNav';
+import SectionTabs from './SectionTabs';
+import { sectionById, type AdminSectionId } from './adminSections';
 
 interface AdminLayoutProps {
   children: ReactNode;
@@ -22,28 +24,23 @@ interface NavItem {
   icon: LucideIcon;
   managerSees?: boolean;
   managerOnly?: boolean;
+  /** Tabbed section: the item stays highlighted on every tab's route. */
+  section?: AdminSectionId;
 }
 
 const navKeys: NavItem[] = [
   { label: 'Dashboard', sub: '', icon: LayoutDashboard, managerSees: true },
-  { label: 'Products', sub: 'products', icon: Package },
-  { label: 'Members', sub: 'members', icon: Users },
+  { label: 'Bar', sub: 'products', icon: Beer, section: 'bar' },
+  { label: 'Members', sub: 'members', icon: Users, section: 'members' },
   // Read-only, non-sensitive subset (name/cell/sites/boats — no email, no financial data)
   { label: 'Members', sub: 'member-directory', icon: Users, managerOnly: true },
-  { label: 'Applications', sub: 'applications', icon: UserPlus },
-  { label: 'Issues', sub: 'issues', icon: MessageSquareWarning, managerSees: true },
+  { label: 'Ground Management', sub: 'issues', icon: Wrench, managerSees: true, section: 'ground' },
   { label: 'Calendar', sub: 'calendar', icon: CalendarRange, managerOnly: true },
   { label: 'Events', sub: 'events', icon: CalendarDays },
-  { label: 'Jobs', sub: 'jobs', icon: ClipboardList, managerSees: true },
-  { label: 'Leave', sub: 'leave', icon: CalendarClock, managerSees: true },
   { label: 'Bookings', sub: 'bookings', icon: BedDouble, managerSees: true },
   { label: 'Water Sign-Outs', sub: 'water-signouts', icon: Anchor, managerSees: true },
-  { label: 'Stand Map', sub: 'stand-map', icon: Map, managerSees: true },
-  { label: 'Electricity Meters', sub: 'electricity-meters', icon: Zap },
-  { label: 'Reports', sub: 'reports', icon: BarChart3 },
   { label: 'Broadcasts', sub: 'broadcasts', icon: Mail },
-  { label: 'WhatsApp AI', sub: 'whatsapp/assistant', icon: MessageCircle },
-  { label: 'Follow-ups', sub: 'whatsapp/followups', icon: AlertCircle },
+  { label: 'WhatsApp', sub: 'whatsapp/followups', icon: MessageCircle, section: 'whatsapp' },
   { label: 'Settings', sub: 'settings', icon: Settings },
 ];
 
@@ -58,9 +55,14 @@ export default function AdminLayout({ children, title, action }: AdminLayoutProp
   const isManager = adminUser?.role === 'manager';
   const navItems = navKeys
     .filter((item) => (isManager ? item.managerSees || item.managerOnly : !item.managerOnly))
-    .map((item) => ({ ...item, path: adminPath(item.sub) }));
+    .map((item) => ({
+      ...item,
+      path: adminPath(item.sub),
+      alsoPaths: item.section ? sectionById(item.section).tabs.map((t) => adminPath(t.sub)) : [],
+    }));
 
-  const isActive = (path: string) => location.pathname === path;
+  const isActive = (path: string, alsoPaths: string[] = []) =>
+    location.pathname === path || alsoPaths.includes(location.pathname);
 
   const sidebar = (
     <div className="flex h-full flex-col">
@@ -73,7 +75,7 @@ export default function AdminLayout({ children, title, action }: AdminLayoutProp
       </div>
       <nav className="flex-1 min-h-0 overflow-y-auto py-4 space-y-1 px-3">
         {navItems.map((item) => {
-          const active = isActive(item.path);
+          const active = isActive(item.path, item.alsoPaths);
           return (
             <button
               key={item.path}
@@ -156,6 +158,7 @@ export default function AdminLayout({ children, title, action }: AdminLayoutProp
           {action && <div>{action}</div>}
         </header>
         <main className="flex-1 overflow-auto bg-page p-4 md:p-8">
+          <SectionTabs />
           {children}
         </main>
       </div>
